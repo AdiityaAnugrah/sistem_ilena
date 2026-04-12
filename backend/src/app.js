@@ -8,6 +8,9 @@ const logger = require('./config/logger');
 
 const app = express();
 
+// Trust proxy (OpenLiteSpeed / Nginx reverse proxy)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
