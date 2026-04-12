@@ -141,12 +141,14 @@ export default function ProfilPage() {
               size="small"
               fullWidth
               placeholder="Masukkan nama lengkap"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <User size={16} color="#94a3b8" />
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <User size={16} color="#94a3b8" />
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <TextField
@@ -157,12 +159,14 @@ export default function ProfilPage() {
               size="small"
               fullWidth
               required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Mail size={16} color="#94a3b8" />
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Mail size={16} color="#94a3b8" />
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -198,19 +202,21 @@ export default function ProfilPage() {
               size="small"
               fullWidth
               required
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock size={16} color="#94a3b8" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setShowCurrent((v) => !v)} edge="end">
-                      {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock size={16} color="#94a3b8" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowCurrent((v) => !v)} edge="end">
+                        {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <TextField
@@ -222,19 +228,21 @@ export default function ProfilPage() {
               fullWidth
               required
               helperText="Minimal 6 karakter"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock size={16} color="#94a3b8" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setShowNew((v) => !v)} edge="end">
-                      {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock size={16} color="#94a3b8" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowNew((v) => !v)} edge="end">
+                        {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <TextField
@@ -251,19 +259,21 @@ export default function ProfilPage() {
                   ? 'Password tidak cocok'
                   : ''
               }
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock size={16} color="#94a3b8" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setShowConfirm((v) => !v)} edge="end">
-                      {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock size={16} color="#94a3b8" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowConfirm((v) => !v)} edge="end">
+                        {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
