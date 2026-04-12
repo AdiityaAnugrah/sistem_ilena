@@ -2,7 +2,6 @@
 .superpowers/
 backend/node_modules
 frontend/node_modules
-frontend/src/app/dashboard/log-activity/page.tsx
 # Keamanan (Sangat Penting)
 .env
 
