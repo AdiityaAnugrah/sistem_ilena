@@ -56,7 +56,7 @@ const ROLE_CONFIG: Record<string, { color: "error" | "secondary" | "primary" | "
   SUPER_ADMIN: { color: 'secondary', label: 'Super Admin' },
   ADMIN: { color: 'primary', label: 'Admin' },
   PENGGUNA: { color: 'default', label: 'Pengguna' },
-  TEST: { color: 'warning', label: 'Testing' },
+  TEST: { color: 'default', label: 'Testing' },
 };
 
 const emptyForm = { username: '', nama_lengkap: '', email: '', password: '', role: 'PENGGUNA' as UserRow['role'] };

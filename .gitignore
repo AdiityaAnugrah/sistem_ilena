@@ -29,3 +29,6 @@ frontend/config-rahasia.json
 node_modules/
 .env
 dist/
+/CLAUDE.md
+/AGENTS.md
+/README.md
