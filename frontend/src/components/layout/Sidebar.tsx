@@ -88,7 +88,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: 12 }}>IL</span>
@@ -127,12 +127,12 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                         padding: '8px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                        backgroundColor: active ? 'rgba(37,99,235,0.12)' : 'transparent',
-                        color: active ? '#93c5fd' : 'rgba(255,255,255,0.7)',
+                        backgroundColor: active ? 'rgba(250,47,47,0.12)' : 'transparent',
+                        color: active ? '#fca5a5' : 'rgba(255,255,255,0.7)',
                         textAlign: 'left',
                       }}
                     >
-                      <item.icon size={17} color={active ? '#60a5fa' : 'rgba(255,255,255,0.35)'} strokeWidth={1.75} />
+                      <item.icon size={17} color={active ? '#fca5a5' : 'rgba(255,255,255,0.35)'} strokeWidth={1.75} />
                       <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</span>
                       <ChevronDown
                         size={13}
@@ -151,11 +151,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
                         padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
-                        backgroundColor: active ? 'rgba(37,99,235,0.12)' : 'transparent',
-                        color: active ? '#93c5fd' : 'rgba(255,255,255,0.7)',
+                        backgroundColor: active ? 'rgba(250,47,47,0.12)' : 'transparent',
+                        color: active ? '#fca5a5' : 'rgba(255,255,255,0.7)',
                       }}
                     >
-                      <item.icon size={17} color={active ? '#60a5fa' : 'rgba(255,255,255,0.35)'} strokeWidth={1.75} />
+                      <item.icon size={17} color={active ? '#fca5a5' : 'rgba(255,255,255,0.35)'} strokeWidth={1.75} />
                       <span style={{ fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</span>
                     </Link>
                   )}
@@ -173,7 +173,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                               display: 'block', padding: '6px 8px', borderRadius: 6,
                               textDecoration: 'none', fontSize: 12.5,
                               fontWeight: childActive ? 600 : 400,
-                              color: childActive ? '#60a5fa' : 'rgba(255,255,255,0.45)',
+                              color: childActive ? '#fca5a5' : 'rgba(255,255,255,0.45)',
                             }}
                           >
                             {child.label}
@@ -193,7 +193,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-              background: 'linear-gradient(135deg, #1d4ed8, #1e40af)',
+              background: 'linear-gradient(135deg, #d41a1a, #b91414)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, color: '#fff',
             }}>

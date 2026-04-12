@@ -137,7 +137,7 @@ export default function PenjualanOfflineBaru() {
                   <button key={t} type="button"
                     onClick={() => setTipe(t)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      tipe === t ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      tipe === t ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}>
                     {t === 'PENJUALAN' ? 'Penjualan' : 'Display'}
                   </button>
@@ -151,7 +151,7 @@ export default function PenjualanOfflineBaru() {
                   <button key={f} type="button"
                     onClick={() => setFaktur(f)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      faktur === f ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}>
                     {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
                   </button>
@@ -226,8 +226,8 @@ export default function PenjualanOfflineBaru() {
         <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)]">
           <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-50 border border-blue-100">
-                <PackageOpen className="w-5 h-5 text-blue-600" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-red-100 to-red-50 border border-red-100">
+                <PackageOpen className="w-5 h-5 text-red-600" />
               </div>
               <div>
                 <CardTitle className="text-lg font-bold text-slate-800">Daftar Produk</CardTitle>
@@ -266,7 +266,7 @@ export default function PenjualanOfflineBaru() {
                                   updateItem(idx, 'varian_nama', picked?.nama || null);
                                   updateItem(idx, 'varian_id', picked?.id || null);
                                 }}
-                                className="px-2 py-0.5 rounded border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+                                className="px-2 py-0.5 rounded border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-200"
                               >
                                 {item.varian_list.map((v: any) => (
                                   <option key={v.id || v.nama} value={v.nama}>{v.nama}</option>
@@ -276,7 +276,7 @@ export default function PenjualanOfflineBaru() {
                           </div>
                         </td>
                         <td className="py-4 px-5">
-                          <div className="flex items-center justify-between w-[100px] mx-auto border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm ring-1 ring-transparent focus-within:ring-blue-200 focus-within:border-blue-400 transition-all">
+                          <div className="flex items-center justify-between w-[100px] mx-auto border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm ring-1 ring-transparent focus-within:ring-red-200 focus-within:border-red-400 transition-all">
                             <button
                               type="button"
                               onClick={() => updateItem(idx, 'qty', Math.max(1, item.qty - 1))}
@@ -308,7 +308,7 @@ export default function PenjualanOfflineBaru() {
                               type="number"
                               value={item.harga_satuan || ''}
                               onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
-                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all font-bold text-slate-700"
+                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                             />
                           </div>
                         </td>
@@ -320,7 +320,7 @@ export default function PenjualanOfflineBaru() {
                               max={100}
                               value={item.diskon || ''}
                               onChange={e => updateItem(idx, 'diskon', Number(e.target.value))}
-                              className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all font-bold text-slate-700"
+                              className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                             />
                             <div className="absolute right-2 text-slate-400 font-bold text-xs pointer-events-none">%</div>
                           </div>
@@ -349,7 +349,7 @@ export default function PenjualanOfflineBaru() {
                         TOTAL PENJUALAN
                       </td>
                       <td className="py-5 px-5 text-right">
-                        <div className="text-xl font-black text-blue-600 tracking-tight">
+                        <div className="text-xl font-black text-red-600 tracking-tight">
                           {formatRupiah(total)}
                         </div>
                       </td>

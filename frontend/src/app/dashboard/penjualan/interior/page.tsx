@@ -46,8 +46,8 @@ export default function PenjualanInteriorPage() {
         </div>
         <Link href="/dashboard/penjualan/interior/baru">
           <button
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-300 shadow-[0_4px_12px_rgba(37,99,235,0.25)] hover:shadow-[0_8px_20px_rgba(37,99,235,0.35)] hover:-translate-y-0.5 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-300 shadow-[0_4px_12px_rgba(250,47,47,0.25)] hover:shadow-[0_8px_20px_rgba(250,47,47,0.35)] hover:-translate-y-0.5 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}
           >
             <Plus className="h-4 w-4" />
             Interior Baru
@@ -76,7 +76,7 @@ export default function PenjualanInteriorPage() {
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm rounded-lg transition-all duration-150 outline-none md:w-[280px]"
                 style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#334155' }}
-                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
                 onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
               />
             </div>
@@ -127,14 +127,14 @@ export default function PenjualanInteriorPage() {
                   <td className="px-5 py-4 font-semibold text-slate-800">{row.nama_customer}</td>
                   <td className="px-5 py-4 text-slate-500">{row.no_hp}</td>
                   <td className="px-5 py-4">
-                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${row.faktur === 'FAKTUR' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${row.faktur === 'FAKTUR' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
                         {row.faktur === 'FAKTUR' ? 'Faktur' : 'Non Faktur'}
                      </span>
                   </td>
                   <td className="px-5 py-4">
                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                         row.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
-                        row.status === 'ACTIVE' ? 'bg-blue-100 text-blue-700' : 
+                        row.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 
                         'bg-slate-100 text-slate-600'
                      }`}>
                         {row.status === 'COMPLETED' ? 'Selesai' : row.status === 'ACTIVE' ? 'Aktif' : 'Draft'}
@@ -143,7 +143,7 @@ export default function PenjualanInteriorPage() {
                   <td className="px-5 py-4">
                     <Link href={`/dashboard/penjualan/interior/${row.id}`}>
                       <button
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-slate-100 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-transparent"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 border border-transparent"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         Detail

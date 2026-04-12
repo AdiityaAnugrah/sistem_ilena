@@ -42,9 +42,9 @@ export default function DashboardPage() {
       desc: 'Total transaksi',
       value: stats.offline,
       icon: ShoppingCart,
-      color: '#2563eb',
-      bg: '#eff6ff',
-      accent: '#bfdbfe',
+      color: '#FA2F2F',
+      bg: '#fff1f1',
+      accent: '#fecaca',
       href: '/dashboard/penjualan/offline',
     },
     {
@@ -108,7 +108,7 @@ export default function DashboardPage() {
             {now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <h1 className="text-xl sm:text-2xl font-bold" style={{ color: '#0f172a', letterSpacing: '-0.02em' }}>
-            {greeting}, <span style={{ color: '#2563eb' }}>{user?.username}</span>
+            {greeting}, <span style={{ color: '#FA2F2F' }}>{user?.username}</span>
           </h1>
         </div>
         <div
@@ -142,7 +142,7 @@ export default function DashboardPage() {
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 sm:gap-10">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] mb-2 text-indigo-200">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] mb-2 text-red-200">
               Total Transaksi Sistem
             </p>
             {loading ? (
@@ -220,7 +220,7 @@ export default function DashboardPage() {
       {/* ─── Quick Actions ─── */}
       <div className="pt-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-4 flex items-center gap-2">
-           <Activity className="h-4 w-4 text-indigo-500" /> Akses Cepat
+           <Activity className="h-4 w-4 text-red-500" /> Akses Cepat
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickActions.map((action) => (
@@ -235,10 +235,10 @@ export default function DashboardPage() {
                 style={{ background: '#f8fafc' }}
               >
                 <action.icon
-                  className="h-5 w-5 text-slate-500 group-hover:text-indigo-600 transition-colors duration-300"
+                  className="h-5 w-5 text-slate-500 group-hover:text-red-600 transition-colors duration-300"
                 />
               </div>
-              <div className="font-semibold text-sm text-slate-800 mb-1 group-hover:text-indigo-600 transition-colors">
+              <div className="font-semibold text-sm text-slate-800 mb-1 group-hover:text-red-600 transition-colors">
                 {action.label}
               </div>
               <div className="text-xs text-slate-400 leading-relaxed">{action.desc}</div>

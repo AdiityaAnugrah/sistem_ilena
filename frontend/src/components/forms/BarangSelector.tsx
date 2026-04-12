@@ -96,8 +96,8 @@ export default function BarangSelector({ onSelect }: Props) {
                 key={barang.id}
                 className="w-full flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 group"
               >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-blue-50 transition-colors">
-                  <Package className="h-5 w-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 group-hover:bg-red-50 transition-colors">
+                  <Package className="h-5 w-5 text-slate-400 group-hover:text-red-400 transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-800 truncate" title={barang.nama}>
@@ -111,13 +111,13 @@ export default function BarangSelector({ onSelect }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 mt-2 sm:mt-0 flex-shrink-0">
-                  <span className="text-[15px] font-black text-blue-600 tracking-tight">
+                  <span className="text-[15px] font-black text-red-600 tracking-tight">
                     {formatRupiah(barang.harga)}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleSelect(barang)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 hover:border-blue-200 transition-all active:scale-95 shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 hover:border-red-200 transition-all active:scale-95 shadow-sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Pilih

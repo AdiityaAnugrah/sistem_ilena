@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Mobile Header (z-40 so it stays above backdrop [z-30], but sidebar left flies over it at z-50) */}
         <div className="lg:hidden absolute top-0 left-0 right-0 h-[60px] bg-white border-b z-40 flex items-center px-4 justify-between" style={{ borderColor: '#e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+            <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
               <span className="text-white font-bold text-[10px] tracking-tight">IL</span>
             </div>
             <div className="font-semibold text-[15px] text-slate-800 tracking-tight">ILENA</div>

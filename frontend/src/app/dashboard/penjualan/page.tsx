@@ -132,7 +132,7 @@ export default function SemuaPenjualanPage() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <ShoppingBag size={28} style={{ color: '#2563eb' }} />
+            <ShoppingBag size={28} style={{ color: '#FA2F2F' }} />
             <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>Semua Penjualan</Typography>
           </Box>
           <Typography variant="body2" color="text.secondary">Total {total} transaksi tercatat dalam sistem</Typography>

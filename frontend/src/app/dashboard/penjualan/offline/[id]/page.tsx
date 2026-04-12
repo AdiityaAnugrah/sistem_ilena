@@ -46,9 +46,9 @@ const DocItem = ({ nomor, tanggal, onPrint }: { nomor: string; tanggal: string; 
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
       style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-        (e.currentTarget as HTMLElement).style.color = '#2563eb';
-        (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
+        (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+        (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
+        (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.background = '#fff';
@@ -77,9 +77,9 @@ const DocModal = ({
         <div className="flex items-center gap-3 mb-5">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: '#eff6ff' }}
+            style={{ background: '#fff1f1' }}
           >
-            <FileText className="h-5 w-5" style={{ color: '#2563eb' }} />
+            <FileText className="h-5 w-5" style={{ color: '#FA2F2F' }} />
           </div>
           <div>
             <h3 className="font-bold" style={{ color: '#0f172a' }}>{title}</h3>
@@ -98,7 +98,7 @@ const DocModal = ({
               onChange={e => setTanggal(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
@@ -113,7 +113,7 @@ const DocModal = ({
               placeholder="Contoh: *Pak Danil 0812-xxxx-xxxx"
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none transition-all"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
@@ -131,7 +131,7 @@ const DocModal = ({
             onClick={onSubmit}
             disabled={loading}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
+            style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
           >
             {loading ? 'Membuat...' : 'Buat Dokumen'}
           </button>
@@ -367,7 +367,7 @@ export default function PenjualanOfflineDetail() {
             Barang display berhasil diproses jadi terjual! 
             <button 
               onClick={() => { toast.dismiss(t.id); router.push(`/dashboard/penjualan/offline/${newPenjualanId}`); }} 
-              className="ml-2 font-bold underline text-blue-600 dark:text-blue-400"
+              className="ml-2 font-bold underline text-red-600 dark:text-red-400"
             >
               Lihat Nota Penjualan
             </button>
@@ -453,9 +453,9 @@ export default function PenjualanOfflineDetail() {
                 <button
                   onClick={openIdentitasModal}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#dbeafe'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#eff6ff'}
+                  style={{ background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fee2e2'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}
                 >
                   <Pencil className="h-3 w-3" /> Edit Identitas
                 </button>
@@ -553,7 +553,7 @@ export default function PenjualanOfflineDetail() {
                     <td colSpan={4} className="px-5 py-3.5 text-sm font-bold text-right" style={{ color: '#475569' }}>
                       Total
                     </td>
-                    <td className="px-5 py-3.5 text-base font-black text-right" style={{ color: '#2563eb' }}>
+                    <td className="px-5 py-3.5 text-base font-black text-right" style={{ color: '#FA2F2F' }}>
                       {formatRupiah(total)}
                     </td>
                   </tr>
@@ -576,9 +576,9 @@ export default function PenjualanOfflineDetail() {
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
                     style={{ background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', textAlign: 'left' }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-                      (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
-                      (e.currentTarget as HTMLElement).style.color = '#2563eb';
+                      (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+                      (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
+                      (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
                     }}
                     onMouseLeave={e => {
                       (e.currentTarget as HTMLElement).style.background = '#f8fafc';
@@ -597,9 +597,9 @@ export default function PenjualanOfflineDetail() {
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
                     style={{ background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', textAlign: 'left' }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-                      (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
-                      (e.currentTarget as HTMLElement).style.color = '#2563eb';
+                      (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+                      (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
+                      (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
                     }}
                     onMouseLeave={e => {
                       (e.currentTarget as HTMLElement).style.background = '#f8fafc';
@@ -620,9 +620,9 @@ export default function PenjualanOfflineDetail() {
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
                   style={{ background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', textAlign: 'left' }}
                   onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-                    (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
-                    (e.currentTarget as HTMLElement).style.color = '#2563eb';
+                    (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+                    (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
+                    (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
                   }}
                   onMouseLeave={e => {
                     (e.currentTarget as HTMLElement).style.background = '#f8fafc';
@@ -798,8 +798,8 @@ export default function PenjualanOfflineDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#eff6ff' }}>
-                <Pencil className="h-5 w-5" style={{ color: '#2563eb' }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
+                <Pencil className="h-5 w-5" style={{ color: '#FA2F2F' }} />
               </div>
               <div>
                 <h3 className="font-bold" style={{ color: '#0f172a' }}>Edit Identitas Penerima</h3>
@@ -824,7 +824,7 @@ export default function PenjualanOfflineDetail() {
                     onChange={e => setIdentitasForm(prev => ({ ...prev, [key]: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-                    onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+                    onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
                     onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
                   />
                 </div>
@@ -834,7 +834,7 @@ export default function PenjualanOfflineDetail() {
               <button onClick={() => setIdentitasModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
                 Batal
               </button>
-              <button onClick={saveIdentitas} disabled={identitasLoading || !identitasForm.nama_penerima} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+              <button onClick={saveIdentitas} disabled={identitasLoading || !identitasForm.nama_penerima} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
                 {identitasLoading ? 'Menyimpan...' : 'Simpan'}
               </button>
             </div>

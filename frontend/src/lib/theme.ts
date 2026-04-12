@@ -12,9 +12,9 @@ const theme = createTheme({
   palette: {
     mode: 'light', // We can toggle this if needed
     primary: {
-      main: '#2563eb', // Indigo Blue
-      dark: '#1d4ed8',
-      light: '#60a5fa',
+      main: '#FA2F2F',
+      dark: '#d41a1a',
+      light: '#fb5757',
     },
     secondary: {
       main: '#64748b', // Slate
@@ -51,7 +51,7 @@ const theme = createTheme({
           borderRadius: 10,
           boxShadow: 'none',
           '&:hover': {
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)',
+            boxShadow: '0 4px 12px rgba(250, 47, 47, 0.1)',
           },
         },
       },
@@ -59,9 +59,9 @@ const theme = createTheme({
         {
           props: { variant: 'contained', color: 'primary' },
           style: {
-            background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+            background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)',
             '&:hover': {
-              background: 'linear-gradient(135deg, #1d4ed8, #1e40af)',
+              background: 'linear-gradient(135deg, #d41a1a, #b91414)',
             },
           },
         },
@@ -115,8 +115,8 @@ const theme = createTheme({
         {
           props: { variant: 'soft', color: 'primary' },
           style: {
-            backgroundColor: 'rgba(37, 99, 235, 0.1)',
-            color: '#2563eb',
+            backgroundColor: 'rgba(250, 47, 47, 0.1)',
+            color: '#FA2F2F',
             border: 'none',
           },
         },

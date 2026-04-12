@@ -17,6 +17,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Sistem Ilena",
   description: "Sistem Manajemen Penjualan CV. Catur Bhakti Mandiri",
+  icons: {
+    icon: '/img/logoilena.svg',
+    shortcut: '/img/logoilena.svg',
+    apple: '/img/logoilena.svg',
+  },
 };
 
 export default function RootLayout({

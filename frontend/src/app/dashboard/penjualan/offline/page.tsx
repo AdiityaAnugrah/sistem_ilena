@@ -75,8 +75,8 @@ export default function PenjualanOfflinePage() {
         </div>
         <Link href="/dashboard/penjualan/offline/baru">
           <button
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-300 shadow-[0_4px_12px_rgba(37,99,235,0.25)] hover:shadow-[0_8px_20px_rgba(37,99,235,0.35)] hover:-translate-y-0.5 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all duration-300 shadow-[0_4px_12px_rgba(250,47,47,0.25)] hover:shadow-[0_8px_20px_rgba(250,47,47,0.35)] hover:-translate-y-0.5 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}
           >
             <Plus className="h-4 w-4" />
             Penjualan Baru
@@ -97,7 +97,7 @@ export default function PenjualanOfflinePage() {
                 onChange={e => { setTipeFilter(e.target.value); setPage(1); }}
                 className="w-full px-3 py-2 text-sm rounded-lg outline-none transition-all cursor-pointer"
                 style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}
-                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
                 onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
              >
                 <option value="PENJUALAN">Penjualan</option>
@@ -120,7 +120,7 @@ export default function PenjualanOfflinePage() {
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-sm rounded-lg transition-all duration-150 outline-none md:w-[260px]"
                 style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#334155' }}
-                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+                onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
                 onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
               />
             </div>
@@ -206,9 +206,9 @@ export default function PenjualanOfflinePage() {
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                         style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}
                         onMouseEnter={e => {
-                          (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-                          (e.currentTarget as HTMLElement).style.color = '#2563eb';
-                          (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
+                          (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+                          (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
+                          (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
                         }}
                         onMouseLeave={e => {
                           (e.currentTarget as HTMLElement).style.background = '#f1f5f9';

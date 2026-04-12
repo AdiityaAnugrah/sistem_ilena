@@ -76,7 +76,7 @@ export default function PenjualanInteriorBaru() {
                   <button key={f} type="button"
                     onClick={() => setFaktur(f)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      faktur === f ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                     }`}>
                     {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
                   </button>
@@ -171,20 +171,20 @@ export default function PenjualanInteriorBaru() {
                   {items.map((item, idx) => (
                     <tr key={idx} className="group hover:bg-slate-50 transition-colors">
                       <td className="py-3 px-5">
-                        <Input value={item.kode_barang} onChange={e => updateItem(idx, 'kode_barang', e.target.value)} placeholder="Kode" className="h-9 focus:ring-blue-200 border-slate-200" />
+                        <Input value={item.kode_barang} onChange={e => updateItem(idx, 'kode_barang', e.target.value)} placeholder="Kode" className="h-9 focus:ring-red-200 border-slate-200" />
                       </td>
                       <td className="py-3 px-5">
-                        <Input value={item.nama_barang} onChange={e => updateItem(idx, 'nama_barang', e.target.value)} placeholder="Nama barang" className="h-9 focus:ring-blue-200 border-slate-200" />
+                        <Input value={item.nama_barang} onChange={e => updateItem(idx, 'nama_barang', e.target.value)} placeholder="Nama barang" className="h-9 focus:ring-red-200 border-slate-200" />
                       </td>
                       <td className="py-3 px-5 text-center">
-                        <Input type="number" min={1} value={item.qty} onChange={e => updateItem(idx, 'qty', Number(e.target.value))} className="w-full h-9 text-center focus:ring-blue-200 border-slate-200" />
+                        <Input type="number" min={1} value={item.qty} onChange={e => updateItem(idx, 'qty', Number(e.target.value))} className="w-full h-9 text-center focus:ring-red-200 border-slate-200" />
                       </td>
                       <td className="py-3 px-5">
                          <div className="relative flex items-center shadow-sm rounded-lg">
                            <div className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none">Rp</div>
                            <input
                              type="number" value={item.harga_satuan || ''} onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
-                             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all font-bold text-slate-700"
+                             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                            />
                          </div>
                       </td>
@@ -216,7 +216,7 @@ export default function PenjualanInteriorBaru() {
                   )}
                   <tr className="border-t border-slate-200">
                     <td colSpan={4} className="py-5 px-5 text-right text-slate-800 font-bold tracking-wide">TOTAL:</td>
-                    <td className="py-5 px-5 text-right font-black text-blue-600 text-lg tracking-tight">{formatRupiah(grandTotal)}</td>
+                    <td className="py-5 px-5 text-right font-black text-red-600 text-lg tracking-tight">{formatRupiah(grandTotal)}</td>
                     <td></td>
                   </tr>
                 </tfoot>

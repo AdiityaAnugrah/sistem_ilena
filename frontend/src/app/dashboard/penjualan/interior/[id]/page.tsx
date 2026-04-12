@@ -57,9 +57,9 @@ const DocItem = ({ nomor, sub, onPrint }: { nomor: string; sub: string; onPrint?
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
         style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
         onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-          (e.currentTarget as HTMLElement).style.color = '#2563eb';
-          (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
+          (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+          (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
+          (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
         }}
         onMouseLeave={e => {
           (e.currentTarget as HTMLElement).style.background = '#fff';
@@ -95,8 +95,8 @@ const ModalWrapper = ({ show, onClose, children }: { show: boolean; onClose: () 
 
 const ModalHeader = ({ icon: Icon, title, sub }: { icon: any; title: string; sub: string }) => (
   <div className="flex items-center gap-3 mb-5">
-    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#eff6ff' }}>
-      <Icon className="h-5 w-5" style={{ color: '#2563eb' }} />
+    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
+      <Icon className="h-5 w-5" style={{ color: '#FA2F2F' }} />
     </div>
     <div>
       <h3 className="font-bold" style={{ color: '#0f172a' }}>{title}</h3>
@@ -112,7 +112,7 @@ const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any)
       type={type} value={value} onChange={onChange} placeholder={placeholder}
       className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
       style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
       onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
     />
   </div>
@@ -126,7 +126,7 @@ const ModalFooter = ({ onClose, onSubmit, loading, label }: any) => (
     <button
       onClick={onSubmit} disabled={loading}
       className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-      style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
+      style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
     >
       {loading ? 'Memproses...' : label}
     </button>
@@ -139,9 +139,9 @@ const ActionButton = ({ onClick, icon: Icon, label, desc }: any) => (
     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
     style={{ background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', textAlign: 'left' }}
     onMouseEnter={e => {
-      (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-      (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
-      (e.currentTarget as HTMLElement).style.color = '#2563eb';
+      (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+      (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
+      (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
     }}
     onMouseLeave={e => {
       (e.currentTarget as HTMLElement).style.background = '#f8fafc';
@@ -397,7 +397,7 @@ export default function PenjualanInteriorDetail() {
           className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
           style={
             data.status === 'ACTIVE' ? { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' } :
-            data.status === 'COMPLETED' ? { background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' } :
+            data.status === 'COMPLETED' ? { background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' } :
             { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }
           }
         >
@@ -416,9 +416,9 @@ export default function PenjualanInteriorDetail() {
                 <button
                   onClick={openIdentitasModal}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                  style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#dbeafe'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#eff6ff'}
+                  style={{ background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fee2e2'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}
                 >
                   <Pencil className="h-3 w-3" /> Edit Identitas
                 </button>
@@ -481,7 +481,7 @@ export default function PenjualanInteriorDetail() {
                   )}
                   <tr style={{ background: '#f8fafc' }}>
                     <td colSpan={4} className="px-5 py-3 text-base font-black text-right" style={{ color: '#0f172a' }}>Total</td>
-                    <td className="px-5 py-3 text-base font-black text-right" style={{ color: '#2563eb' }}>{formatRupiah(grandTotal)}</td>
+                    <td className="px-5 py-3 text-base font-black text-right" style={{ color: '#FA2F2F' }}>{formatRupiah(grandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -580,9 +580,9 @@ export default function PenjualanInteriorDetail() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                           style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
                           onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.background = '#eff6ff';
-                            (e.currentTarget as HTMLElement).style.color = '#2563eb';
-                            (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe';
+                            (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+                            (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
+                            (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
                           }}
                           onMouseLeave={e => {
                             (e.currentTarget as HTMLElement).style.background = '#fff';
@@ -631,7 +631,7 @@ export default function PenjualanInteriorDetail() {
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-medium truncate" style={{ color: '#92400e' }}>{namaBarang}</span>
-                                <span className="flex-shrink-0 font-bold px-2 py-0.5 rounded-full" style={{ background: '#bfdbfe', color: '#be123c' }}>
+                                <span className="flex-shrink-0 font-bold px-2 py-0.5 rounded-full" style={{ background: '#fecaca', color: '#be123c' }}>
                                   -{retur.qty_retur} unit
                                 </span>
                               </div>
@@ -678,7 +678,7 @@ export default function PenjualanInteriorDetail() {
             <textarea value={proformaCatatan} onChange={e => setProformaCatatan(e.target.value)} rows={2}
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
@@ -802,7 +802,7 @@ export default function PenjualanInteriorDetail() {
               placeholder="Alasan retur..."
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
@@ -842,8 +842,8 @@ export default function PenjualanInteriorDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#eff6ff' }}>
-                <Pencil className="h-5 w-5" style={{ color: '#2563eb' }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
+                <Pencil className="h-5 w-5" style={{ color: '#FA2F2F' }} />
               </div>
               <div>
                 <h3 className="font-bold" style={{ color: '#0f172a' }}>Edit Identitas Customer</h3>
@@ -868,7 +868,7 @@ export default function PenjualanInteriorDetail() {
                     onChange={e => setIdentitasForm(prev => ({ ...prev, [key]: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg text-sm outline-none"
                     style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-                    onFocus={e => (e.target as HTMLElement).style.border = '1px solid #2563eb'}
+                    onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
                     onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
                   />
                 </div>
@@ -878,7 +878,7 @@ export default function PenjualanInteriorDetail() {
               <button onClick={() => setIdentitasModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
                 Batal
               </button>
-              <button onClick={saveIdentitas} disabled={identitasLoading || !identitasForm.nama_customer} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #2563eb, #1d4ed8)' }}>
+              <button onClick={saveIdentitas} disabled={identitasLoading || !identitasForm.nama_customer} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
                 {identitasLoading ? 'Menyimpan...' : 'Simpan'}
               </button>
             </div>
