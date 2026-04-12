@@ -190,7 +190,24 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
         {/* Footer */}
         <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', marginBottom: 4 }}>
+          <Link
+            href="/dashboard/profil"
+            onClick={onNavigate}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 10px', marginBottom: 4, borderRadius: 8,
+              textDecoration: 'none',
+              backgroundColor: pathname === '/dashboard/profil' ? 'rgba(250,47,47,0.12)' : 'transparent',
+            }}
+            onMouseEnter={(e) => {
+              if (pathname !== '/dashboard/profil')
+                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'rgba(255,255,255,0.04)';
+            }}
+            onMouseLeave={(e) => {
+              if (pathname !== '/dashboard/profil')
+                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'transparent';
+            }}
+          >
             <div style={{
               width: 28, height: 28, borderRadius: 6, flexShrink: 0,
               background: 'linear-gradient(135deg, #d41a1a, #b91414)',
@@ -199,15 +216,15 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             }}>
               {user?.username?.[0]?.toUpperCase() || 'U'}
             </div>
-            <div style={{ overflow: 'hidden' }}>
+            <div style={{ overflow: 'hidden', flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 12.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.username}
               </div>
               <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
-                {user?.role}
+                {user?.role} · Edit Profil
               </div>
             </div>
-          </div>
+          </Link>
           <button
             onClick={() => setLogoutConfirm(true)}
             style={{

@@ -11,6 +11,11 @@ const useAuthStore = create((set) => ({
     set({ user, token, isAuthenticated: true });
   },
 
+  updateUser: (updatedUser) => {
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    set({ user: updatedUser });
+  },
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');

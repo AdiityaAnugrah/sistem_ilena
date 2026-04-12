@@ -67,8 +67,60 @@ router.post('/register', authenticate, requireDev, [
 
 // GET /api/auth/me
 router.get('/me', authenticate, (req, res) => {
-  const { id, username, email, role } = req.user;
-  return res.json({ id, username, email, role });
+  const { id, username, nama_lengkap, email, role } = req.user;
+  return res.json({ id, username, nama_lengkap, email, role });
+});
+
+// PATCH /api/auth/profile - update profil sendiri (semua role)
+router.patch('/profile', authenticate, [
+  body('nama_lengkap').optional().trim(),
+  body('email').optional().isEmail().withMessage('Email tidak valid'),
+  body('new_password').optional().isLength({ min: 6 }).withMessage('Password baru minimal 6 karakter'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  try {
+    const { nama_lengkap, email, current_password, new_password } = req.body;
+    const updates = {};
+
+    if (nama_lengkap !== undefined) updates.nama_lengkap = nama_lengkap || null;
+    if (email !== undefined) updates.email = email;
+
+    if (new_password) {
+      if (!current_password) {
+        return res.status(400).json({ message: 'Password lama wajib diisi untuk mengganti password.' });
+      }
+      const valid = await bcrypt.compare(current_password, req.user.password);
+      if (!valid) {
+        return res.status(400).json({ message: 'Password lama salah.' });
+      }
+      updates.password = await bcrypt.hash(new_password, 10);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: 'Tidak ada perubahan.' });
+    }
+
+    await req.user.update(updates);
+    await logAction(req.user.id, 'UPDATE_PROFILE', 'Update profil sendiri', req.ip);
+
+    return res.json({
+      message: 'Profil berhasil diperbarui.',
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        nama_lengkap: req.user.nama_lengkap,
+        email: req.user.email,
+        role: req.user.role,
+      },
+    });
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ message: 'Email sudah digunakan.' });
+    }
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
 });
 
 module.exports = router;
