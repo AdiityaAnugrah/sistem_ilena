@@ -13,3 +13,18 @@ node_modules/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+.claude
+.next
+.superpowers
+.vscode
+# Mengabaikan folder node_modules HANYA di dalam frontend
+frontend/node_modules/
+
+# Mengabaikan file konfigurasi HANYA di dalam frontend
+frontend/.env
+frontend/config-rahasia.json
+# Posisi file: sistem_ilena/frontend/.gitignore
+node_modules/
+.env
+dist/
