@@ -1,0 +1,31 @@
+# Kredensial & Rahasia (Sangat Fatal Jika Bocor)
+.env
+.env.production
+.env.development
+.env.test
+
+# Dependencies (Ukurannya Masif)
+node_modules/
+package-lock.json 
+# (Catatan: package-lock.json boleh tidak di-ignore jika kamu bekerja dalam tim, 
+# tapi sering di-ignore untuk open-source / monorepo tertentu. Biarkan saja jika ragu).
+
+# Hasil Build / Compile (Khusus NestJS & TypeScript)
+/dist/
+/build/
+
+# Logs & Debugging
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+logs/
+*.log
+
+# Testing & Coverage
+/coverage/
+.nyc_output/
+
+# File Upload / Dummy Data (Jika ada fitur upload gambar/file)
+/uploads/
+/public/uploads/
