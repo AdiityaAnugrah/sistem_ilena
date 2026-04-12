@@ -84,7 +84,7 @@ export default function ProfilPage() {
     <Box sx={{ maxWidth: 640, mx: 'auto', px: { xs: 2, sm: 0 } }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" fontWeight={700} sx={{ color: '#0f172a', letterSpacing: '-0.3px' }}>
+        <Typography variant="h5" sx={{ color: '#0f172a', letterSpacing: '-0.3px', fontWeight: 700 }}>
           Profil Akun
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
@@ -104,7 +104,7 @@ export default function ProfilPage() {
             <User size={22} color="#fff" />
           </Box>
           <Box>
-            <Typography fontWeight={700} sx={{ color: '#0f172a', lineHeight: 1.3 }}>
+            <Typography sx={{ color: '#0f172a', lineHeight: 1.3, fontWeight: 700 }}>
               {(user as any)?.username}
             </Typography>
             <Chip
@@ -126,7 +126,7 @@ export default function ProfilPage() {
 
       {/* Form Edit Info */}
       <Paper variant="outlined" sx={{ borderRadius: 3, p: 3, mb: 3, borderColor: '#e2e8f0' }}>
-        <Typography fontWeight={700} sx={{ color: '#0f172a', mb: 0.5 }}>
+        <Typography sx={{ color: '#0f172a', mb: 0.5, fontWeight: 700 }}>
           Informasi Pribadi
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
@@ -182,7 +182,7 @@ export default function ProfilPage() {
 
       {/* Form Ganti Password */}
       <Paper variant="outlined" sx={{ borderRadius: 3, p: 3, borderColor: '#e2e8f0' }}>
-        <Typography fontWeight={700} sx={{ color: '#0f172a', mb: 0.5 }}>
+        <Typography sx={{ color: '#0f172a', mb: 0.5, fontWeight: 700 }}>
           Ganti Password
         </Typography>
         <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
