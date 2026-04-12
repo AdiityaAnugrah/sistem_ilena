@@ -44,4 +44,21 @@ const requireDevOrSuperAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, requireDev, requireDevOrSuperAdmin };
+const requireAdminOrAbove = (req, res, next) => {
+  const allowed = ['DEV', 'SUPER_ADMIN', 'ADMIN'];
+  if (!allowed.includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak. Hanya Admin atau di atasnya yang diizinkan.' });
+  }
+  next();
+};
+
+// Blokir akun TEST dari semua operasi mutasi (POST, PUT, PATCH, DELETE)
+// Gunakan middleware ini di route master data atau route lain yang shared
+const blockTestMutation = (req, res, next) => {
+  if (req.user.role === 'TEST' && req.method !== 'GET') {
+    return res.status(403).json({ message: 'Akun testing tidak dapat mengubah data master.' });
+  }
+  next();
+};
+
+module.exports = { authenticate, requireDev, requireDevOrSuperAdmin, requireAdminOrAbove, blockTestMutation };

@@ -21,12 +21,15 @@ router.get('/semua', authenticate, async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const offset = (pageNum - 1) * limitNum;
 
-    // Build WHERE clauses for each branch
-    const offlineWhere = ['tipe = ?'];
-    const offlineReplacements = ['PENJUALAN'];
+    // Isolasi data test vs produksi
+    const isTest = req.user.role === 'TEST' ? 1 : 0;
 
-    const interiorWhere = [];
-    const interiorReplacements = [];
+    // Build WHERE clauses for each branch
+    const offlineWhere = ['tipe = ?', 'is_test = ?'];
+    const offlineReplacements = ['PENJUALAN', isTest];
+
+    const interiorWhere = ['is_test = ?'];
+    const interiorReplacements = [isTest];
 
     if (search) {
       const likeVal = `%${search}%`;

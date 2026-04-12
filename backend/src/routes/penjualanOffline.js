@@ -16,7 +16,7 @@ const includeAlamat = [
   { model: Kecamatan, as: 'tagihanKecamatan' },
   { model: Kelurahan, as: 'tagihanKelurahan' },
 ];
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 const { generateNomorSJ, generateNomorInvoice, generateNomorSP } = require('../utils/generateNomor');
 
@@ -56,6 +56,7 @@ router.post('/', authenticate, async (req, res) => {
       tagihan_kelurahan_id: tagihan_sama_pengirim ? pengirim_kelurahan_id : tagihan_kelurahan_id,
       tagihan_detail: tagihan_sama_pengirim ? pengirim_detail : tagihan_detail,
       status: 'ACTIVE',
+      is_test: req.user.role === 'TEST' ? 1 : 0,
       created_by: req.user.id,
     });
 
@@ -83,7 +84,7 @@ router.post('/', authenticate, async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { tipe, faktur, status, search, page = 1, limit = 20 } = req.query;
-    const where = {};
+    const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
     if (tipe) where.tipe = tipe;
     if (faktur) where.faktur = faktur;
     if (status) where.status = status;
@@ -186,7 +187,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
     }
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
-    const nomor_surat = await generateNomorSJ(penjualan.faktur, tanggal);
+    const nomor_surat = await generateNomorSJ(penjualan.faktur, tanggal, penjualan.is_test === 1);
 
     const sj = await SuratJalan.create({
       penjualan_offline_id: penjualan.id,
@@ -213,7 +214,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     }
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
-    const nomor_invoice = await generateNomorInvoice(penjualan.faktur, tanggal);
+    const nomor_invoice = await generateNomorInvoice(penjualan.faktur, tanggal, penjualan.is_test === 1);
 
     const inv = await Invoice.create({
       penjualan_offline_id: penjualan.id,
@@ -240,7 +241,7 @@ router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
     }
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
-    const nomor_sp = await generateNomorSP(penjualan.faktur, tanggal);
+    const nomor_sp = await generateNomorSP(penjualan.faktur, tanggal, penjualan.is_test === 1);
 
     const sp = await SuratPengantar.create({
       penjualan_offline_id: penjualan.id,
@@ -369,6 +370,34 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: err.message });
     }
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PATCH /api/penjualan-offline/:id/identitas - edit identitas penerima
+router.patch('/:id/identitas', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+  try {
+    const penjualan = await PenjualanOffline.findByPk(req.params.id);
+    if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
+
+    const { nama_penerima, no_hp_penerima, no_po, nama_npwp, no_npwp } = req.body;
+
+    const updates = {};
+    if (nama_penerima !== undefined) updates.nama_penerima = nama_penerima;
+    if (no_hp_penerima !== undefined) updates.no_hp_penerima = no_hp_penerima;
+    if (no_po !== undefined) updates.no_po = no_po;
+    if (nama_npwp !== undefined) updates.nama_npwp = nama_npwp;
+    if (no_npwp !== undefined) updates.no_npwp = no_npwp;
+
+    await penjualan.update(updates);
+    const { logAction } = require('../middleware/logger');
+    await logAction(req.user.id, 'EDIT_IDENTITAS_OFFLINE', `Edit identitas penjualan offline #${penjualan.id}`, req.ip);
+
+    return res.json({ message: 'Identitas berhasil diperbarui' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

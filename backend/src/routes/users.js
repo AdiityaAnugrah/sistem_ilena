@@ -9,7 +9,7 @@ const router = express.Router();
 
 // Roles yang bisa dikelola berdasarkan role caller
 const getAllowedRoles = (callerRole) => {
-  if (callerRole === 'DEV') return ['DEV', 'SUPER_ADMIN', 'ADMIN', 'PENGGUNA'];
+  if (callerRole === 'DEV') return ['DEV', 'SUPER_ADMIN', 'ADMIN', 'PENGGUNA', 'TEST'];
   return ['ADMIN', 'PENGGUNA'];
 };
 

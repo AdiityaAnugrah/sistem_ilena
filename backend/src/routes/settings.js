@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, blockTestMutation } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 
 const router = express.Router();
@@ -31,7 +31,7 @@ const upload = multer({
 });
 
 // POST /api/settings/signature — upload tanda tangan
-router.post('/signature', authenticate, upload.single('signature'), async (req, res) => {
+router.post('/signature', authenticate, blockTestMutation, upload.single('signature'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'File tanda tangan wajib diupload' });

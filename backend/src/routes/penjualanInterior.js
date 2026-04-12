@@ -6,7 +6,7 @@ const {
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior,
   ReturSJInterior, LogActivity,
 } = require('../models');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 const { generateNomorProforma, generateNomorSJ, generateNomorInvoice } = require('../utils/generateNomor');
 
@@ -44,6 +44,7 @@ router.post('/', authenticate, async (req, res) => {
       ppn_persen: pakai_ppn ? ppn_persen : null,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
       status: 'ACTIVE',
+      is_test: req.user.role === 'TEST' ? 1 : 0,
       created_by: req.user.id,
     });
 
@@ -69,7 +70,7 @@ router.post('/', authenticate, async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { faktur, status, search, page = 1, limit = 20 } = req.query;
-    const where = {};
+    const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
     if (faktur) where.faktur = faktur;
     if (status) where.status = status;
     if (search) {
@@ -127,7 +128,7 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
       total = subtotal * (1 + parseInt(penjualan.ppn_persen) / 100);
     }
 
-    const nomor_proforma = await generateNomorProforma(tanggal);
+    const nomor_proforma = await generateNomorProforma(tanggal, penjualan.is_test === 1);
     const proforma = await ProformaInvoice.create({
       penjualan_interior_id: penjualan.id,
       nomor_proforma,
@@ -190,7 +191,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
     }
 
     const sjTanggal = tanggal || new Date().toISOString().split('T')[0];
-    const nomor_surat = await generateNomorSJ(penjualan.faktur, sjTanggal);
+    const nomor_surat = await generateNomorSJ(penjualan.faktur, sjTanggal, penjualan.is_test === 1);
 
     const sj = await SuratJalanInterior.create({
       penjualan_interior_id: penjualan.id,
@@ -228,7 +229,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
 
     const { tanggal, catatan, surat_jalan_interior_id } = req.body;
     const invTanggal = tanggal || new Date().toISOString().split('T')[0];
-    const nomor_invoice = await generateNomorInvoice(penjualan.faktur, invTanggal);
+    const nomor_invoice = await generateNomorInvoice(penjualan.faktur, invTanggal, penjualan.is_test === 1);
 
     const inv = await InvoiceInterior.create({
       penjualan_interior_id: penjualan.id,
@@ -313,6 +314,33 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     res.status(201).json({ message: 'Retur berhasil dicatat' });
   } catch (err) {
     await t.rollback();
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PATCH /api/penjualan-interior/:id/identitas - edit identitas customer
+router.patch('/:id/identitas', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+  try {
+    const penjualan = await PenjualanInterior.findByPk(req.params.id);
+    if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
+
+    const { nama_customer, nama_pt_npwp, no_hp, no_po, no_npwp } = req.body;
+
+    const updates = {};
+    if (nama_customer !== undefined) updates.nama_customer = nama_customer;
+    if (nama_pt_npwp !== undefined) updates.nama_pt_npwp = nama_pt_npwp;
+    if (no_hp !== undefined) updates.no_hp = no_hp;
+    if (no_po !== undefined) updates.no_po = no_po;
+    if (no_npwp !== undefined) updates.no_npwp = no_npwp;
+
+    await penjualan.update(updates);
+    await logAction(req.user.id, 'EDIT_IDENTITAS_INTERIOR', `Edit identitas penjualan interior #${penjualan.id}`, req.ip);
+
+    return res.json({ message: 'Identitas berhasil diperbarui' });
+  } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

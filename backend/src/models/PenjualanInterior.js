@@ -13,6 +13,7 @@ const PenjualanInterior = sequelize.define('penjualan_interior', {
   ppn_persen: { type: DataTypes.ENUM('10', '11'), defaultValue: null },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   status: { type: DataTypes.ENUM('DRAFT', 'ACTIVE', 'COMPLETED'), defaultValue: 'DRAFT' },
+  is_test: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 0 },
   created_by: { type: DataTypes.INTEGER },
 }, {
   timestamps: true,

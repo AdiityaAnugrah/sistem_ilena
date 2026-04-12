@@ -17,6 +17,7 @@ Thumbs.db
 .claude
 .next
 .superpowers
+.docs/superpowers
 .vscode
 # Mengabaikan folder node_modules HANYA di dalam frontend
 frontend/node_modules/
