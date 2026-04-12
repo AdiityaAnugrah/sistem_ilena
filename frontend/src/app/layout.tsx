@@ -15,10 +15,32 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Sistem Ilena",
-  description: "Sistem Manajemen Penjualan CV. Catur Bhakti Mandiri",
+  title: {
+    default: 'Sistem Ilena — Manajemen Penjualan',
+    template: '%s · Sistem Ilena',
+  },
+  description: 'Sistem manajemen penjualan, stok, dan dokumen untuk ILENA Furniture — CV. Catur Bhakti Mandiri, Semarang.',
+  keywords: ['ilena furniture', 'sistem manajemen', 'penjualan furniture', 'surat jalan', 'invoice', 'CV Catur Bhakti Mandiri'],
+  authors: [{ name: 'ILENA Furniture' }],
+  creator: 'ILENA Furniture',
+  metadataBase: new URL('https://sistem.ilenafurniture.com'),
+  openGraph: {
+    type: 'website',
+    locale: 'id_ID',
+    url: 'https://sistem.ilenafurniture.com',
+    siteName: 'Sistem Ilena',
+    title: 'Sistem Ilena — Manajemen Penjualan ILENA Furniture',
+    description: 'Sistem manajemen penjualan, stok, dan dokumen untuk ILENA Furniture — CV. Catur Bhakti Mandiri.',
+    images: [{ url: '/img/logoilena.svg', width: 510, height: 72, alt: 'ILENA Furniture' }],
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
   icons: {
-    icon: '/img/logoilena.svg',
+    icon: [
+      { url: '/img/logoilena.svg', type: 'image/svg+xml' },
+    ],
     shortcut: '/img/logoilena.svg',
     apple: '/img/logoilena.svg',
   },
