@@ -26,7 +26,8 @@ const ROLE_LABEL: Record<string, { label: string; color: 'error' | 'secondary' |
 };
 
 export default function ProfilPage() {
-  const { user, updateUser } = useAuthStore((s) => ({ user: s.user, updateUser: s.updateUser }));
+  const user = useAuthStore((s) => s.user);
+  const updateUser = useAuthStore((s) => s.updateUser);
 
   const [infoForm, setInfoForm] = useState({
     nama_lengkap: (user as any)?.nama_lengkap || '',
