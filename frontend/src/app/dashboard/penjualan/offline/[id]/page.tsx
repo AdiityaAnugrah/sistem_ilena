@@ -9,15 +9,6 @@ import {
   User, Phone, MapPin, Hash, Calendar, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X,
 } from 'lucide-react';
 
-const formatNPWP = (raw: string): string => {
-  const d = raw.replace(/\D/g, '').slice(0, 15);
-  if (d.length <= 2) return d;
-  if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`;
-  if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
-  if (d.length <= 9) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8)}`;
-  if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9)}`;
-  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9,12)}.${d.slice(12)}`;
-};
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
 
@@ -257,11 +248,10 @@ const JualMultipleModal = ({
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP</label>
                   <input type="text" value={noNpwp}
-                    onChange={e => setNoNpwp(formatNPWP(e.target.value))}
-                    maxLength={20}
+                    onChange={e => setNoNpwp(e.target.value)}
                     className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
                     style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                    placeholder="XX.XXX.XXX.X-XXX.XXX" />
+                    placeholder="Nomor NPWP atau NIK (opsional)" />
                 </div>
               </div>
             </div>

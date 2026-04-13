@@ -546,8 +546,12 @@ const generateHTMLSuratJalan = (sj) => {
     const baseId = item.barang?.id || item.barang_id;
     const kode = item.varian_id ? `${baseId}${item.varian_id}` : baseId;
     const namaDasar = (item.barang?.nama || '-').toUpperCase();
+    const diskon = item.diskon || 0;
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10px; color:var(--muted); font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
+      : '';
+    const spesialHtml = diskon > 0
+      ? `<span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 4px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
     const dimensiStr = parseDimensi(item.barang?.deskripsi);
     const dimensiHtml = dimensiStr
@@ -560,7 +564,7 @@ const generateHTMLSuratJalan = (sj) => {
           <td class="text-center">${kode}</td>
           <td>
               <p class="m-0" style="font-size:10.9px; font-weight:500;">
-                  ${namaDasar} ${warnaHtml}
+                  ${namaDasar} ${warnaHtml} ${spesialHtml}
               </p>
               ${dimensiHtml}
           </td>
@@ -1100,15 +1104,22 @@ const generateHTMLInvoice = (inv) => {
     const baseId = item.barang?.id || item.barang_id;
     const kode = item.varian_id ? `${baseId}${item.varian_id}` : baseId;
     const namaDasar = (item.barang?.nama || '-').toUpperCase();
+    const diskon = item.diskon || 0;
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10.5px; color:#6b7280; font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
+      : '';
+    const spesialHtml = diskon > 0
+      ? `<br><span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 5px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
     const dimensiStr = parseDimensiInv(item.barang?.deskripsi);
     const dimensiHtml = dimensiStr
       ? `<p class="m-0" style="font-size:10.5px; color:#6b7280;">${dimensiStr}</p>`
       : '';
 
-    const subtotal = item.subtotal ? Number(item.subtotal) : (item.qty * (item.harga_satuan || 0));
+    const subtotal = item.subtotal ? Number(item.subtotal) : (item.qty * (item.harga_satuan || 0) * (1 - diskon / 100));
+    const hargaEfektif = diskon > 0
+      ? Math.round((item.harga_satuan || 0) * (1 - diskon / 100))
+      : (item.harga_satuan || 0);
     totalInvoice += subtotal;
 
     return `
@@ -1116,17 +1127,17 @@ const generateHTMLInvoice = (inv) => {
           <td class="text-center">${index + 1}</td>
           <td class="text-center">${kode}</td>
           <td>
-              <p class="m-0" style="font-size:11.5px;">${namaDasar} ${warnaHtml}</p>
+              <p class="m-0" style="font-size:11px;">${namaDasar} ${warnaHtml}${spesialHtml}</p>
               ${dimensiHtml}
           </td>
           <td class="text-center nowrap">${item.qty}</td>
-          <td class="num nowrap">${formatRupiah(item.harga_satuan)}</td>
+          <td class="num nowrap">${formatRupiah(hargaEfektif)}</td>
           <td class="num nowrap">${formatRupiah(subtotal)}</td>
       </tr>
     `;
   }).join('');
 
-  const sjString = suratJalans.map(s => s.nomor_surat).join(', ');
+  const sjString = suratJalans.map(s => (s.nomor_surat || '').split('/')[0]).join(', ');
 
   // PPN calculation
   const ppnPersen = Number(inv.ppn_persen) || 0;

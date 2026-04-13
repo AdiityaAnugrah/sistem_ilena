@@ -52,20 +52,9 @@ export default function PenjualanOfflineBaru() {
   const [tagihanSamaPengirim, setTagihanSamaPengirim] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
-
-  const [npwpValue, setNpwpValue] = useState('');
-  const formatNPWP = (raw: string): string => {
-    const d = raw.replace(/\D/g, '').slice(0, 15);
-    if (d.length <= 2) return d;
-    if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`;
-    if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
-    if (d.length <= 9) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8)}`;
-    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9)}`;
-    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9,12)}.${d.slice(12)}`;
-  };
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -241,21 +230,11 @@ export default function PenjualanOfflineBaru() {
                   <Input {...register('nama_npwp')} placeholder="Nama sesuai NPWP" />
                 </div>
                 <div>
-                  <Label>No. NPWP</Label>
-                  <input type="hidden" {...register('no_npwp', {
-                    validate: v => !v || /^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/.test(v) || 'Format: XX.XXX.XXX.X-XXX.XXX',
-                  })} />
+                  <Label>No. NPWP / NIK</Label>
                   <Input
-                    value={npwpValue}
-                    onChange={e => {
-                      const fmt = formatNPWP(e.target.value);
-                      setNpwpValue(fmt);
-                      setValue('no_npwp', fmt, { shouldValidate: true });
-                    }}
-                    placeholder="XX.XXX.XXX.X-XXX.XXX"
-                    maxLength={20}
+                    {...register('no_npwp')}
+                    placeholder="Nomor NPWP atau NIK (opsional)"
                   />
-                  {errors.no_npwp && <p className="text-red-500 text-xs mt-1">{errors.no_npwp.message as string}</p>}
                 </div>
               </>
             )}
