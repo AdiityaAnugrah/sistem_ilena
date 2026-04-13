@@ -350,7 +350,7 @@ export default function MasterBarangPage() {
                   <TableRow key={b.id} sx={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
                     <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>{b.id}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize', color: 'text.primary' }}>{b.nama}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'uppercase', color: 'text.primary' }}>{b.nama}</Typography>
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
