@@ -3,24 +3,24 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { formatDate, formatRupiah } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Eye, Store, ShoppingBag, RefreshCw } from 'lucide-react';
-
-type Tab = 'display' | 'laku';
+import {
+  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Chip, CircularProgress, Pagination, Button, Tabs, Tab,
+} from '@mui/material';
+import { Plus, Eye, RefreshCw, Store, ShoppingBag } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function DisplayPage() {
-  const [tab, setTab] = useState<Tab>('display');
+  const [tab, setTab] = useState(0);
 
-  // Display list
+  // Display Aktif
   const [data, setData] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // Laku list
+  // Sudah Laku
   const [lakuData, setLakuData] = useState<any[]>([]);
   const [lakuLoading, setLakuLoading] = useState(false);
 
@@ -31,6 +31,8 @@ export default function DisplayPage() {
       setData(res.data.data);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
+    } catch {
+      toast.error('Gagal memuat data display');
     } finally {
       setLoading(false);
     }
@@ -49,149 +51,133 @@ export default function DisplayPage() {
   };
 
   useEffect(() => { fetchDisplay(); }, [page]);
-
-  useEffect(() => {
-    if (tab === 'laku') fetchLaku();
-  }, [tab]);
+  useEffect(() => { if (tab === 1) fetchLaku(); }, [tab]);
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Display</h1>
-          <p className="text-slate-500 text-sm mt-1">Kelola barang display toko</p>
-        </div>
-        <Link href="/dashboard/display/baru">
-          <Button><Plus className="h-4 w-4 mr-1" /> Display Baru</Button>
+    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+            <Store size={28} style={{ color: '#FA2F2F' }} />
+            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>Display</Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary">Kelola barang display toko</Typography>
+        </Box>
+        <Link href="/dashboard/display/baru" style={{ textDecoration: 'none' }}>
+          <Button variant="contained" startIcon={<Plus size={18} />} sx={{ borderRadius: '12px', px: 3, py: 1.2, boxShadow: '0 4px 12px rgba(250,47,47,0.25)', bgcolor: '#FA2F2F', '&:hover': { bgcolor: '#d41a1a' } }}>
+            Display Baru
+          </Button>
         </Link>
-      </div>
+      </Box>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4 p-1 rounded-xl bg-slate-100 w-fit">
-        {([
-          { key: 'display', label: 'Display Aktif', icon: Store },
-          { key: 'laku', label: 'Sudah Laku', icon: ShoppingBag },
-        ] as { key: Tab; label: string; icon: any }[]).map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-            style={{
-              background: tab === key ? '#fff' : 'transparent',
-              color: tab === key ? '#FA2F2F' : '#64748b',
-              boxShadow: tab === key ? '0 1px 4px rgba(15,23,42,0.08)' : 'none',
-            }}>
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
-      </div>
+      <Paper sx={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+        {/* Tabs */}
+        <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', px: 2 }}>
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="inherit"
+            TabIndicatorProps={{ style: { backgroundColor: '#FA2F2F' } }}
+            sx={{ '& .MuiTab-root': { fontWeight: 700, fontSize: '0.8rem', textTransform: 'none', minHeight: 48 }, '& .Mui-selected': { color: '#FA2F2F' } }}>
+            <Tab icon={<Store size={15} />} iconPosition="start" label="Display Aktif" />
+            <Tab icon={<ShoppingBag size={15} />} iconPosition="start" label="Sudah Laku" />
+          </Tabs>
+        </Box>
 
-      {/* Display Aktif */}
-      {tab === 'display' && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-          <div className="px-4 py-3 border-b border-slate-100">
-            <p className="text-sm text-slate-500">Total: <span className="font-semibold text-slate-700">{total} display</span></p>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal</TableHead>
-                <TableHead>Nama Penerima</TableHead>
-                <TableHead>No. HP</TableHead>
-                <TableHead>Produk</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-slate-400">Memuat...</TableCell></TableRow>
-              ) : data.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-slate-400">Tidak ada data display</TableCell></TableRow>
-              ) : data.map((row: any) => (
-                <TableRow key={row.id}>
-                  <TableCell>{formatDate(row.tanggal)}</TableCell>
-                  <TableCell className="font-medium">{row.nama_penerima}</TableCell>
-                  <TableCell>{row.no_hp_penerima}</TableCell>
-                  <TableCell>
-                    <span className="text-xs text-slate-500">{row.items?.length || 0} produk</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}>{row.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/dashboard/penjualan/offline/${row.id}`}>
-                      <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between">
-            <p className="text-sm text-slate-500">Halaman {page} dari {totalPages}</p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>Sebelumnya</Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>Berikutnya</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sudah Laku */}
-      {tab === 'laku' && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-            <p className="text-sm text-slate-500">Total: <span className="font-semibold text-slate-700">{lakuData.length} penjualan dari display</span></p>
-            <Button variant="ghost" size="sm" onClick={fetchLaku} disabled={lakuLoading}>
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${lakuLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tanggal Laku</TableHead>
-                <TableHead>Nama Penerima</TableHead>
-                <TableHead>Faktur</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lakuLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-slate-400">Memuat...</TableCell></TableRow>
-              ) : lakuData.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-10 text-slate-400">Belum ada barang display yang terjual</TableCell></TableRow>
-              ) : lakuData.map((row: any) => {
-                const totalNilai = (row.items || []).reduce((s: number, i: any) => s + parseFloat(i.subtotal || 0), 0);
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell>{formatDate(row.tanggal)}</TableCell>
-                    <TableCell className="font-medium">{row.nama_penerima}</TableCell>
-                    <TableCell>
-                      <Badge variant={row.faktur === 'FAKTUR' ? 'default' : 'secondary'}>
-                        {row.faktur === 'FAKTUR' ? 'Faktur' : 'Non Faktur'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-semibold text-slate-700">
-                      {formatRupiah(totalNilai)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}>{row.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/dashboard/penjualan/offline/${row.id}`}>
-                        <Button variant="ghost" size="sm"><Eye className="h-4 w-4" /></Button>
-                      </Link>
-                    </TableCell>
+        {/* Tab 0: Display Aktif */}
+        {tab === 0 && (
+          <>
+            <Box sx={{ px: 3, py: 1.5, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" color="text.secondary">Total: <strong>{total}</strong> display aktif</Typography>
+            </Box>
+            <TableContainer>
+              <Table sx={{ minWidth: 700 }}>
+                <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
+                  <TableRow>
+                    {['Tanggal', 'Nama Penerima', 'No. HP', 'Produk', 'Status', 'Aksi'].map(h => (
+                      <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.7rem', textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
+                    ))}
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                  ) : data.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}>Tidak ada data display.</TableCell></TableRow>
+                  ) : data.map((row: any) => (
+                    <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
+                      <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_penerima}</Typography></TableCell>
+                      <TableCell><Typography variant="caption" color="text.secondary">{row.no_hp_penerima || '-'}</Typography></TableCell>
+                      <TableCell><Typography variant="caption" color="text.secondary">{row.items?.length || 0} produk</Typography></TableCell>
+                      <TableCell>
+                        <Chip label={row.status} size="small" color={row.status === 'ACTIVE' ? 'info' : 'default'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/dashboard/penjualan/offline/${row.id}`} style={{ textDecoration: 'none' }}>
+                          <Button size="small" variant="outlined" startIcon={<Eye size={14} />} sx={{ borderRadius: '8px', fontWeight: 700 }}>Detail</Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(248,250,252,0.5)' }}>
+              <Typography variant="caption" color="text.secondary">Total {total} display</Typography>
+              <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
+            </Box>
+          </>
+        )}
+
+        {/* Tab 1: Sudah Laku */}
+        {tab === 1 && (
+          <>
+            <Box sx={{ px: 3, py: 1.5, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="caption" color="text.secondary">Total: <strong>{lakuData.length}</strong> penjualan dari display</Typography>
+              <Button size="small" variant="outlined" startIcon={<RefreshCw size={14} className={lakuLoading ? 'animate-spin' : ''} />} onClick={fetchLaku} disabled={lakuLoading} sx={{ borderRadius: '8px', fontWeight: 700 }}>
+                Refresh
+              </Button>
+            </Box>
+            <TableContainer>
+              <Table sx={{ minWidth: 700 }}>
+                <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
+                  <TableRow>
+                    {['Tanggal Laku', 'Nama Penerima', 'Faktur', 'Total Nilai', 'Status', 'Aksi'].map(h => (
+                      <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.7rem', textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {lakuLoading ? (
+                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                  ) : lakuData.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}>Belum ada barang display yang terjual.</TableCell></TableRow>
+                  ) : lakuData.map((row: any) => {
+                    const totalNilai = (row.items || []).reduce((s: number, i: any) => s + parseFloat(i.subtotal || 0), 0);
+                    return (
+                      <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
+                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
+                        <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_penerima}</Typography></TableCell>
+                        <TableCell>
+                          <Chip label={row.faktur === 'FAKTUR' ? 'Faktur' : 'Non-Fak'} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                        </TableCell>
+                        <TableCell><Typography variant="body2" sx={{ fontWeight: 700 }}>{formatRupiah(totalNilai)}</Typography></TableCell>
+                        <TableCell>
+                          <Chip label={row.status} size="small" color={row.status === 'ACTIVE' ? 'info' : 'default'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                        </TableCell>
+                        <TableCell>
+                          <Link href={`/dashboard/penjualan/offline/${row.id}`} style={{ textDecoration: 'none' }}>
+                            <Button size="small" variant="outlined" startIcon={<Eye size={14} />} sx={{ borderRadius: '8px', fontWeight: 700 }}>Detail</Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+      </Paper>
+    </Box>
   );
 }
