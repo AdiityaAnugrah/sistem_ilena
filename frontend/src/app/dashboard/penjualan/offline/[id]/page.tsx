@@ -6,8 +6,18 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, FilePlus, Printer,
-  User, Phone, MapPin, Hash, Calendar, Package, ShoppingCart, Pencil, AlertTriangle
+  User, Phone, MapPin, Hash, Calendar, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X,
 } from 'lucide-react';
+
+const formatNPWP = (raw: string): string => {
+  const d = raw.replace(/\D/g, '').slice(0, 15);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
+  if (d.length <= 9) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8)}`;
+  if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9)}`;
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9,12)}.${d.slice(12)}`;
+};
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
 
@@ -163,115 +173,161 @@ const DocModal = ({
   );
 };
 
-// ─── Modal Proses Jual Multiple Item Display ──────────────────────────────────────────────
+// ─── Modal Proses Jual Multiple Item Display ─────────────────────────────────
 const JualMultipleModal = ({
   show, items, onClose, onSubmit, loading,
   form, setForm, faktur, setFaktur,
   namaNpwp, setNamaNpwp, noNpwp, setNoNpwp,
+  tanggal, setTanggal,
 }: any) => {
   if (!show || !items) return null;
+
   const updateForm = (id: number, field: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
-  const totalQty = Object.values(form).reduce((sum: number, f: any) => sum + (f.qty || 0), 0);
+  const selectedItems = items.filter((item: any) => (form[item.id]?.qty || 0) > 0);
+  const totalQty = selectedItems.reduce((s: number, it: any) => s + (form[it.id]?.qty || 0), 0);
+  const grandTotal = selectedItems.reduce((s: number, it: any) => {
+    const f = form[it.id] || { qty: 0, harga: '' };
+    const harga = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : it.harga_satuan;
+    return s + f.qty * harga * (1 - (it.diskon || 0) / 100);
+  }, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div
-        className="w-full max-w-2xl rounded-2xl p-6 animate-fade-in max-h-[90vh] flex flex-col"
-        style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#ecfdf5' }}>
-            <ShoppingCart className="h-5 w-5" style={{ color: '#10b981' }} />
+      <div className="w-full max-w-2xl rounded-2xl animate-fade-in flex flex-col" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '92vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid #e2e8f0' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ecfdf5' }}>
+            <ShoppingCart className="h-4 w-4" style={{ color: '#10b981' }} />
           </div>
-          <div>
-            <h3 className="font-bold" style={{ color: '#0f172a' }}>Proses Penjualan Display</h3>
-            <p className="text-xs" style={{ color: '#94a3b8' }}>Tentukan barang mana saja beserta jumlah yang laku</p>
+          <div className="flex-1">
+            <h3 className="font-bold text-sm" style={{ color: '#0f172a' }}>Proses Penjualan Display</h3>
+            <p className="text-xs" style={{ color: '#94a3b8' }}>Pilih barang yang terjual, tentukan qty & harga</p>
           </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <X className="h-4 w-4 text-slate-400" />
+          </button>
         </div>
 
-        {/* Pilihan Faktur */}
-        <div className="mb-4 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Jenis Dokumen Penjualan</p>
-          <div className="flex gap-2">
-            {(['NON_FAKTUR', 'FAKTUR'] as const).map(f => (
-              <button key={f} type="button" onClick={() => setFaktur(f)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                style={{
-                  background: faktur === f ? 'linear-gradient(135deg, #FA2F2F, #d41a1a)' : '#fff',
-                  color: faktur === f ? '#fff' : '#64748b',
-                  border: faktur === f ? '1px solid #FA2F2F' : '1px solid #e2e8f0',
-                }}>
-                {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Nama & No NPWP */}
-        <div className="mb-4 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Data NPWP (opsional)</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nama NPWP</label>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Tanggal & Faktur */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p className="text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tanggal Penjualan</p>
               <input
-                type="text"
-                value={namaNpwp}
-                onChange={e => setNamaNpwp(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm rounded-lg outline-none"
                 style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                placeholder="Nama sesuai NPWP"
               />
             </div>
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP</label>
-              <input
-                type="text"
-                value={noNpwp}
-                onChange={e => setNoNpwp(e.target.value)}
-                className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
-                style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                placeholder="00.000.000.0-000.000"
-              />
+            <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p className="text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Jenis Dokumen</p>
+              <div className="flex gap-2">
+                {(['NON_FAKTUR', 'FAKTUR'] as const).map(f => (
+                  <button key={f} type="button" onClick={() => setFaktur(f)}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                    style={{
+                      background: faktur === f ? 'linear-gradient(135deg, #FA2F2F, #d41a1a)' : '#fff',
+                      color: faktur === f ? '#fff' : '#64748b',
+                      border: faktur === f ? '1px solid #FA2F2F' : '1px solid #e2e8f0',
+                    }}>
+                    {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 pr-2" style={{ maxHeight: '40vh' }}>
-          <div className="space-y-3">
+          {/* NPWP — hanya jika FAKTUR */}
+          {faktur === 'FAKTUR' && (
+            <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Data NPWP <span className="font-normal text-slate-400">(opsional)</span></p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nama NPWP</label>
+                  <input type="text" value={namaNpwp} onChange={e => setNamaNpwp(e.target.value)}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                    style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                    placeholder="Nama sesuai NPWP" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP</label>
+                  <input type="text" value={noNpwp}
+                    onChange={e => setNoNpwp(formatNPWP(e.target.value))}
+                    maxLength={20}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                    style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                    placeholder="XX.XXX.XXX.X-XXX.XXX" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Daftar item */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold" style={{ color: '#475569' }}>Pilih Barang yang Terjual</p>
             {items.map((item: any) => {
               const f = form[item.id] || { qty: 0, harga: '' };
               const isSelected = f.qty > 0;
+              const hargaEfektif = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : item.harga_satuan;
+              const subtotal = isSelected ? f.qty * hargaEfektif * (1 - (item.diskon || 0) / 100) : 0;
               return (
-                <div key={item.id} className="p-4 rounded-xl border flex items-center gap-4 transition-all" style={{ background: isSelected ? '#ecfdf5' : '#f8fafc', borderColor: isSelected ? '#a7f3d0' : '#f1f5f9' }}>
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold" style={{ color: '#1e293b' }}>{item.barang?.nama || item.barang_id}</div>
-                    <div className="text-xs mt-1 text-slate-500">
-                      Sisa Display: <span className="font-bold text-slate-700">{item.qty}</span> &nbsp;|&nbsp; Harga Ori: <span className="text-slate-700">{formatRupiah(item.harga_satuan)}</span>
+                <div key={item.id} className="p-4 rounded-xl border transition-all"
+                  style={{ background: isSelected ? '#f0fdf4' : '#f8fafc', borderColor: isSelected ? '#86efac' : '#e2e8f0' }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate" style={{ color: '#1e293b' }}>
+                        {item.barang?.nama || `Item #${item.id}`}
+                      </div>
+                      <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: '#94a3b8' }}>
+                        <span>Sisa: <strong className="text-slate-700">{item.qty}</strong></span>
+                        <span>Harga asal: <strong className="text-slate-700">{formatRupiah(item.harga_satuan)}</strong></span>
+                        {item.diskon > 0 && <span className="text-orange-500 font-medium">Diskon {item.diskon}%</span>}
+                      </div>
                     </div>
+                    {isSelected && (
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold">Subtotal</div>
+                        <div className="text-sm font-bold" style={{ color: '#059669' }}>{formatRupiah(subtotal)}</div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    <div className="w-24">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Qty Laku</label>
-                      <input 
-                        type="number" min="0" max={item.qty} value={f.qty === 0 ? '' : f.qty} 
-                        onChange={e => updateForm(item.id, 'qty', Number(e.target.value))}
-                        className="w-full px-2 py-1.5 text-sm rounded-lg outline-none transition-all"
-                        style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                        placeholder="0"
+                  <div className="flex gap-2 items-end">
+                    <div className="w-28 flex-shrink-0">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Qty Terjual</label>
+                      <input
+                        type="number" min={0} max={item.qty} step={1}
+                        value={f.qty === 0 ? '' : f.qty}
+                        onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                        onChange={e => {
+                          const v = Math.min(item.qty, Math.max(0, Math.floor(Number(e.target.value) || 0)));
+                          updateForm(item.id, 'qty', v);
+                        }}
+                        className="w-full px-2 py-1.5 text-sm rounded-lg outline-none text-center font-bold transition-all"
+                        style={{ border: `1px solid ${isSelected ? '#86efac' : '#cbd5e1'}`, background: '#fff' }}
+                        placeholder={`maks ${item.qty}`}
                       />
                     </div>
-                    <div className="w-32">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Harga Baru (Opsional)</label>
-                      <input 
-                        type="number" value={f.harga === 0 ? '' : f.harga} 
-                        onChange={e => updateForm(item.id, 'harga', e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm rounded-lg outline-none transition-all"
-                        style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                        placeholder={item.harga_satuan}
-                      />
+                    <div className="flex-1">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">
+                        Harga Jual <span className="normal-case text-slate-400 font-normal">(kosong = harga asal)</span>
+                      </label>
+                      <div className="relative flex items-center">
+                        <span className="absolute left-2.5 text-xs font-bold text-slate-400 pointer-events-none">Rp</span>
+                        <input
+                          type="number" min={0}
+                          value={f.harga === '' ? '' : f.harga}
+                          onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
+                          onChange={e => updateForm(item.id, 'harga', e.target.value)}
+                          className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg outline-none transition-all"
+                          style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                          placeholder={String(item.harga_satuan)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -280,21 +336,33 @@ const JualMultipleModal = ({
           </div>
         </div>
 
-        <div className="flex gap-3 pt-4" style={{ borderTop: '1px solid #e2e8f0' }}>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all text-slate-600 bg-slate-100 hover:bg-slate-200"
-          >
-            Batal
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={loading || totalQty === 0}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 2px 12px rgba(16,185,129,0.3)' }}
-          >
-            {loading ? 'Memproses...' : `Proses ${totalQty} Barang Terpilih`}
-          </button>
+        {/* Footer */}
+        <div className="px-5 py-4 flex-shrink-0 space-y-3" style={{ borderTop: '1px solid #e2e8f0' }}>
+          {totalQty > 0 && (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+              style={{ background: '#f0fdf4', border: '1px solid #86efac' }}>
+              <span className="text-sm font-semibold" style={{ color: '#065f46' }}>
+                {totalQty} barang terpilih · Total
+              </span>
+              <span className="text-base font-black" style={{ color: '#059669' }}>{formatRupiah(grandTotal)}</span>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all text-slate-600 bg-slate-100 hover:bg-slate-200">
+              Batal
+            </button>
+            <button
+              onClick={onSubmit}
+              disabled={loading || totalQty === 0}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: totalQty > 0 ? 'linear-gradient(135deg, #10b981, #059669)' : '#94a3b8',
+                boxShadow: totalQty > 0 ? '0 2px 12px rgba(16,185,129,0.3)' : 'none',
+              }}>
+              {loading ? 'Memproses...' : totalQty > 0 ? `Proses ${totalQty} Barang Terjual` : 'Pilih barang dulu'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -336,6 +404,7 @@ export default function PenjualanOfflineDetail() {
   const [jualFaktur, setJualFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
   const [jualNamaNpwp, setJualNamaNpwp] = useState('');
   const [jualNoNpwp, setJualNoNpwp] = useState('');
+  const [jualTanggal, setJualTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [jualForm, setJualForm] = useState<Record<number, { qty: number; harga: string }>>({});
   const [jualLoading, setJualLoading] = useState(false);
 
@@ -355,6 +424,7 @@ export default function PenjualanOfflineDetail() {
     setJualForm(initForm);
     setJualNamaNpwp(data.nama_npwp || '');
     setJualNoNpwp(data.no_npwp || '');
+    setJualTanggal(new Date().toISOString().split('T')[0]);
     setJualModal(true);
   };
 
@@ -452,6 +522,7 @@ export default function PenjualanOfflineDetail() {
         faktur: jualFaktur,
         nama_npwp: jualNamaNpwp || null,
         no_npwp: jualNoNpwp || null,
+        tanggal: jualTanggal,
       });
       
       const newPenjualanId = res.data.new_penjualan_id;
@@ -632,15 +703,25 @@ export default function PenjualanOfflineDetail() {
                 <Package className="h-4 w-4" style={{ color: '#94a3b8' }} />
                 <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Daftar Produk</h2>
               </div>
-              {!isPenjualan && data.items?.some((it: any) => it.qty > 0) && (
-                <button
-                  onClick={openJualModal}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
-                  style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' }}
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Pilih & Proses Barang Terjual
-                </button>
+              {!isPenjualan && (
+                (data.suratPengantars?.length ?? 0) > 0 ? (
+                  data.items?.some((it: any) => it.qty > 0) && (
+                    <button
+                      onClick={openJualModal}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' }}
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Pilih & Proses Barang Terjual
+                    </button>
+                  )
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: '#fefce8', border: '1px solid #fde047', color: '#854d0e' }}>
+                    <Lock className="h-3.5 w-3.5 flex-shrink-0" />
+                    Buat Surat Pengantar dulu
+                  </div>
+                )
               )}
             </div>
             <div className="overflow-x-auto">
@@ -960,6 +1041,7 @@ export default function PenjualanOfflineDetail() {
         faktur={jualFaktur} setFaktur={setJualFaktur}
         namaNpwp={jualNamaNpwp} setNamaNpwp={setJualNamaNpwp}
         noNpwp={jualNoNpwp} setNoNpwp={setJualNoNpwp}
+        tanggal={jualTanggal} setTanggal={setJualTanggal}
       />
 
       {/* Sub-SP Modal */}
