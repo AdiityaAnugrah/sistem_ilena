@@ -14,7 +14,7 @@ function parseDimensi(deskripsi: any): string {
     if (d?.dimensi?.asli) {
       const { panjang, lebar, tinggi } = d.dimensi.asli;
       const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
-      if (parts.length > 0) return parts.join(' × ') + ' cm';
+      if (parts.length > 0) return parts.join(' × ') + ' mm';
     }
   } catch { /* */ }
   return '';

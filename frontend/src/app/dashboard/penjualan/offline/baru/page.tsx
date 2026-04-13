@@ -22,6 +22,18 @@ interface AlamatState {
 }
 const emptyAlamat: AlamatState = { provinsi_id: null, kabupaten_id: null, kecamatan_id: null, kelurahan_id: null, detail: '' };
 
+function parseDimensi(deskripsi: any): string {
+  try {
+    const d = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
+    if (d?.dimensi?.asli) {
+      const { panjang, lebar, tinggi } = d.dimensi.asli;
+      const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
+      if (parts.length > 0) return parts.join(' × ') + ' mm';
+    }
+  } catch { /* */ }
+  return '';
+}
+
 export default function PenjualanOfflineBaru() {
   const router = useRouter();
   // Using URL search params for Display logic redirection
@@ -58,6 +70,7 @@ export default function PenjualanOfflineBaru() {
     setItems(prev => [...prev, {
       barang_id: barang.id,
       nama: barang.nama,
+      deskripsi: barang.deskripsi || null,
       varian_list: varianList,
       varian_nama: defaultVarian?.nama || null,
       varian_id: defaultVarian?.id || null,
@@ -267,6 +280,9 @@ export default function PenjualanOfflineBaru() {
                           <div className="font-bold text-slate-800 text-sm">{item.nama}</div>
                           <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">ID: {item.barang_id}</span>
+                            {parseDimensi(item.deskripsi) && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-mono font-medium">{parseDimensi(item.deskripsi)}</span>
+                            )}
                             {item.varian_list && item.varian_list.length > 0 && (
                               <select
                                 value={item.varian_nama || ''}

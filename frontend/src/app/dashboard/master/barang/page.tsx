@@ -67,7 +67,7 @@ function parseDimensi(deskripsi: string | null): string {
     if (d?.dimensi?.asli) {
       const { panjang, lebar, tinggi } = d.dimensi.asli;
       const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
-      if (parts.length > 0) return parts.join(' × ') + ' cm';
+      if (parts.length > 0) return parts.join(' × ') + ' mm';
     }
   } catch { /* */ }
   return '-';
@@ -445,7 +445,7 @@ export default function MasterBarangPage() {
             </Box>
 
             <Box>
-              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Dimensi (cm)</Typography>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Dimensi (mm)</Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
                 <Grid size={{ xs: 4 }}><TextField fullWidth label="Panjang" size="small" value={form.panjang} onChange={e => f('panjang', e.target.value)} /></Grid>
                 <Grid size={{ xs: 4 }}><TextField fullWidth label="Lebar" size="small" value={form.lebar} onChange={e => f('lebar', e.target.value)} /></Grid>
