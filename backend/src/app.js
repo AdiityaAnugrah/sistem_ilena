@@ -68,11 +68,46 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
+// Hapus index duplikat yang ditimbulkan oleh sync({alter:true}) berulang kali
+async function cleanupDuplicateIndexes() {
+  const tables = [
+    'surat_jalan', 'surat_jalan_interior', 'invoice', 'invoice_interior',
+    'surat_pengantar', 'proforma_invoice',
+  ];
+  for (const table of tables) {
+    try {
+      const [rows] = await sequelize.query(
+        `SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE
+         FROM information_schema.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table
+         ORDER BY INDEX_NAME`,
+        { replacements: { table } }
+      );
+      // Group indexes by column, keep only one UNIQUE per column
+      const seenUnique = {};
+      for (const row of rows) {
+        if (row.NON_UNIQUE === 0 && row.INDEX_NAME !== 'PRIMARY') {
+          const key = row.COLUMN_NAME;
+          if (!seenUnique[key]) {
+            seenUnique[key] = row.INDEX_NAME; // keep first
+          } else {
+            // Drop duplicate
+            await sequelize.query(
+              `ALTER TABLE \`${table}\` DROP INDEX \`${row.INDEX_NAME}\``
+            ).catch(() => {}); // ignore if already gone
+          }
+        }
+      }
+    } catch { /* table mungkin belum ada, skip */ }
+  }
+}
+
 sequelize.authenticate()
   .then(() => {
     logger.info('Database connection established');
-    return sequelize.sync({ alter: true });
+    return cleanupDuplicateIndexes();
   })
+  .then(() => sequelize.sync({ alter: true }))
   .then(() => {
     logger.info('Database synced');
     socketModule.init(server, allowedOrigins);
