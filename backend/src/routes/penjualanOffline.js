@@ -358,6 +358,8 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
         // Update remaining display qty or delete if 0
         const sisakQty = itemDisplay.qty - qtyJualInt;
         if (sisakQty <= 0) {
+          // Hapus sub-SP dulu sebelum hapus item (foreign key constraint)
+          await SuratPengantarSub.destroy({ where: { penjualan_offline_item_id: itemDisplay.id }, transaction: t });
           await itemDisplay.destroy({ transaction: t });
         } else {
           const subtotalSisa = parseFloat(itemDisplay.harga_satuan) * sisakQty * (1 - (itemDisplay.diskon / 100));
