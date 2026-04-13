@@ -235,13 +235,43 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     const penjualan = await PenjualanInterior.findByPk(req.params.id);
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    const { tanggal, catatan, surat_jalan_interior_id } = req.body;
+    const { tanggal, catatan, surat_jalan_ids } = req.body;
+    const sjIds = Array.isArray(surat_jalan_ids) ? surat_jalan_ids.filter(Boolean) : [];
+    if (sjIds.length === 0) return res.status(400).json({ message: 'Minimal 1 Surat Jalan wajib dipilih' });
+
+    // Cek apakah ada SJ yang sudah dipakai di invoice lain
+    const existingInvoices = await InvoiceInterior.findAll({
+      where: { penjualan_interior_id: penjualan.id },
+      attributes: ['nomor_invoice', 'surat_jalan_interior_id', 'surat_jalan_ids'],
+    });
+    const usedSjIds = new Set();
+    for (const inv of existingInvoices) {
+      if (inv.surat_jalan_ids) {
+        try { JSON.parse(inv.surat_jalan_ids).forEach(id => usedSjIds.add(Number(id))); } catch { /* skip */ }
+      } else if (inv.surat_jalan_interior_id) {
+        usedSjIds.add(Number(inv.surat_jalan_interior_id));
+      }
+    }
+    const duplicate = sjIds.find(id => usedSjIds.has(Number(id)));
+    if (duplicate) {
+      const conflictInv = existingInvoices.find(inv => {
+        if (inv.surat_jalan_ids) {
+          try { return JSON.parse(inv.surat_jalan_ids).map(Number).includes(Number(duplicate)); } catch { return false; }
+        }
+        return Number(inv.surat_jalan_interior_id) === Number(duplicate);
+      });
+      return res.status(400).json({
+        message: `Surat Jalan ini sudah digunakan pada Invoice ${conflictInv?.nomor_invoice || 'lain'}. Tidak boleh dibuat invoice duplikat.`,
+      });
+    }
+
     const invTanggal = tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoice(penjualan.faktur, invTanggal, penjualan.is_test === 1);
 
     const inv = await InvoiceInterior.create({
       penjualan_interior_id: penjualan.id,
-      surat_jalan_interior_id: surat_jalan_interior_id || null,
+      surat_jalan_interior_id: sjIds[0] || null, // backward compat: first SJ as primary
+      surat_jalan_ids: sjIds.length > 0 ? JSON.stringify(sjIds) : null,
       nomor_invoice,
       tanggal: invTanggal,
       catatan: catatan || null,

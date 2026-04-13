@@ -150,7 +150,7 @@ export default function BarangSelector({ onSelect }: Props) {
                   <Package className="h-5 w-5 text-slate-400 group-hover:text-red-400 transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-slate-800 truncate uppercase" title={barang.nama}>
+                  <div className="text-[13px] lg:text-sm font-semibold text-slate-800 truncate uppercase" title={barang.nama}>
                     {barang.nama}
                   </div>
                   <div className="text-xs mt-1 text-slate-500 font-medium">
@@ -167,13 +167,13 @@ export default function BarangSelector({ onSelect }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 mt-2 sm:mt-0 flex-shrink-0">
-                  <span className="text-[15px] font-black text-red-600 tracking-tight">
+                  <span className="text-sm lg:text-[15px] font-bold text-red-600 tracking-tight">
                     {formatRupiah(barang.harga)}
                   </span>
                   <button
                     type="button"
                     onClick={() => handleSelect(barang)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 hover:border-red-200 transition-all active:scale-95 shadow-sm"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] lg:text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 hover:border-red-200 transition-all active:scale-95 shadow-sm"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Pilih

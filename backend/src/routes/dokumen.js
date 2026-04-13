@@ -206,28 +206,38 @@ router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => 
 router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
   try {
     const inv = await InvoiceInterior.findByPk(req.params.id, {
-      include: [
-        { model: PenjualanInterior, as: 'penjualan' },
-        {
-          model: SuratJalanInterior, as: 'suratJalan',
-          include: [{
-            model: SuratJalanInteriorItem, as: 'items',
-            include: [{ model: PenjualanInteriorItem, as: 'item' }],
-          }],
-        },
-      ],
+      include: [{ model: PenjualanInterior, as: 'penjualan' }],
     });
     if (!inv) return res.status(404).json({ message: 'Invoice Interior tidak ditemukan' });
 
     const data = inv.toJSON();
 
-    // Normalize: pakai item dari surat jalan terkait (qty_kirim), harga dari PenjualanInteriorItem
-    const invoiceItems = (data.suratJalan?.items || []).map(i => ({
-      barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
-      qty: i.qty_kirim,
-      harga_satuan: parseFloat(i.item?.harga_satuan || 0),
-      subtotal: parseFloat(i.item?.harga_satuan || 0) * i.qty_kirim,
-    }));
+    // Resolve SJ IDs: prefer surat_jalan_ids array, fall back to single surat_jalan_interior_id
+    let sjIds = [];
+    if (data.surat_jalan_ids) {
+      try { sjIds = JSON.parse(data.surat_jalan_ids); } catch { sjIds = []; }
+    } else if (data.surat_jalan_interior_id) {
+      sjIds = [data.surat_jalan_interior_id];
+    }
+
+    // Load all referenced SJs
+    const suratJalans = await SuratJalanInterior.findAll({
+      where: { id: sjIds },
+      include: [{
+        model: SuratJalanInteriorItem, as: 'items',
+        include: [{ model: PenjualanInteriorItem, as: 'item' }],
+      }],
+    });
+
+    // Merge items from all SJs
+    const invoiceItems = suratJalans.flatMap(sj =>
+      (sj.items || []).map(i => ({
+        barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
+        qty: i.qty_kirim,
+        harga_satuan: parseFloat(i.item?.harga_satuan || 0),
+        subtotal: parseFloat(i.item?.harga_satuan || 0) * i.qty_kirim,
+      }))
+    );
 
     const normalized = {
       nomor_invoice: data.nomor_invoice,
@@ -239,7 +249,7 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
         no_po: data.penjualan.no_po,
         no_npwp: data.penjualan.no_npwp,
         faktur: data.penjualan.faktur,
-        suratJalans: data.suratJalan ? [{ nomor_surat: data.suratJalan.nomor_surat }] : [],
+        suratJalans: suratJalans.map(sj => ({ nomor_surat: sj.nomor_surat })),
         items: invoiceItems,
       },
     };

@@ -43,7 +43,10 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-const DocItem = ({ nomor, sub, onPrint }: { nomor: string; sub: string; onPrint?: () => void }) => (
+const DocItem = ({ nomor, sub, onPrint, onAction, ActionIcon, actionLabel }: {
+  nomor: string; sub: string; onPrint?: () => void;
+  onAction?: () => void; ActionIcon?: React.ElementType; actionLabel?: string;
+}) => (
   <div
     className="flex items-center justify-between p-3 rounded-xl"
     style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}
@@ -52,26 +55,48 @@ const DocItem = ({ nomor, sub, onPrint }: { nomor: string; sub: string; onPrint?
       <div className="text-xs font-mono font-medium" style={{ color: '#334155' }}>{nomor}</div>
       <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{sub}</div>
     </div>
-    {onPrint && (
-      <button
-        onClick={onPrint}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-        style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLElement).style.background = '#fff1f1';
-          (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
-          (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLElement).style.background = '#fff';
-          (e.currentTarget as HTMLElement).style.color = '#475569';
-          (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
-        }}
-      >
-        <Printer className="h-3.5 w-3.5" />
-        Cetak
-      </button>
-    )}
+    <div className="flex items-center gap-2">
+      {onAction && ActionIcon && (
+        <button
+          onClick={onAction}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = '#f0fdf4';
+            (e.currentTarget as HTMLElement).style.color = '#16a34a';
+            (e.currentTarget as HTMLElement).style.border = '1px solid #bbf7d0';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = '#fff';
+            (e.currentTarget as HTMLElement).style.color = '#475569';
+            (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
+          }}
+        >
+          <ActionIcon className="h-3.5 w-3.5" />
+          {actionLabel || 'Aksi'}
+        </button>
+      )}
+      {onPrint && (
+        <button
+          onClick={onPrint}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLElement).style.background = '#fff1f1';
+            (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
+            (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLElement).style.background = '#fff';
+            (e.currentTarget as HTMLElement).style.color = '#475569';
+            (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
+          }}
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Cetak
+        </button>
+      )}
+    </div>
   </div>
 );
 
@@ -119,13 +144,13 @@ const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any)
   </div>
 );
 
-const ModalFooter = ({ onClose, onSubmit, loading, label }: any) => (
+const ModalFooter = ({ onClose, onSubmit, loading, label, disabled }: any) => (
   <div className="flex gap-3 mt-5">
     <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
       Batal
     </button>
     <button
-      onClick={onSubmit} disabled={loading}
+      onClick={onSubmit} disabled={loading || disabled}
       className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
       style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
     >
@@ -181,6 +206,7 @@ export default function PenjualanInteriorDetail() {
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [proformaCatatan, setProformaCatatan] = useState('');
   const [proformaTerms, setProformaTerms] = useState<{ tipe: string; jumlah: string }[]>([]);
+  const [bayarProforma, setBayarProforma] = useState<any>(null);
   const [bayarTipe, setBayarTipe] = useState('DP');
   const [bayarJumlah, setBayarJumlah] = useState('');
   const [bayarTanggal, setBayarTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -189,7 +215,7 @@ export default function PenjualanInteriorDetail() {
   const [sjCatatan, setSjCatatan] = useState('');
   const [sjItems, setSjItems] = useState<Record<number, number>>({});
   const [invIntTanggal, setInvIntTanggal] = useState(new Date().toISOString().split('T')[0]);
-  const [invIntSjId, setInvIntSjId] = useState<number | ''>('');
+  const [invIntSjIds, setInvIntSjIds] = useState<number[]>([]);
   const [invIntCatatan, setInvIntCatatan] = useState('');
 
   // Retur state
@@ -293,14 +319,14 @@ export default function PenjualanInteriorDetail() {
   };
 
   const createInvoiceInterior = async () => {
-    if (!invIntSjId) { toast.error('Pilih Surat Jalan terlebih dahulu'); return; }
+    if (invIntSjIds.length === 0) { toast.error('Pilih minimal 1 Surat Jalan'); return; }
     setDocLoading(true);
     try {
       await api.post(`/penjualan-interior/${id}/invoice`, {
-        tanggal: invIntTanggal, surat_jalan_interior_id: invIntSjId, catatan: invIntCatatan,
+        tanggal: invIntTanggal, surat_jalan_ids: invIntSjIds, catatan: invIntCatatan,
       });
       toast.success('Invoice Interior berhasil dibuat!');
-      setModal(null); fetchData();
+      setModal(null); setInvIntSjIds([]); fetchData();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal');
     } finally { setDocLoading(false); }
@@ -570,7 +596,6 @@ export default function PenjualanInteriorDetail() {
               <ActionButton onClick={() => setModal('proforma')} icon={FileText} label="Proforma Invoice" desc="Tagihan ke customer" />
               <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Dokumen pengiriman (partial)" />
               <ActionButton onClick={() => setModal('invoice-interior')} icon={Receipt} label="Invoice Interior" desc="Invoice berdasarkan SJ" />
-              <ActionButton onClick={() => setModal('pembayaran')} icon={CreditCard} label="Tambah Pembayaran" desc="Catat pembayaran masuk" />
             </div>
           </div>
 
@@ -584,7 +609,10 @@ export default function PenjualanInteriorDetail() {
               <div className="space-y-2">
                 {data.proformas.map((p: any) => (
                   <DocItem key={p.id} nomor={p.nomor_proforma} sub={`${formatDate(p.tanggal)} · ${formatRupiah(p.total)}`}
-                    onPrint={() => printDoc('proforma', p.id)} />
+                    onPrint={() => printDoc('proforma', p.id)}
+                    onAction={() => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setModal('pembayaran'); }}
+                    ActionIcon={CreditCard}
+                    actionLabel="Catat Pembayaran" />
                 ))}
               </div>
             </div>
@@ -704,86 +732,177 @@ export default function PenjualanInteriorDetail() {
       </div>
 
       {/* ── Modal Proforma ── */}
-      <ModalWrapper show={modal === 'proforma'} onClose={() => setModal(null)}>
-        <ModalHeader icon={FileText} title="Buat Proforma Invoice" sub="Tagihan awal ke customer interior" />
-        <div className="space-y-4">
-          <ModalInput label="Tanggal" type="date" value={proformaTanggal} onChange={(e: any) => setProformaTanggal(e.target.value)} />
-
-          {/* Cicilan Pembayaran */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-semibold" style={{ color: '#475569' }}>Cicilan Pembayaran (opsional)</label>
-              <button type="button"
-                onClick={() => setProformaTerms(prev => [...prev, { tipe: prev.length === 0 ? 'DP' : prev.length === 1 ? 'TERMIN_1' : prev.length === 2 ? 'TERMIN_2' : prev.length === 3 ? 'TERMIN_3' : 'PELUNASAN_AKHIR', jumlah: '' }])}
-                className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors"
-                style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
-                + Tambah
-              </button>
-            </div>
-            {proformaTerms.length > 0 && (
-              <div className="space-y-2">
-                {proformaTerms.map((term, idx) => (
-                  <div key={idx} className="flex gap-2 items-center p-2.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <select value={term.tipe}
-                      onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
-                      className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
-                      style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
-                      <option value="DP">DP (Uang Muka)</option>
-                      <option value="TERMIN_1">Termin 1</option>
-                      <option value="TERMIN_2">Termin 2</option>
-                      <option value="TERMIN_3">Termin 3</option>
-                      <option value="PELUNASAN_AKHIR">Pelunasan Akhir</option>
-                    </select>
-                    <div className="relative flex-1">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
-                      <input type="number" min={0} value={term.jumlah}
-                        onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah: e.target.value } : t))}
-                        className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
-                        style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
-                        placeholder="0" />
-                    </div>
-                    <button type="button"
-                      onClick={() => setProformaTerms(prev => prev.filter((_, i) => i !== idx))}
-                      className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                      ×
-                    </button>
-                  </div>
-                ))}
+      {modal === 'proforma' && (() => {
+        const termTotal = proformaTerms.reduce((s, t) => s + (Number(t.jumlah) || 0), 0);
+        const termOver = termTotal > grandTotal;
+        const termUnder = proformaTerms.length > 0 && termTotal < grandTotal;
+        const selisih = grandTotal - termTotal;
+        const TIPE_OPTS = [
+          { value: 'DP', label: 'DP (Uang Muka)' },
+          { value: 'TERMIN_1', label: 'Termin 1' },
+          { value: 'TERMIN_2', label: 'Termin 2' },
+          { value: 'TERMIN_3', label: 'Termin 3' },
+          { value: 'PELUNASAN_AKHIR', label: 'Pelunasan Akhir' },
+        ];
+        const nextTipe = TIPE_OPTS[Math.min(proformaTerms.length, TIPE_OPTS.length - 1)].value;
+        return (
+          <ModalWrapper show onClose={() => { setModal(null); setProformaTerms([]); }}>
+            <ModalHeader icon={FileText} title="Buat Proforma Invoice" sub="Tagihan awal ke customer interior" />
+            <div className="space-y-4">
+              {/* Ringkasan total */}
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <span style={{ color: '#475569' }}>Total Tagihan</span>
+                <span style={{ color: '#0f172a' }}>{formatRupiah(grandTotal)}</span>
               </div>
-            )}
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan (opsional)</label>
-            <textarea value={proformaCatatan} onChange={e => setProformaCatatan(e.target.value)} rows={2}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
-              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
-              onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+              <ModalInput label="Tanggal" type="date" value={proformaTanggal} onChange={(e: any) => setProformaTanggal(e.target.value)} />
+
+              {/* Cicilan Pembayaran */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold" style={{ color: '#475569' }}>Cicilan Pembayaran <span className="font-normal text-slate-400">(opsional)</span></label>
+                  <button type="button" onClick={() => setProformaTerms(prev => [...prev, { tipe: nextTipe, jumlah: '' }])}
+                    className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                    style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                    + Tambah
+                  </button>
+                </div>
+
+                {proformaTerms.length > 0 && (
+                  <div className="space-y-2">
+                    {proformaTerms.map((term, idx) => (
+                      <div key={idx} className="flex gap-2 items-center p-2.5 rounded-lg"
+                        style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <select value={term.tipe}
+                          onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
+                          className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
+                          style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
+                          {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
+                          <input type="number" min={0} value={term.jumlah}
+                            onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah: e.target.value } : t))}
+                            className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
+                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
+                            placeholder="0" />
+                        </div>
+                        <button type="button" onClick={() => setProformaTerms(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">×</button>
+                      </div>
+                    ))}
+
+                    {/* Validasi total cicilan */}
+                    <div className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between"
+                      style={{
+                        background: termOver ? '#fef2f2' : termUnder ? '#fffbeb' : '#f0fdf4',
+                        border: `1px solid ${termOver ? '#fecaca' : termUnder ? '#fde68a' : '#bbf7d0'}`,
+                        color: termOver ? '#dc2626' : termUnder ? '#92400e' : '#15803d',
+                      }}>
+                      <span>Total cicilan: {formatRupiah(termTotal)}</span>
+                      {termOver && <span>⚠ Melebihi total tagihan sebesar {formatRupiah(termTotal - grandTotal)}</span>}
+                      {termUnder && <span>Sisa belum dialokasikan: {formatRupiah(selisih)}</span>}
+                      {!termOver && !termUnder && termTotal > 0 && <span>✓ Sesuai total tagihan</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan (opsional)</label>
+                <textarea value={proformaCatatan} onChange={e => setProformaCatatan(e.target.value)} rows={2}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                  onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
+                  onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                />
+              </div>
+            </div>
+            <ModalFooter
+              onClose={() => { setModal(null); setProformaTerms([]); }}
+              onSubmit={createProforma}
+              loading={docLoading}
+              label="Buat Proforma"
+              disabled={termOver}
             />
-          </div>
-        </div>
-        <ModalFooter onClose={() => { setModal(null); setProformaTerms([]); }} onSubmit={createProforma} loading={docLoading} label="Buat Proforma" />
-      </ModalWrapper>
+          </ModalWrapper>
+        );
+      })()}
 
       {/* ── Modal Pembayaran ── */}
-      <ModalWrapper show={modal === 'pembayaran'} onClose={() => setModal(null)}>
-        <ModalHeader icon={CreditCard} title="Tambah Pembayaran" sub="Catat pembayaran dari customer" />
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tipe Pembayaran</label>
-            <select value={bayarTipe} onChange={e => setBayarTipe(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}>
-              {PEMBAYARAN_TIPE.map((t: any) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-          <ModalInput label="Jumlah (Rp)" type="number" value={bayarJumlah} onChange={(e: any) => setBayarJumlah(e.target.value)} placeholder="0" />
-          <ModalInput label="Tanggal" type="date" value={bayarTanggal} onChange={(e: any) => setBayarTanggal(e.target.value)} />
-          <ModalInput label="Catatan (opsional)" value={bayarCatatan} onChange={(e: any) => setBayarCatatan(e.target.value)} />
-        </div>
-        <ModalFooter onClose={() => setModal(null)} onSubmit={createPembayaran} loading={docLoading} label="Simpan" />
-      </ModalWrapper>
+      {modal === 'pembayaran' && (() => {
+        const closeBayar = () => { setModal(null); setBayarProforma(null); setBayarTipe(''); setBayarJumlah(''); };
+        let terms: { tipe: string; jumlah: number }[] = [];
+        try { terms = bayarProforma?.terms ? JSON.parse(bayarProforma.terms) : []; } catch { terms = []; }
+        const paidTipes = new Set((data.pembayarans || []).map((p: any) => p.tipe));
+        const TIPE_LABEL: Record<string, string> = {
+          DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir',
+        };
+        const hasTerms = terms.length > 0;
+        return (
+          <ModalWrapper show onClose={closeBayar}>
+            <ModalHeader icon={CreditCard} title="Catat Pembayaran" sub={bayarProforma ? `Proforma ${bayarProforma.nomor_proforma}` : 'Catat pembayaran dari customer'} />
+            <div className="space-y-4">
+              {hasTerms ? (
+                <div>
+                  <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>Pilih Cicilan yang Dibayar</label>
+                  <div className="space-y-2">
+                    {terms.map((term) => {
+                      const alreadyPaid = paidTipes.has(term.tipe);
+                      const isSelected = bayarTipe === term.tipe;
+                      return (
+                        <button key={term.tipe} type="button" disabled={alreadyPaid}
+                          onClick={() => { setBayarTipe(term.tipe); setBayarJumlah(String(term.jumlah)); }}
+                          className="w-full flex items-center justify-between p-3 rounded-xl text-left transition-all"
+                          style={{
+                            background: alreadyPaid ? '#f8fafc' : isSelected ? '#eff6ff' : '#f8fafc',
+                            border: `1px solid ${alreadyPaid ? '#e2e8f0' : isSelected ? '#2563eb' : '#e2e8f0'}`,
+                            opacity: alreadyPaid ? 0.55 : 1,
+                            cursor: alreadyPaid ? 'not-allowed' : 'pointer',
+                          }}>
+                          <div>
+                            <div className="text-xs font-semibold" style={{ color: alreadyPaid ? '#94a3b8' : '#1e293b' }}>
+                              {TIPE_LABEL[term.tipe] || term.tipe}
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>{formatRupiah(term.jumlah)}</div>
+                          </div>
+                          {alreadyPaid ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#dcfce7', color: '#16a34a' }}>✓ Sudah dibayar</span>
+                          ) : isSelected ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>Dipilih</span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {bayarTipe && !paidTipes.has(bayarTipe) && (
+                    <p className="text-xs mt-2" style={{ color: '#64748b' }}>
+                      Jumlah: <strong>{formatRupiah(Number(bayarJumlah))}</strong> (sesuai proforma, tidak bisa diubah)
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tipe Pembayaran</label>
+                  <select value={bayarTipe} onChange={e => setBayarTipe(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                    style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}>
+                    {PEMBAYARAN_TIPE.map((t: any) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+              )}
+              {(!hasTerms) && (
+                <ModalInput label="Jumlah (Rp)" type="number" value={bayarJumlah} onChange={(e: any) => setBayarJumlah(e.target.value)} placeholder="0" />
+              )}
+              <ModalInput label="Tanggal Pembayaran" type="date" value={bayarTanggal} onChange={(e: any) => setBayarTanggal(e.target.value)} />
+              <ModalInput label="Catatan (opsional)" value={bayarCatatan} onChange={(e: any) => setBayarCatatan(e.target.value)} />
+            </div>
+            <ModalFooter onClose={closeBayar} onSubmit={createPembayaran} loading={docLoading} label="Simpan"
+              disabled={!bayarTipe || !bayarJumlah} />
+          </ModalWrapper>
+        );
+      })()}
 
       {/* ── Modal Surat Jalan ── */}
       <ModalWrapper show={modal === 'sj'} onClose={() => setModal(null)}>
@@ -819,24 +938,70 @@ export default function PenjualanInteriorDetail() {
       </ModalWrapper>
 
       {/* ── Modal Invoice Interior ── */}
-      <ModalWrapper show={modal === 'invoice-interior'} onClose={() => setModal(null)}>
+      <ModalWrapper show={modal === 'invoice-interior'} onClose={() => { setModal(null); setInvIntSjIds([]); }}>
         <ModalHeader icon={Receipt} title="Buat Invoice Interior" sub="Invoice berdasarkan Surat Jalan yang ada" />
         <div className="space-y-4">
           <ModalInput label="Tanggal Invoice" type="date" value={invIntTanggal} onChange={(e: any) => setInvIntTanggal(e.target.value)} />
           <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Surat Jalan Referensi</label>
-            <select value={invIntSjId} onChange={e => setInvIntSjId(Number(e.target.value) || '')}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}>
-              <option value="">— Pilih Surat Jalan —</option>
-              {data.suratJalans?.map((sj: any) => (
-                <option key={sj.id} value={sj.id}>{sj.nomor_surat} ({formatDate(sj.tanggal)})</option>
-              ))}
-            </select>
+            <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
+              Surat Jalan Referensi <span className="font-normal" style={{ color: '#94a3b8' }}>(pilih satu atau lebih)</span>
+            </label>
+            {(!data.suratJalans || data.suratJalans.length === 0) ? (
+              <p className="text-xs py-2" style={{ color: '#94a3b8' }}>Belum ada Surat Jalan</p>
+            ) : (() => {
+              // Kumpulkan semua SJ ID yang sudah dipakai di invoice sebelumnya
+              const usedSjIds = new Set<number>();
+              const sjInvoiceMap: Record<number, string> = {};
+              (data.invoices || []).forEach((inv: any) => {
+                let ids: number[] = [];
+                if (inv.surat_jalan_ids) {
+                  try { ids = JSON.parse(inv.surat_jalan_ids).map(Number); } catch { /* skip */ }
+                } else if (inv.surat_jalan_interior_id) {
+                  ids = [Number(inv.surat_jalan_interior_id)];
+                }
+                ids.forEach(sid => { usedSjIds.add(sid); sjInvoiceMap[sid] = inv.nomor_invoice; });
+              });
+              return (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {data.suratJalans.map((sj: any) => {
+                    const checked = invIntSjIds.includes(sj.id);
+                    const alreadyUsed = usedSjIds.has(sj.id);
+                    const conflictNomor = sjInvoiceMap[sj.id];
+                    return (
+                      <label key={sj.id}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all ${alreadyUsed ? 'opacity-60' : 'cursor-pointer'}`}
+                        style={{
+                          background: alreadyUsed ? '#fafafa' : checked ? '#eff6ff' : '#f8fafc',
+                          border: `1px solid ${alreadyUsed ? '#e2e8f0' : checked ? '#bfdbfe' : '#f1f5f9'}`,
+                        }}>
+                        <input type="checkbox" checked={checked} disabled={alreadyUsed}
+                          onChange={e => !alreadyUsed && setInvIntSjIds(prev =>
+                            e.target.checked ? [...prev, sj.id] : prev.filter(x => x !== sj.id)
+                          )}
+                          className="rounded" style={{ accentColor: '#2563eb' }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-mono font-medium" style={{ color: alreadyUsed ? '#94a3b8' : '#334155' }}>{sj.nomor_surat}</div>
+                          <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(sj.tanggal)}</div>
+                        </div>
+                        {alreadyUsed && (
+                          <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                            style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
+                            sudah di {conflictNomor}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            {invIntSjIds.length > 0 && (
+              <p className="text-xs mt-1.5" style={{ color: '#2563eb' }}>{invIntSjIds.length} surat jalan dipilih</p>
+            )}
           </div>
           <ModalInput label="Catatan (opsional)" value={invIntCatatan} onChange={(e: any) => setInvIntCatatan(e.target.value)} />
         </div>
-        <ModalFooter onClose={() => setModal(null)} onSubmit={createInvoiceInterior} loading={docLoading} label="Buat Invoice" />
+        <ModalFooter onClose={() => { setModal(null); setInvIntSjIds([]); }} onSubmit={createInvoiceInterior} loading={docLoading} label="Buat Invoice" />
       </ModalWrapper>
 
       {/* ── Modal Retur ── */}

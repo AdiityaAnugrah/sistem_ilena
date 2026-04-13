@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AlamatForm from '@/components/forms/AlamatForm';
 import BarangSelector from '@/components/forms/BarangSelector';
 import { formatRupiah } from '@/lib/utils';
-import { Trash2, Plus, Minus, PackageOpen } from 'lucide-react';
+import { Trash2, Plus, Minus, PackageOpen, LayoutPanelTop, User, MapPin, Wallet2 } from 'lucide-react';
 
 interface AlamatState {
   provinsi_id: number | null;
@@ -135,105 +135,136 @@ export default function PenjualanOfflineBaru() {
   const total = items.reduce((s, i) => s + getSubtotal(i), 0);
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Penjualan Offline Baru</h1>
+    <div className="max-w-6xl mx-auto animate-fade-in pb-12">
+      <div className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-red-600 to-red-500 shadow-lg shadow-red-200 ring-4 ring-red-50">
+            <PackageOpen className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl lg:text-2xl font-bold text-slate-800 tracking-tight">Penjualan Offline Baru</h1>
+            <p className="text-xs lg:text-sm text-slate-500 font-medium">Input data pesanan barang offline / toko</p>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Tipe & Faktur */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Jenis Transaksi</CardTitle></CardHeader>
-          <CardContent className="flex gap-6 flex-wrap">
-            <div>
-              <Label className="text-xs mb-1 block">Tipe</Label>
-              <div className="flex gap-2">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <Wallet2 className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Jenis Transaksi</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-8 p-6 items-center">
+            <div className="space-y-2.5">
+              <Label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Tipe Pesanan</Label>
+              <div className="flex gap-2 p-1 bg-slate-100/80 rounded-xl w-fit">
                 {(['PENJUALAN', 'DISPLAY'] as const).map(t => (
                   <button key={t} type="button"
                     onClick={() => setTipe(t)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      tipe === t ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    className={`px-5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                      tipe === t ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
                     {t === 'PENJUALAN' ? 'Penjualan' : 'Display'}
                   </button>
                 ))}
               </div>
             </div>
+
             {tipe === 'PENJUALAN' && (
-              <div>
-                <Label className="text-xs mb-1 block">Faktur</Label>
-                <div className="flex gap-2">
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Faktur Pajak</Label>
+                <div className="flex gap-2 p-1 bg-slate-100/80 rounded-xl w-fit">
                   {(['FAKTUR', 'NON_FAKTUR'] as const).map(f => (
                     <button key={f} type="button"
                       onClick={() => setFaktur(f)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      className={`px-5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                        faktur === f ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                       }`}>
-                      {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+                      {f === 'FAKTUR' ? 'Ya' : 'Tidak'}
                     </button>
                   ))}
                 </div>
               </div>
             )}
+
             {tipe === 'DISPLAY' && (
-              <div className="flex items-end pb-0.5">
-                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                  Pilihan Faktur / Non Faktur akan ditentukan saat barang display terjual
-                </p>
+              <div className="flex items-end self-end mb-1">
+                <div className="text-[10px] lg:text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 italic">
+                  * Status faktur akan ditentukan saat barang terjual
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Identitas */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Identitas Penerima</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Nama Penerima *</Label>
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <User className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Identitas Penerima</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nama Penerima *</Label>
               <Input
                 {...register('nama_penerima', {
                   required: 'Nama wajib diisi',
                   minLength: { value: 2, message: 'Minimal 2 karakter' },
                 })}
                 placeholder="Nama lengkap"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.nama_penerima && <p className="text-red-500 text-xs mt-1">{errors.nama_penerima.message as string}</p>}
+              {errors.nama_penerima && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_penerima.message as string}</p>}
             </div>
-            <div>
-              <Label>No. HP Penerima *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor WhatsApp *</Label>
               <Input
                 {...register('no_hp_penerima', {
                   required: 'Nomor HP wajib diisi',
-                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit (contoh: 081234567890)' },
+                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit' },
                 })}
                 inputMode="numeric"
                 maxLength={13}
                 onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
-                placeholder="081234567890"
+                placeholder="0812..."
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.no_hp_penerima && <p className="text-red-500 text-xs mt-1">{errors.no_hp_penerima.message as string}</p>}
+              {errors.no_hp_penerima && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.no_hp_penerima.message as string}</p>}
             </div>
-            <div>
-              <Label>Tanggal *</Label>
-              <Input type="date" {...register('tanggal', { required: 'Tanggal wajib diisi' })} />
-              {errors.tanggal && <p className="text-red-500 text-xs mt-1">{errors.tanggal.message as string}</p>}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Tanggal Transaksi *</Label>
+              <Input 
+                type="date" 
+                {...register('tanggal', { required: 'Tanggal wajib diisi' })} 
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
+              />
+              {errors.tanggal && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.tanggal.message as string}</p>}
             </div>
-            <div>
-              <Label>No. PO</Label>
-              <Input {...register('no_po')} placeholder="Nomor PO (opsional)" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor PO (Opsional)</Label>
+              <Input {...register('no_po')} placeholder="Ref #" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
             </div>
             {faktur === 'FAKTUR' && (
               <>
-                <div>
-                  <Label>Nama NPWP</Label>
-                  <Input {...register('nama_npwp')} placeholder="Nama sesuai NPWP" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-500 ml-1">Nama NPWP</Label>
+                  <Input {...register('nama_npwp')} placeholder="Nama sesuai NPWP" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
                 </div>
-                <div>
-                  <Label>No. NPWP / NIK</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-500 ml-1">Nomor NPWP / NIK</Label>
                   <Input
                     {...register('no_npwp')}
-                    placeholder="Nomor NPWP atau NIK (opsional)"
+                    placeholder="00.000..."
+                    className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
                   />
                 </div>
               </>
@@ -242,38 +273,51 @@ export default function PenjualanOfflineBaru() {
         </Card>
 
         {/* Alamat */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Alamat</CardTitle></CardHeader>
-          <CardContent className="space-y-5">
-            <AlamatForm label="Alamat Pengirim" value={alamatPengirim} onChange={setAlamatPengirim} />
-            <div className="flex items-center gap-2 pt-2">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Informasi Alamat</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-8">
+            <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 ring-1 ring-white/50">
+              <AlamatForm label="Alamat Pengiriman" value={alamatPengirim} onChange={setAlamatPengirim} />
+            </div>
+
+            <div className="flex items-center gap-3 bg-white border border-slate-200 px-5 py-3 rounded-xl transition-all hover:border-red-200 group w-fit">
               <input
                 type="checkbox"
                 id="samaPengirim"
                 checked={tagihanSamaPengirim}
                 onChange={e => setTagihanSamaPengirim(e.target.checked)}
-                className="h-4 w-4"
+                className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer"
               />
-              <label htmlFor="samaPengirim" className="text-sm text-gray-700 cursor-pointer">
-                Alamat tagihan sama dengan alamat pengirim
+              <label htmlFor="samaPengirim" className="text-sm font-semibold text-slate-700 cursor-pointer select-none group-hover:text-red-700">
+                Alamat tagihan sama dengan pengiriman
               </label>
             </div>
+
             {!tagihanSamaPengirim && (
-              <AlamatForm label="Alamat Tagihan" value={alamatTagihan} onChange={setAlamatTagihan} />
+              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 ring-1 ring-white/50 animate-in slide-in-from-top-2 duration-300">
+                <AlamatForm label="Alamat Tagihan" value={alamatTagihan} onChange={setAlamatTagihan} />
+              </div>
             )}
           </CardContent>
         </Card>
 
         {/* Produk */}
-        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)]">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
           <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-5">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-red-100 to-red-50 border border-red-100">
-                <PackageOpen className="w-5 h-5 text-red-600" />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100 text-red-600 shadow-inner">
+                <PackageOpen className="w-5 h-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-bold text-slate-800">Daftar Produk</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">Cari dan tambahkan produk yang akan dibeli</p>
+                <CardTitle className="text-base lg:text-lg font-bold text-slate-800 tracking-tight">Daftar Produk</CardTitle>
+                <p className="text-[11px] lg:text-xs text-slate-500 font-medium mt-0.5">Cari dan tambahkan produk ke keranjang</p>
               </div>
             </div>
           </CardHeader>
@@ -285,19 +329,19 @@ export default function PenjualanOfflineBaru() {
                 <table className="w-full text-sm min-w-[700px]">
                   <thead className="bg-[#f8fafc] border-b border-[#e2e8f0]">
                     <tr>
-                      <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase">Produk</th>
-                      <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-32">Kuantitas</th>
-                      <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-48">Harga Satuan</th>
-                      {tipe === 'PENJUALAN' && <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-24">Diskon</th>}
-                      <th className="text-right py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-44">Subtotal</th>
-                      <th className="py-3.5 px-5 w-14"></th>
+                      <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase">Produk</th>
+                      <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-32">Kuantitas</th>
+                      <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-48">Harga Satuan</th>
+                      {tipe === 'PENJUALAN' && <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-24">Diskon</th>}
+                      <th className="text-right py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-44">Subtotal</th>
+                      <th className="py-3 px-5 w-14"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f1f5f9]">
                     {items.map((item, idx) => (
                       <tr key={idx} className="group hover:bg-slate-50 transition-colors">
                         <td className="py-4 px-5">
-                          <div className="font-bold text-slate-800 text-sm">{item.nama}</div>
+                          <div className="font-semibold text-slate-800 text-[13px] lg:text-sm">{item.nama}</div>
                           <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">ID: {item.barang_id}</span>
                             {parseDimensi(item.deskripsi) && (
@@ -334,7 +378,7 @@ export default function PenjualanOfflineBaru() {
                               min={1}
                               value={item.qty || ''}
                               onChange={e => updateItem(idx, 'qty', Number(e.target.value))}
-                              className="w-8 text-center text-sm font-bold text-slate-700 py-1.5 focus:outline-none appearance-none bg-transparent"
+                              className="w-8 text-center text-sm font-semibold text-slate-700 py-1.5 focus:outline-none appearance-none bg-transparent"
                               style={{ MozAppearance: 'textfield' }}
                             />
                             <button
@@ -355,7 +399,7 @@ export default function PenjualanOfflineBaru() {
                               value={item.harga_satuan || ''}
                               onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
                               onChange={e => updateItem(idx, 'harga_satuan', Math.max(0, Number(e.target.value)))}
-                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
+                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
                             />
                           </div>
                         </td>
@@ -370,14 +414,14 @@ export default function PenjualanOfflineBaru() {
                                 value={item.diskon || ''}
                                 onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
                                 onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
-                                className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
+                                className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
                               />
-                              <div className="absolute right-2 text-slate-400 font-bold text-xs pointer-events-none">%</div>
+                              <div className="absolute right-2 text-slate-400 font-semibold text-[10px] pointer-events-none">%</div>
                             </div>
                           </td>
                         )}
                         <td className="py-4 px-5 text-right">
-                          <div className="font-extrabold text-slate-800 tracking-tight text-[15px]">
+                          <div className="font-bold text-slate-800 tracking-tight text-[14px] lg:text-[15px]">
                             {formatRupiah(getSubtotal(item))}
                           </div>
                         </td>
@@ -395,14 +439,12 @@ export default function PenjualanOfflineBaru() {
                     ))}
                   </tbody>
                   <tfoot className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-200">
-                    <tr>
-                      <td colSpan={4} className="py-5 px-5 text-right text-slate-600 font-semibold tracking-wide">
-                        TOTAL PENJUALAN
+                    <tr className="border-t-2 border-slate-200 bg-white">
+                      <td colSpan={tipe === 'PENJUALAN' ? 4 : 3} className="py-6 px-6 text-right text-slate-800 font-black uppercase tracking-widest text-[11px]">
+                        Total Akhir Penjualan
                       </td>
-                      <td className="py-5 px-5 text-right">
-                        <div className="text-xl font-black text-red-600 tracking-tight">
-                          {formatRupiah(total)}
-                        </div>
+                      <td className="py-6 px-6 text-right font-black text-red-600 text-lg lg:text-xl tracking-tight leading-none">
+                        {formatRupiah(total)}
                       </td>
                       <td></td>
                     </tr>
@@ -413,9 +455,18 @@ export default function PenjualanOfflineBaru() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>Batal</Button>
-          <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Penjualan'}</Button>
+        <div className="flex justify-end items-center gap-4 pt-4">
+          <Button type="button" variant="ghost" onClick={() => router.back()} className="h-11 px-6 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all">
+            Batalkan
+          </Button>
+          <Button type="submit" disabled={loading} className="h-11 px-10 rounded-xl bg-gradient-to-r from-red-600 to-red-500 text-white font-black shadow-lg shadow-red-200 hover:shadow-red-300 hover:scale-[1.02] transition-all disabled:opacity-50">
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Menyimpan...</span>
+              </div>
+            ) : 'Simpan Penjualan'}
+          </Button>
         </div>
       </form>
     </div>

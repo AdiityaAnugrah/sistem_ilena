@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatRupiah } from '@/lib/utils';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus, LayoutPanelTop, User, ClipboardList, Wallet2 } from 'lucide-react';
 
 export default function PenjualanInteriorBaru() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function PenjualanInteriorBaru() {
   const [ppnPersen, setPpnPersen] = useState<'10' | '11'>('11');
   const [items, setItems] = useState<any[]>([{ kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm<any>({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
 
@@ -61,42 +61,59 @@ export default function PenjualanInteriorBaru() {
   };
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Penjualan Interior Baru</h1>
+    <div className="max-w-6xl mx-auto animate-fade-in pb-12">
+      <div className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-red-600 to-red-500 shadow-lg shadow-red-200 ring-4 ring-red-50">
+            <LayoutPanelTop className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl lg:text-2xl font-bold text-slate-800 tracking-tight">Penjualan Interior Baru</h1>
+            <p className="text-xs lg:text-sm text-slate-500 font-medium">Buat pesanan desain dan pengerjaan interior baru</p>
+          </div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Jenis */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Jenis Transaksi</CardTitle></CardHeader>
-          <CardContent className="flex flex-wrap gap-6">
-            <div>
-              <Label className="text-xs mb-1 block">Faktur</Label>
-              <div className="flex gap-2">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <Wallet2 className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Jenis Transaksi</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-8 p-6">
+            <div className="space-y-2.5">
+              <Label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider ml-1">Jenis Faktur</Label>
+              <div className="flex gap-2 p-1 bg-slate-100/80 rounded-xl w-fit">
                 {(['FAKTUR', 'NON_FAKTUR'] as const).map(f => (
                   <button key={f} type="button"
                     onClick={() => setFaktur(f)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${
+                      faktur === f ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                     }`}>
                     {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="flex items-end gap-3">
-              <div className="flex items-center gap-2 mb-0.5">
-                <input type="checkbox" id="ppn" checked={pakaiPPN} onChange={e => setPakaiPPN(e.target.checked)} className="h-4 w-4" />
-                <label htmlFor="ppn" className="text-sm font-medium cursor-pointer">Pakai PPN</label>
+
+            <div className="flex items-end gap-6">
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl transition-all hover:border-red-200 group">
+                <input type="checkbox" id="ppn" checked={pakaiPPN} onChange={e => setPakaiPPN(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer" />
+                <label htmlFor="ppn" className="text-sm font-semibold text-slate-700 cursor-pointer select-none group-hover:text-red-700">Gunakan PPN</label>
               </div>
+              
               {pakaiPPN && (
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 p-1 bg-green-50 rounded-xl border border-green-100 animate-in fade-in zoom-in duration-200">
                   {(['10', '11'] as const).map(p => (
                     <button key={p} type="button"
                       onClick={() => setPpnPersen(p)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                        ppnPersen === p ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 text-gray-700'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        ppnPersen === p ? 'bg-green-600 text-white shadow-sm' : 'text-green-700 hover:bg-green-100'
                       }`}>
                       PPN {p}%
                     </button>
@@ -108,78 +125,99 @@ export default function PenjualanInteriorBaru() {
         </Card>
 
         {/* Identitas */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Identitas Customer</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>No. PO *</Label>
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <User className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Identitas Customer</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor PO *</Label>
               <Input
                 {...register('no_po', { required: 'No. PO wajib diisi' })}
-                placeholder="Nomor Purchase Order"
+                placeholder="Purchase Order #"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.no_po && <p className="text-red-500 text-xs mt-1">{errors.no_po.message as string}</p>}
+              {errors.no_po && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.no_po.message as string}</p>}
             </div>
-            <div>
-              <Label>Tanggal *</Label>
-              <Input type="date" {...register('tanggal', { required: 'Tanggal wajib diisi' })} />
-              {errors.tanggal && <p className="text-red-500 text-xs mt-1">{errors.tanggal.message as string}</p>}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Tanggal Transaksi *</Label>
+              <Input 
+                type="date" 
+                {...register('tanggal', { required: 'Tanggal wajib diisi' })} 
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
+              />
+              {errors.tanggal && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.tanggal.message as string}</p>}
             </div>
-            <div>
-              <Label>Nama Customer *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nama Customer *</Label>
               <Input
                 {...register('nama_customer', {
                   required: 'Nama customer wajib diisi',
                   minLength: { value: 2, message: 'Minimal 2 karakter' },
                 })}
-                placeholder="Nama customer"
+                placeholder="Nama lengkap customer"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.nama_customer && <p className="text-red-500 text-xs mt-1">{errors.nama_customer.message as string}</p>}
+              {errors.nama_customer && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_customer.message as string}</p>}
             </div>
-            <div>
-              <Label>No. HP *</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor WhatsApp *</Label>
               <Input
                 {...register('no_hp', {
                   required: 'Nomor HP wajib diisi',
-                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit (contoh: 081234567890)' },
+                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit' },
                 })}
                 inputMode="numeric"
                 maxLength={13}
                 onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
-                placeholder="081234567890"
+                placeholder="0812..."
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.no_hp && <p className="text-red-500 text-xs mt-1">{errors.no_hp.message as string}</p>}
+              {errors.no_hp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.no_hp.message as string}</p>}
             </div>
-            <div>
-              <Label>Nama PT / NPWP *</Label>
+            <div className="space-y-1.5 lg:col-span-1">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Perusahaan / Nama PT *</Label>
               <Input
                 {...register('nama_pt_npwp', {
                   required: 'Nama PT / NPWP wajib diisi',
                   minLength: { value: 2, message: 'Minimal 2 karakter' },
                 })}
-                placeholder="Nama perusahaan / a.n. NPWP"
+                placeholder="Nama Perusahaan"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
-              {errors.nama_pt_npwp && <p className="text-red-500 text-xs mt-1">{errors.nama_pt_npwp.message as string}</p>}
+              {errors.nama_pt_npwp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_pt_npwp.message as string}</p>}
             </div>
-            <div>
-              <Label>No. NPWP / NIK</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor NPWP / NIK</Label>
               <Input
                 {...register('no_npwp')}
-                placeholder="Nomor NPWP atau NIK (opsional)"
+                placeholder="00.000.000.0-000.000 (Opsional)"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
             </div>
           </CardContent>
         </Card>
 
         {/* Items */}
-        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)]">
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
           <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-5">
             <div className="flex items-center justify-between">
-              <div>
-                 <CardTitle className="text-lg font-bold text-slate-800">Daftar Barang</CardTitle>
-                 <p className="text-xs text-slate-500 mt-0.5">Tambah baris barang untuk PO Interior ini</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100 text-red-600 shadow-inner">
+                  <ClipboardList className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base lg:text-lg font-bold text-slate-800 tracking-tight">Daftar Barang</CardTitle>
+                  <p className="text-[11px] lg:text-xs text-slate-500 font-medium mt-0.5">Kelola item produk dalam pesanan ini</p>
+                </div>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addItem} className="shadow-sm">
-                + Tambah Baris
+              <Button type="button" variant="outline" size="sm" onClick={addItem} className="h-9 px-4 rounded-xl border-slate-200 hover:bg-slate-50 hover:text-red-600 transition-all font-bold gap-2 text-xs shadow-sm active:scale-95">
+                <Plus className="w-4 h-4" /> Tambah Baris
               </Button>
             </div>
           </CardHeader>
@@ -188,12 +226,12 @@ export default function PenjualanInteriorBaru() {
               <table className="w-full text-sm min-w-[750px]">
                 <thead className="bg-[#f8fafc] border-b border-[#e2e8f0]">
                   <tr>
-                    <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-32">Kode</th>
-                    <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase">Nama Barang</th>
-                    <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-24">Qty</th>
-                    <th className="text-right py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-48">Harga Satuan</th>
-                    <th className="text-right py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-40">Subtotal</th>
-                    <th className="py-3.5 px-5 w-14"></th>
+                    <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-32">Kode</th>
+                    <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase">Nama Barang</th>
+                    <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-24">Qty</th>
+                    <th className="text-right py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-48">Harga Satuan</th>
+                    <th className="text-right py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-40">Subtotal</th>
+                    <th className="py-3 px-5 w-14"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
@@ -220,12 +258,12 @@ export default function PenjualanInteriorBaru() {
                              type="number" min={0} value={item.harga_satuan || ''}
                              onChange={e => updateItem(idx, 'harga_satuan', Math.max(0, Number(e.target.value)))}
                              onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
-                             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
+                             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
                            />
                          </div>
                       </td>
                       <td className="py-3 px-5 text-right">
-                         <div className="font-bold text-slate-800 tracking-tight text-[15px]">
+                         <div className="font-semibold text-slate-800 tracking-tight text-[14px] lg:text-[15px]">
                             {formatRupiah(getSubtotal(item))}
                          </div>
                       </td>
@@ -237,22 +275,22 @@ export default function PenjualanInteriorBaru() {
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-200">
-                  <tr>
-                    <td colSpan={4} className="py-4 px-5 text-right text-slate-600 font-semibold tracking-wide">Subtotal:</td>
-                    <td className="py-4 px-5 text-right font-bold text-slate-800">{formatRupiah(subtotalTotal)}</td>
+                <tfoot>
+                  <tr className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-200">
+                    <td colSpan={4} className="py-4 px-6 text-right text-slate-500 font-bold uppercase tracking-wider text-[10px]">Subtotal (Hanya Barang)</td>
+                    <td className="py-4 px-6 text-right font-bold text-slate-800 text-sm">{formatRupiah(subtotalTotal)}</td>
                     <td></td>
                   </tr>
                   {pakaiPPN && (
-                    <tr className="border-t border-slate-200/50">
-                      <td colSpan={4} className="py-3 px-5 text-right text-slate-500 font-medium">PPN {ppnPersen}%:</td>
-                      <td className="py-3 px-5 text-right font-medium text-slate-700">{formatRupiah(ppnValue)}</td>
+                    <tr className="border-t border-slate-200/50 bg-slate-50/30">
+                      <td colSpan={4} className="py-3 px-6 text-right text-green-600/70 font-bold uppercase tracking-wider text-[10px]">PPN Terlampir {ppnPersen}%</td>
+                      <td className="py-3 px-6 text-right font-bold text-green-700 text-sm">{formatRupiah(ppnValue)}</td>
                       <td></td>
                     </tr>
                   )}
-                  <tr className="border-t border-slate-200">
-                    <td colSpan={4} className="py-5 px-5 text-right text-slate-800 font-bold tracking-wide">TOTAL:</td>
-                    <td className="py-5 px-5 text-right font-black text-red-600 text-lg tracking-tight">{formatRupiah(grandTotal)}</td>
+                  <tr className="border-t-2 border-slate-200 bg-white">
+                    <td colSpan={4} className="py-6 px-6 text-right text-slate-800 font-black uppercase tracking-widest text-[11px]">Total Akhir Penjualan</td>
+                    <td className="py-6 px-6 text-right font-black text-red-600 text-lg lg:text-xl tracking-tight leading-none">{formatRupiah(grandTotal)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -261,9 +299,18 @@ export default function PenjualanInteriorBaru() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>Batal</Button>
-          <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+        <div className="flex justify-end items-center gap-4 pt-4">
+          <Button type="button" variant="ghost" onClick={() => router.back()} className="h-11 px-6 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all">
+            Batalkan
+          </Button>
+          <Button type="submit" disabled={loading} className="h-11 px-10 rounded-xl bg-gradient-to-r from-red-600 to-red-500 text-white font-black shadow-lg shadow-red-200 hover:shadow-red-300 hover:scale-[1.02] transition-all disabled:opacity-50">
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Menyimpan...</span>
+              </div>
+            ) : 'Simpan Transaksi'}
+          </Button>
         </div>
       </form>
     </div>
