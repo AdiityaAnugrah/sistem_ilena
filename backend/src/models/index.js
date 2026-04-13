@@ -20,6 +20,7 @@ const SuratJalanInteriorItem = require('./SuratJalanInteriorItem');
 const InvoiceInterior = require('./InvoiceInterior');
 const DocumentCounter = require('./DocumentCounter');
 const ReturSJInterior = require('./ReturSJInterior');
+const SuratPengantarSub = require('./SuratPengantarSub');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -57,6 +58,10 @@ Invoice.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'p
 
 PenjualanOffline.hasMany(SuratPengantar, { foreignKey: 'penjualan_offline_id', as: 'suratPengantars' });
 SuratPengantar.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'penjualan' });
+
+SuratPengantar.hasMany(SuratPengantarSub, { foreignKey: 'surat_pengantar_id', as: 'subs' });
+SuratPengantarSub.belongsTo(SuratPengantar, { foreignKey: 'surat_pengantar_id', as: 'suratPengantar' });
+SuratPengantarSub.belongsTo(PenjualanOfflineItem, { foreignKey: 'penjualan_offline_item_id', as: 'item' });
 
 PenjualanOffline.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
@@ -119,4 +124,5 @@ module.exports = {
   InvoiceInterior,
   DocumentCounter,
   ReturSJInterior,
+  SuratPengantarSub,
 };

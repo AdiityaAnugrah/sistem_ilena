@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, Barang,
+  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
 } = require('../models');
 
@@ -26,7 +26,7 @@ const fullInclude = [
   { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
   { model: SuratJalan, as: 'suratJalans' },
   { model: Invoice, as: 'invoices' },
-  { model: SuratPengantar, as: 'suratPengantars' },
+  { model: SuratPengantar, as: 'suratPengantars', include: [{ model: SuratPengantarSub, as: 'subs', include: [{ model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] }] }] },
   ...includeAlamat,
 ];
 
@@ -215,11 +215,13 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoice(penjualan.faktur, tanggal, penjualan.is_test === 1);
+    const ppn_persen = [0, 10, 11].includes(Number(req.body.ppn_persen)) ? Number(req.body.ppn_persen) : 0;
 
     const inv = await Invoice.create({
       penjualan_offline_id: penjualan.id,
       nomor_invoice,
       tanggal,
+      ppn_persen,
       catatan: req.body.catatan || null,
       created_by: req.user.id,
     });
@@ -261,7 +263,7 @@ router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
 // POST /api/penjualan-offline/:id/proses-jual-item
 router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
   try {
-    const { items } = req.body; // array dari { item_id, qty_jual, harga_jual, diskon }
+    const { items, faktur } = req.body; // items: array dari { item_id, qty_jual, harga_jual, diskon }; faktur: 'FAKTUR'|'NON_FAKTUR'
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Minimal 1 item harus diisi untuk diproses.' });
@@ -307,9 +309,10 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
       }
 
       // Create 1 new PenjualanOffline for all sold items
+      const finalFaktur = faktur === 'FAKTUR' || faktur === 'NON_FAKTUR' ? faktur : display.faktur;
       const penjualanBaru = await PenjualanOffline.create({
         tipe: 'PENJUALAN',
-        faktur: display.faktur,
+        faktur: finalFaktur,
         nama_penerima: display.nama_penerima,
         no_hp_penerima: display.no_hp_penerima,
         no_po: display.no_po,
@@ -328,6 +331,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
         tagihan_kelurahan_id: display.tagihan_kelurahan_id,
         tagihan_detail: display.tagihan_detail,
         status: 'ACTIVE',
+        display_source_id: display.id,
         created_by: req.user.id,
       }, { transaction: t });
 
@@ -370,6 +374,58 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: err.message });
     }
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/penjualan-offline/laku-dari-display/:display_id
+router.get('/laku-dari-display/:display_id', authenticate, async (req, res) => {
+  try {
+    const rows = await PenjualanOffline.findAll({
+      where: { display_source_id: req.params.display_id, is_test: req.user.role === 'TEST' ? 1 : 0 },
+      include: [{ model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] }],
+      order: [['created_at', 'DESC']],
+    });
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/penjualan-offline/sp/:sp_id/sub-sp - buat sub-SP per item
+router.post('/sp/:sp_id/sub-sp', authenticate, async (req, res) => {
+  try {
+    const sp = await SuratPengantar.findByPk(req.params.sp_id, {
+      include: [{ model: PenjualanOffline, as: 'penjualan', include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
+    });
+    if (!sp) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
+
+    const { item_ids } = req.body; // array of penjualan_offline_item_id
+    if (!Array.isArray(item_ids) || item_ids.length === 0) {
+      return res.status(400).json({ message: 'Pilih minimal 1 item' });
+    }
+
+    // Hapus sub-SP lama jika ada untuk item yang sama
+    await SuratPengantarSub.destroy({ where: { surat_pengantar_id: sp.id } });
+
+    // Parse nomor SP utama: "0013/SP/04/2026" -> seq="0013", rest="SP/04/2026"
+    const parts = sp.nomor_sp.split('/');
+    const seq = parts[0];
+    const rest = parts.slice(1).join('/');
+
+    const newSubs = item_ids.map((item_id, index) => ({
+      surat_pengantar_id: sp.id,
+      penjualan_offline_item_id: item_id,
+      nomor_sp_sub: `${seq}/B${String(index + 1).padStart(2, '0')}/${rest}`,
+      urutan: index + 1,
+      created_by: req.user.id,
+    }));
+
+    await SuratPengantarSub.bulkCreate(newSubs);
+    await logAction(req.user.id, 'BUAT_SUB_SP', `SP ID: ${sp.id}, ${newSubs.length} sub-SP`, req.ip);
+
+    return res.status(201).json({ message: 'Sub-SP berhasil dibuat', count: newSubs.length });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

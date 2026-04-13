@@ -24,6 +24,7 @@ const PenjualanOffline = sequelize.define('penjualan_offline', {
   tagihan_detail: { type: DataTypes.TEXT },
   status: { type: DataTypes.ENUM('DRAFT', 'ACTIVE', 'COMPLETED'), defaultValue: 'DRAFT' },
   is_test: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 0 },
+  display_source_id: { type: DataTypes.INTEGER, defaultValue: null },
   created_by: { type: DataTypes.INTEGER },
 }, {
   timestamps: true,

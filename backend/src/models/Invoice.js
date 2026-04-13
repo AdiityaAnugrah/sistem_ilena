@@ -6,6 +6,7 @@ const Invoice = sequelize.define('invoice', {
   penjualan_offline_id: { type: DataTypes.INTEGER, allowNull: false },
   nomor_invoice: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
+  ppn_persen: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 0 }, // 0, 10, or 11
   catatan: { type: DataTypes.TEXT },
   created_by: { type: DataTypes.INTEGER },
 }, {

@@ -901,7 +901,12 @@ const generateHTMLInvoice = (inv) => {
   }).join('');
 
   const sjString = suratJalans.map(s => s.nomor_surat).join(', ');
-  
+
+  // PPN calculation
+  const ppnPersen = Number(inv.ppn_persen) || 0;
+  const ppnAmount = Math.round(totalInvoice * ppnPersen / 100);
+  const grandTotal = totalInvoice + ppnAmount;
+
   const bankFaktur = "BCA 8715898787 a.n. CATUR BHAKTI MANDIRI";
   const bankNonFaktur = "BCA 8715883488 a.n. EI LIE PURNAMA";
   const rekeningHtml = (penjualan.faktur === 'FAKTUR') ? bankFaktur : bankNonFaktur;
@@ -1046,9 +1051,22 @@ const generateHTMLInvoice = (inv) => {
                 <tbody>
                     ${itemRows}
                     <tr>
-                        <td colspan="5" class="fw-semibold">TOTAL INVOICE</td>
+                        <td colspan="5" class="fw-semibold">SUBTOTAL</td>
                         <td class="num fw-semibold">${formatRupiah(totalInvoice)}</td>
                     </tr>
+                    ${ppnPersen > 0 ? `
+                    <tr>
+                        <td colspan="5" class="fw-semibold">PPN ${ppnPersen}%</td>
+                        <td class="num fw-semibold">${formatRupiah(ppnAmount)}</td>
+                    </tr>
+                    <tr style="background:#fff8f8;">
+                        <td colspan="5" class="fw-semibold" style="color:#ef4444;">TOTAL INVOICE</td>
+                        <td class="num fw-semibold" style="color:#ef4444;">${formatRupiah(grandTotal)}</td>
+                    </tr>` : `
+                    <tr>
+                        <td colspan="5" class="fw-semibold">TOTAL INVOICE</td>
+                        <td class="num fw-semibold">${formatRupiah(totalInvoice)}</td>
+                    </tr>`}
                 </tbody>
             </table>
         </div>
@@ -1059,7 +1077,7 @@ const generateHTMLInvoice = (inv) => {
                     <tr>
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
                         <td style="font-size:11.5px;">:
-                            <i style="font-size:11.5px;">${terbilang(totalInvoice)}</i>
+                            <i style="font-size:11.5px;">${terbilang(grandTotal)}</i>
                         </td>
                     </tr>
                     <tr>

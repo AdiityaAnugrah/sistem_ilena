@@ -80,7 +80,7 @@ export default function PenjualanOfflineBaru() {
     setLoading(true);
     try {
       const payload = {
-        tipe, faktur,
+        tipe, faktur: tipe === 'DISPLAY' ? 'NON_FAKTUR' : faktur,
         nama_penerima: formData.nama_penerima,
         no_hp_penerima: formData.no_hp_penerima,
         no_po: formData.no_po || null,
@@ -129,7 +129,7 @@ export default function PenjualanOfflineBaru() {
         {/* Tipe & Faktur */}
         <Card>
           <CardHeader><CardTitle className="text-base">Jenis Transaksi</CardTitle></CardHeader>
-          <CardContent className="flex gap-6">
+          <CardContent className="flex gap-6 flex-wrap">
             <div>
               <Label className="text-xs mb-1 block">Tipe</Label>
               <div className="flex gap-2">
@@ -144,20 +144,29 @@ export default function PenjualanOfflineBaru() {
                 ))}
               </div>
             </div>
-            <div>
-              <Label className="text-xs mb-1 block">Faktur</Label>
-              <div className="flex gap-2">
-                {(['FAKTUR', 'NON_FAKTUR'] as const).map(f => (
-                  <button key={f} type="button"
-                    onClick={() => setFaktur(f)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                      faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}>
-                    {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
-                  </button>
-                ))}
+            {tipe === 'PENJUALAN' && (
+              <div>
+                <Label className="text-xs mb-1 block">Faktur</Label>
+                <div className="flex gap-2">
+                  {(['FAKTUR', 'NON_FAKTUR'] as const).map(f => (
+                    <button key={f} type="button"
+                      onClick={() => setFaktur(f)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                        faktur === f ? 'bg-red-600 text-white border-red-600' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}>
+                      {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+            {tipe === 'DISPLAY' && (
+              <div className="flex items-end pb-0.5">
+                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  Pilihan Faktur / Non Faktur akan ditentukan saat barang display terjual
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

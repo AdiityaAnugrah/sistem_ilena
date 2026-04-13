@@ -66,6 +66,7 @@ const DocItem = ({ nomor, tanggal, onPrint }: { nomor: string; tanggal: string; 
 const DocModal = ({
   show, title, onClose, onSubmit, loading,
   tanggal, setTanggal, catatan, setCatatan,
+  showPpn, ppn, setPpn,
 }: any) => {
   if (!show) return null;
   return (
@@ -102,6 +103,26 @@ const DocModal = ({
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
+          {showPpn && (
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>
+                PPN
+              </label>
+              <div className="flex gap-2">
+                {([0, 10, 11] as const).map(p => (
+                  <button key={p} type="button" onClick={() => setPpn(p)}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                    style={{
+                      background: ppn === p ? 'linear-gradient(135deg, #FA2F2F, #d41a1a)' : '#f8fafc',
+                      color: ppn === p ? '#fff' : '#475569',
+                      border: ppn === p ? '1px solid #FA2F2F' : '1px solid #e2e8f0',
+                    }}>
+                    {p === 0 ? 'Tanpa PPN' : `PPN ${p}%`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>
               Catatan / Keterangan <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opsional)</span>
@@ -144,7 +165,7 @@ const DocModal = ({
 // ─── Modal Proses Jual Multiple Item Display ──────────────────────────────────────────────
 const JualMultipleModal = ({
   show, items, onClose, onSubmit, loading,
-  form, setForm
+  form, setForm, faktur, setFaktur
 }: any) => {
   if (!show || !items) return null;
   const updateForm = (id: number, field: string, value: any) => {
@@ -152,14 +173,14 @@ const JualMultipleModal = ({
   };
 
   const totalQty = Object.values(form).reduce((sum: number, f: any) => sum + (f.qty || 0), 0);
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div 
+      <div
         className="w-full max-w-2xl rounded-2xl p-6 animate-fade-in max-h-[90vh] flex flex-col"
         style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}
       >
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#ecfdf5' }}>
             <ShoppingCart className="h-5 w-5" style={{ color: '#10b981' }} />
           </div>
@@ -169,7 +190,25 @@ const JualMultipleModal = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 pr-2" style={{ maxHeight: '50vh' }}>
+        {/* Pilihan Faktur */}
+        <div className="mb-4 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Jenis Dokumen Penjualan</p>
+          <div className="flex gap-2">
+            {(['NON_FAKTUR', 'FAKTUR'] as const).map(f => (
+              <button key={f} type="button" onClick={() => setFaktur(f)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: faktur === f ? 'linear-gradient(135deg, #FA2F2F, #d41a1a)' : '#fff',
+                  color: faktur === f ? '#fff' : '#64748b',
+                  border: faktur === f ? '1px solid #FA2F2F' : '1px solid #e2e8f0',
+                }}>
+                {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto mb-4 pr-2" style={{ maxHeight: '45vh' }}>
           <div className="space-y-3">
             {items.map((item: any) => {
               const f = form[item.id] || { qty: 0, harga: '' };
@@ -258,8 +297,17 @@ export default function PenjualanOfflineDetail() {
 
   // States for Jual Multiple Items Display
   const [jualModal, setJualModal] = useState(false);
+  const [jualFaktur, setJualFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
   const [jualForm, setJualForm] = useState<Record<number, { qty: number; harga: string }>>({});
   const [jualLoading, setJualLoading] = useState(false);
+
+  // States for Invoice PPN
+  const [invPpn, setInvPpn] = useState<0 | 10 | 11>(0);
+
+  // States for Sub-SP
+  const [subSpModal, setSubSpModal] = useState<{ sp: any } | null>(null);
+  const [subSpSelected, setSubSpSelected] = useState<number[]>([]);
+  const [subSpLoading, setSubSpLoading] = useState(false);
 
   const openJualModal = () => {
     const initForm: any = {};
@@ -324,7 +372,8 @@ export default function PenjualanOfflineDetail() {
   const createDoc = async (type: 'surat-jalan' | 'invoice' | 'surat-pengantar') => {
     setDocLoading(true);
     try {
-      await api.post(`/penjualan-offline/${id}/${type}`, { tanggal: docTanggal, catatan: docCatatan });
+      const extra = type === 'invoice' ? { ppn_persen: invPpn } : {};
+      await api.post(`/penjualan-offline/${id}/${type}`, { tanggal: docTanggal, catatan: docCatatan, ...extra });
       toast.success('Dokumen berhasil dibuat!');
       closeAllModals();
       setDocCatatan('');
@@ -358,7 +407,7 @@ export default function PenjualanOfflineDetail() {
 
     setJualLoading(true);
     try {
-      const res = await api.post(`/penjualan-offline/${id}/proses-jual-item`, { items: selectedItems });
+      const res = await api.post(`/penjualan-offline/${id}/proses-jual-item`, { items: selectedItems, faktur: jualFaktur });
       
       const newPenjualanId = res.data.new_penjualan_id;
       toast.success(
@@ -382,6 +431,22 @@ export default function PenjualanOfflineDetail() {
       toast.error(err.response?.data?.message || 'Gagal memproses item terjual');
     } finally {
       setJualLoading(false);
+    }
+  };
+
+  const saveSubSp = async () => {
+    if (!subSpModal || subSpSelected.length === 0) return;
+    setSubSpLoading(true);
+    try {
+      await api.post(`/penjualan-offline/sp/${subSpModal.sp.id}/sub-sp`, { item_ids: subSpSelected });
+      toast.success('Sub-SP berhasil dibuat');
+      setSubSpModal(null);
+      setSubSpSelected([]);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal membuat sub-SP');
+    } finally {
+      setSubSpLoading(false);
     }
   };
 
@@ -693,14 +758,37 @@ export default function PenjualanOfflineDetail() {
                   Surat Pengantar
                 </h3>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {data.suratPengantars.map((sp: any) => (
-                  <DocItem
-                    key={sp.id}
-                    nomor={sp.nomor_sp}
-                    tanggal={sp.tanggal}
-                    onPrint={() => printDoc('sp', sp.id)}
-                  />
+                  <div key={sp.id}>
+                    <DocItem
+                      nomor={sp.nomor_sp}
+                      tanggal={sp.tanggal}
+                      onPrint={() => printDoc('sp', sp.id)}
+                    />
+                    {/* Sub-SP section */}
+                    <div className="mt-2 ml-3 pl-3" style={{ borderLeft: '2px solid #f1f5f9' }}>
+                      <button
+                        onClick={() => { setSubSpModal({ sp }); setSubSpSelected(sp.subs?.map((s: any) => s.penjualan_offline_item_id) || []); }}
+                        className="text-xs font-medium flex items-center gap-1 transition-colors"
+                        style={{ color: '#94a3b8' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#FA2F2F'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
+                      >
+                        <FilePlus className="h-3 w-3" />
+                        {sp.subs?.length > 0 ? `${sp.subs.length} Sub-SP dibuat · Edit` : 'Buat Sub-SP per Item'}
+                      </button>
+                      {sp.subs?.length > 0 && (
+                        <div className="mt-1.5 space-y-1">
+                          {sp.subs.map((sub: any) => (
+                            <div key={sub.id} className="text-xs font-mono" style={{ color: '#64748b' }}>
+                              {sub.nomor_sp_sub} — {sub.item?.barang?.nama || `Item #${sub.penjualan_offline_item_id}`}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -752,6 +840,7 @@ export default function PenjualanOfflineDetail() {
         onClose={closeAllModals} onSubmit={() => createDoc('invoice')}
         loading={docLoading} tanggal={docTanggal} setTanggal={setDocTanggal}
         catatan={docCatatan} setCatatan={setDocCatatan}
+        showPpn ppn={invPpn} setPpn={setInvPpn}
       />
       <DocModal
         show={spModal} title="Buat Surat Pengantar"
@@ -764,7 +853,66 @@ export default function PenjualanOfflineDetail() {
         onClose={() => setJualModal(false)}
         onSubmit={prosesJualItem} loading={jualLoading}
         form={jualForm} setForm={setJualForm}
+        faktur={jualFaktur} setFaktur={setJualFaktur}
       />
+
+      {/* Sub-SP Modal */}
+      {subSpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fff1f1' }}>
+                <FilePlus className="h-5 w-5" style={{ color: '#FA2F2F' }} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm" style={{ color: '#0f172a' }}>Buat Sub-SP per Item</h3>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>SP Utama: {subSpModal.sp.nomor_sp}</p>
+              </div>
+            </div>
+            <p className="text-xs mb-3" style={{ color: '#64748b' }}>
+              Pilih item yang akan mendapat Sub-SP. Format: <span className="font-mono">{subSpModal.sp.nomor_sp.split('/')[0]}/B01/{subSpModal.sp.nomor_sp.split('/').slice(1).join('/')}</span>
+            </p>
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {data.items?.map((item: any, idx: number) => {
+                const isChecked = subSpSelected.includes(item.id);
+                const orderIndex = subSpSelected.indexOf(item.id);
+                return (
+                  <label key={item.id} className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                    style={{ background: isChecked ? '#fff1f1' : '#f8fafc', border: `1px solid ${isChecked ? '#fecaca' : '#f1f5f9'}` }}>
+                    <input type="checkbox" checked={isChecked}
+                      onChange={() => {
+                        setSubSpSelected(prev =>
+                          prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]
+                        );
+                      }}
+                      className="w-4 h-4 accent-red-600"
+                    />
+                    <div className="flex-1 text-sm font-medium" style={{ color: '#1e293b' }}>
+                      {item.barang?.nama || item.barang_id}
+                    </div>
+                    {isChecked && (
+                      <span className="text-xs font-mono font-bold" style={{ color: '#FA2F2F' }}>
+                        B{String(orderIndex + 1).padStart(2, '0')}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setSubSpModal(null); setSubSpSelected([]); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
+                Batal
+              </button>
+              <button onClick={saveSubSp} disabled={subSpLoading || subSpSelected.length === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
+                {subSpLoading ? 'Menyimpan...' : `Simpan ${subSpSelected.length} Sub-SP`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Warning Modal Identitas */}
       {identitasWarn && (
