@@ -3,9 +3,9 @@ const sequelize = require('../config/database');
 
 const User = sequelize.define('users', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  username: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+  username: { type: DataTypes.STRING(50), allowNull: false },
   nama_lengkap: { type: DataTypes.STRING(100), allowNull: true },
-  email: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+  email: { type: DataTypes.STRING(100), allowNull: false },
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: {
     type: DataTypes.ENUM('DEV', 'SUPER_ADMIN', 'ADMIN', 'PENGGUNA', 'TEST'),
