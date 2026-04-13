@@ -18,7 +18,20 @@ export default function PenjualanInteriorBaru() {
   const [ppnPersen, setPpnPersen] = useState<'10' | '11'>('11');
   const [items, setItems] = useState<any[]>([{ kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+    defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
+  });
+
+  const [npwpValue, setNpwpValue] = useState('');
+  const formatNPWP = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 15);
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`;
+    if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
+    if (d.length <= 9) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8)}`;
+    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9)}`;
+    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9,12)}.${d.slice(12)}`;
+  };
 
   const addItem = () => setItems(prev => [...prev, { kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx));
@@ -111,32 +124,69 @@ export default function PenjualanInteriorBaru() {
           <CardContent className="grid grid-cols-2 gap-4">
             <div>
               <Label>No. PO *</Label>
-              <Input {...register('no_po', { required: true })} placeholder="Nomor Purchase Order" />
-              {errors.no_po && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('no_po', { required: 'No. PO wajib diisi' })}
+                placeholder="Nomor Purchase Order"
+              />
+              {errors.no_po && <p className="text-red-500 text-xs mt-1">{errors.no_po.message as string}</p>}
             </div>
             <div>
               <Label>Tanggal *</Label>
-              <Input type="date" {...register('tanggal', { required: true })} />
-              {errors.tanggal && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input type="date" {...register('tanggal', { required: 'Tanggal wajib diisi' })} />
+              {errors.tanggal && <p className="text-red-500 text-xs mt-1">{errors.tanggal.message as string}</p>}
             </div>
             <div>
               <Label>Nama Customer *</Label>
-              <Input {...register('nama_customer', { required: true })} placeholder="Nama customer" />
-              {errors.nama_customer && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('nama_customer', {
+                  required: 'Nama customer wajib diisi',
+                  minLength: { value: 2, message: 'Minimal 2 karakter' },
+                })}
+                placeholder="Nama customer"
+              />
+              {errors.nama_customer && <p className="text-red-500 text-xs mt-1">{errors.nama_customer.message as string}</p>}
             </div>
             <div>
               <Label>No. HP *</Label>
-              <Input {...register('no_hp', { required: true })} placeholder="08xx" />
-              {errors.no_hp && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('no_hp', {
+                  required: 'Nomor HP wajib diisi',
+                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit (contoh: 081234567890)' },
+                })}
+                inputMode="numeric"
+                maxLength={13}
+                onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                placeholder="081234567890"
+              />
+              {errors.no_hp && <p className="text-red-500 text-xs mt-1">{errors.no_hp.message as string}</p>}
             </div>
             <div>
               <Label>Nama PT / NPWP *</Label>
-              <Input {...register('nama_pt_npwp', { required: true })} placeholder="Nama perusahaan / a.n. NPWP" />
-              {errors.nama_pt_npwp && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('nama_pt_npwp', {
+                  required: 'Nama PT / NPWP wajib diisi',
+                  minLength: { value: 2, message: 'Minimal 2 karakter' },
+                })}
+                placeholder="Nama perusahaan / a.n. NPWP"
+              />
+              {errors.nama_pt_npwp && <p className="text-red-500 text-xs mt-1">{errors.nama_pt_npwp.message as string}</p>}
             </div>
             <div>
               <Label>No. NPWP</Label>
-              <Input {...register('no_npwp')} placeholder="xx.xxx.xxx.x-xxx.xxx (opsional)" />
+              <input type="hidden" {...register('no_npwp', {
+                validate: v => !v || /^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/.test(v) || 'Format: XX.XXX.XXX.X-XXX.XXX',
+              })} />
+              <Input
+                value={npwpValue}
+                onChange={e => {
+                  const fmt = formatNPWP(e.target.value);
+                  setNpwpValue(fmt);
+                  setValue('no_npwp', fmt, { shouldValidate: true });
+                }}
+                placeholder="XX.XXX.XXX.X-XXX.XXX (opsional)"
+                maxLength={20}
+              />
+              {errors.no_npwp && <p className="text-red-500 text-xs mt-1">{errors.no_npwp.message as string}</p>}
             </div>
           </CardContent>
         </Card>
@@ -177,13 +227,20 @@ export default function PenjualanInteriorBaru() {
                         <Input value={item.nama_barang} onChange={e => updateItem(idx, 'nama_barang', e.target.value)} placeholder="Nama barang" className="h-9 focus:ring-red-200 border-slate-200" />
                       </td>
                       <td className="py-3 px-5 text-center">
-                        <Input type="number" min={1} value={item.qty} onChange={e => updateItem(idx, 'qty', Number(e.target.value))} className="w-full h-9 text-center focus:ring-red-200 border-slate-200" />
+                        <Input
+                          type="number" min={1} step={1} value={item.qty}
+                          onChange={e => updateItem(idx, 'qty', Math.max(1, Math.floor(Number(e.target.value))))}
+                          onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                          className="w-full h-9 text-center focus:ring-red-200 border-slate-200"
+                        />
                       </td>
                       <td className="py-3 px-5">
                          <div className="relative flex items-center shadow-sm rounded-lg">
                            <div className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none">Rp</div>
                            <input
-                             type="number" value={item.harga_satuan || ''} onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
+                             type="number" min={0} value={item.harga_satuan || ''}
+                             onChange={e => updateItem(idx, 'harga_satuan', Math.max(0, Number(e.target.value)))}
+                             onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                            />
                          </div>

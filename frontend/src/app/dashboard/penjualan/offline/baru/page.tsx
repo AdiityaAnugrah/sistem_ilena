@@ -52,7 +52,20 @@ export default function PenjualanOfflineBaru() {
   const [tagihanSamaPengirim, setTagihanSamaPengirim] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm({
+    defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
+  });
+
+  const [npwpValue, setNpwpValue] = useState('');
+  const formatNPWP = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 15);
+    if (d.length <= 2) return d;
+    if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`;
+    if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`;
+    if (d.length <= 9) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8)}`;
+    if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9)}`;
+    return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}.${d.slice(8,9)}-${d.slice(9,12)}.${d.slice(12)}`;
+  };
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -189,18 +202,33 @@ export default function PenjualanOfflineBaru() {
           <CardContent className="grid grid-cols-2 gap-4">
             <div>
               <Label>Nama Penerima *</Label>
-              <Input {...register('nama_penerima', { required: true })} placeholder="Nama lengkap" />
-              {errors.nama_penerima && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('nama_penerima', {
+                  required: 'Nama wajib diisi',
+                  minLength: { value: 2, message: 'Minimal 2 karakter' },
+                })}
+                placeholder="Nama lengkap"
+              />
+              {errors.nama_penerima && <p className="text-red-500 text-xs mt-1">{errors.nama_penerima.message as string}</p>}
             </div>
             <div>
               <Label>No. HP Penerima *</Label>
-              <Input {...register('no_hp_penerima', { required: true })} placeholder="08xx" />
-              {errors.no_hp_penerima && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input
+                {...register('no_hp_penerima', {
+                  required: 'Nomor HP wajib diisi',
+                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit (contoh: 081234567890)' },
+                })}
+                inputMode="numeric"
+                maxLength={13}
+                onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                placeholder="081234567890"
+              />
+              {errors.no_hp_penerima && <p className="text-red-500 text-xs mt-1">{errors.no_hp_penerima.message as string}</p>}
             </div>
             <div>
               <Label>Tanggal *</Label>
-              <Input type="date" {...register('tanggal', { required: true })} />
-              {errors.tanggal && <p className="text-red-500 text-xs mt-1">Wajib diisi</p>}
+              <Input type="date" {...register('tanggal', { required: 'Tanggal wajib diisi' })} />
+              {errors.tanggal && <p className="text-red-500 text-xs mt-1">{errors.tanggal.message as string}</p>}
             </div>
             <div>
               <Label>No. PO</Label>
@@ -214,7 +242,20 @@ export default function PenjualanOfflineBaru() {
                 </div>
                 <div>
                   <Label>No. NPWP</Label>
-                  <Input {...register('no_npwp')} placeholder="xx.xxx.xxx.x-xxx.xxx" />
+                  <input type="hidden" {...register('no_npwp', {
+                    validate: v => !v || /^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/.test(v) || 'Format: XX.XXX.XXX.X-XXX.XXX',
+                  })} />
+                  <Input
+                    value={npwpValue}
+                    onChange={e => {
+                      const fmt = formatNPWP(e.target.value);
+                      setNpwpValue(fmt);
+                      setValue('no_npwp', fmt, { shouldValidate: true });
+                    }}
+                    placeholder="XX.XXX.XXX.X-XXX.XXX"
+                    maxLength={20}
+                  />
+                  {errors.no_npwp && <p className="text-red-500 text-xs mt-1">{errors.no_npwp.message as string}</p>}
                 </div>
               </>
             )}
@@ -331,8 +372,10 @@ export default function PenjualanOfflineBaru() {
                             <div className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none">Rp</div>
                             <input
                               type="number"
+                              min={0}
                               value={item.harga_satuan || ''}
-                              onChange={e => updateItem(idx, 'harga_satuan', Number(e.target.value))}
+                              onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
+                              onChange={e => updateItem(idx, 'harga_satuan', Math.max(0, Number(e.target.value)))}
                               className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                             />
                           </div>
@@ -343,8 +386,10 @@ export default function PenjualanOfflineBaru() {
                               type="number"
                               min={0}
                               max={100}
+                              step={1}
                               value={item.diskon || ''}
-                              onChange={e => updateItem(idx, 'diskon', Number(e.target.value))}
+                              onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                              onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
                               className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
                             />
                             <div className="absolute right-2 text-slate-400 font-bold text-xs pointer-events-none">%</div>
