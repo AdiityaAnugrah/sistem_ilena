@@ -3,7 +3,7 @@ const {
   SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, ProformaInvoice,
   PenjualanOffline, PenjualanOfflineItem, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
-  PenjualanInterior, PenjualanInteriorItem,
+  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem,
   InvoiceInterior,
 } = require('../models');
@@ -21,10 +21,11 @@ const {
   generatePDFSuratPengantar,
   generatePDFProforma,
 } = require('../utils/pdfGenerator');
-const { 
-  generateHTMLSuratJalan, 
+const {
+  generateHTMLSuratJalan,
   generateHTMLSuratPengantar,
-  generateHTMLInvoice
+  generateHTMLInvoice,
+  generateHTMLProforma,
 } = require('../utils/htmlGenerator');
 
 const router = express.Router();
@@ -145,11 +146,16 @@ router.get('/proforma/:id/print', authenticate, async (req, res) => {
     const proforma = await ProformaInvoice.findByPk(req.params.id, {
       include: [{
         model: PenjualanInterior, as: 'penjualan',
-        include: [{ model: PenjualanInteriorItem, as: 'items' }],
+        include: [
+          { model: PenjualanInteriorItem, as: 'items' },
+          { model: PembayaranInterior, as: 'pembayarans' },
+        ],
       }],
     });
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-    generatePDFProforma(res, proforma.toJSON());
+    const html = generateHTMLProforma(proforma.toJSON());
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

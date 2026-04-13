@@ -1355,8 +1355,255 @@ const generateHTMLInvoice = (inv) => {
   `;
 };
 
+const generateHTMLProforma = (inv) => {
+  const penjualan = inv.penjualan || {};
+  const items = penjualan.items || [];
+  const pembayarans = penjualan.pembayarans || [];
+
+  // Parse stored terms (payment plan)
+  let terms = [];
+  try { terms = inv.terms ? JSON.parse(inv.terms) : []; } catch { terms = []; }
+
+  const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
+  const isFaktur = penjualan.faktur === 'FAKTUR';
+  const bankInfo = isFaktur
+    ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
+    : 'BCA 8715883488 a.n. EI LIE PURNAMA';
+
+  let subtotalTotal = 0;
+  const itemRows = items.map((item, index) => {
+    const subtotal = Number(item.subtotal || 0) || (item.qty * (item.harga_satuan || 0));
+    subtotalTotal += subtotal;
+    return `
+      <tr>
+          <td class="text-center">${index + 1}</td>
+          <td class="text-center" style="font-size:11px;">${item.kode_barang || '-'}</td>
+          <td style="font-size:11px;">${(item.nama_barang || '-').toUpperCase()}</td>
+          <td class="text-center">${item.qty}</td>
+          <td class="num">${formatRupiah(item.harga_satuan)}</td>
+          <td class="num">${formatRupiah(subtotal)}</td>
+      </tr>`;
+  }).join('');
+
+  const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
+  const ppnAmount = Math.round(subtotalTotal * ppnPersen / 100);
+  const grandTotal = subtotalTotal + ppnAmount;
+
+  // Summary rows
+  const summaryRows = isFaktur ? `
+    <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">DASAR PENGENAAN PAJAK</td>
+        <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
+    ${ppnPersen > 0 ? `<tr><td colspan="5" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
+        <td class="num" style="font-size:11.5px;">${formatRupiah(ppnAmount)}</td></tr>` : ''}
+    <tr style="background:#fff8f8;">
+        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
+    </tr>
+  ` : `
+    <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">SUBTOTAL</td>
+        <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
+    <tr style="background:#fff8f8;">
+        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
+    </tr>
+  `;
+
+  // Payment terms rows
+  const TIPE_URUT_LABEL = {
+    DP: 'UANG MUKA',
+    TERMIN_1: 'TERMIN 1',
+    TERMIN_2: 'TERMIN 2',
+    TERMIN_3: 'TERMIN 3',
+    PELUNASAN_AKHIR: 'PELUNASAN AKHIR',
+  };
+  let termRows = '';
+  let totalPaid = 0;
+  let uangMukaCounter = 0;
+
+  if (terms.length > 0) {
+    terms.forEach((term) => {
+      const tipe = term.tipe || 'DP';
+      const jumlah = Number(term.jumlah) || 0;
+      const isPelunasan = tipe === 'PELUNASAN_AKHIR';
+
+      // Find matching actual payment
+      const pembayaran = pembayarans.find(p => p.tipe === tipe);
+      const sudahBayar = !!pembayaran;
+      if (sudahBayar) totalPaid += Number(pembayaran.jumlah);
+
+      const terbayarHtml = sudahBayar
+        ? `<span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(pembayaran.tanggal).format('DD/MM/YYYY')}</span>`
+        : `<span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span>`;
+
+      let label;
+      if (isPelunasan) {
+        label = 'PELUNASAN AKHIR';
+      } else {
+        uangMukaCounter++;
+        label = `UANG MUKA KE- ${uangMukaCounter}`;
+      }
+
+      termRows += `
+        <tr style="background:${sudahBayar ? '#f0fdf4' : '#fafafa'};">
+            <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} ${terbayarHtml}</td>
+            <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
+            <td></td>
+        </tr>`;
+    });
+
+    const sisa = grandTotal - totalPaid;
+    termRows += `
+      <tr style="background:#fef2f2;">
+          <td colspan="4" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
+          <td class="num fw-bold" style="font-size:11.5px;color:#dc2626;">${formatRupiah(Math.max(0, sisa))}</td>
+          <td></td>
+      </tr>`;
+  }
+
+  const npwpRow = penjualan.no_npwp
+    ? `<p style="font-size:12px;margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>`
+    : '';
+
+  return `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Proforma Invoice - ${inv.nomor_proforma} | Ilena Furniture</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+    :root { --merah: #b31217; --ink: #0f172a; --line: #e5e7eb; --line2: #f1f5f9; }
+    html, body { font-family: Inter, system-ui, sans-serif; color: var(--ink); background: #fff; -webkit-font-smoothing: antialiased; }
+    * { font-size: 13px; line-height: 1.35; }
+    h5 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; margin: 0; }
+    .nt { font-weight: 500; color: #111; font-style: italic; margin: 0; }
+    .isint { font-weight: 500; font-style: italic; margin: 0; }
+    .tw-bold-italic { font-weight: 600; font-style: italic; }
+    .table { border-color: var(--line); margin-bottom: 0.5rem; }
+    .table thead th { background: #f8fafc !important; border-bottom: 1px solid var(--line); font-weight: 600; color: #0f172a; font-size: 11px; vertical-align: middle; }
+    .table tbody td { border-color: var(--line2); vertical-align: middle; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: #fcfdff; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .kotak-pembayaran { border: 1px dashed #ef4444; padding: 10px 20px; text-align: center; font-weight: 500; font-style: italic; border-radius: 10px; background: #fff; }
+    .title h3 { letter-spacing: -.25px; font-weight: 600; font-size: 18px; margin: 0; }
+    body { background: #e8eaed; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,0.12); position: relative; }
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+        html, body { background: #fff !important; }
+        .page { width: 100% !important; min-height: 0 !important; padding: 14mm !important; box-shadow: none !important; margin: 0 !important; }
+        a[href]:after { content: ""; }
+        tr, .kotak-pembayaran { break-inside: avoid; }
+        .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: transparent; }
+        .kotak-pembayaran { border: 1px dashed #ef4444 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    ${TOOLBAR_CSS}
+    </style>
+</head>
+<body>
+    ${TOOLBAR_HTML_FULL}
+    <div class="page">
+        ${SIG_OVERLAY_HTML}
+
+        <!-- Header perusahaan -->
+        <div class="d-flex gap-4 justify-content-start mb-4">
+            <div><img src="https://ilenafurniture.com/img/logo/logo-invoice.jpg" alt="Logo" width="70" height="40"></div>
+            <div class="d-flex flex-column justify-content-center gap-1">
+                <h5>CV.CATUR BHAKTI MANDIRI</h5>
+                <h6 class="m-0" style="font-size:12px;font-weight:500;">Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang</h6>
+            </div>
+        </div>
+
+        <!-- Nomor & tanggal -->
+        <div class="d-flex">
+            <div style="flex:1;"></div>
+            <div class="d-flex gap-2 justify-content-end">
+                <div class="d-flex flex-column align-items-end">
+                    <p class="nt">Nomor :</p>
+                    <p class="nt">Tanggal :</p>
+                </div>
+                <div class="d-flex flex-column align-items-start">
+                    <p class="isint" style="font-weight:600;">${inv.nomor_proforma}</p>
+                    <p class="isint">${tanggalFormat}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Judul -->
+        <div class="my-2 title">
+            <h3 class="text-center">PROFORMA INVOICE</h3>
+        </div>
+
+        <!-- Tujuan -->
+        <div class="d-flex justify-content-start mt-3 mb-4 flex-column">
+            <p class="m-0 nt" style="font-size:12px;">Kepada Yth.</p>
+            <p class="m-0 tw-bold-italic" style="font-size:12px;">${penjualan.nama_customer || '-'}</p>
+            ${penjualan.nama_pt_npwp ? `<p class="m-0" style="font-size:12px;">${penjualan.nama_pt_npwp}</p>` : ''}
+            ${penjualan.no_po ? `<p class="m-0 isint" style="font-size:12px;">PO : ${penjualan.no_po}</p>` : ''}
+            ${npwpRow}
+        </div>
+
+        <!-- Tabel items -->
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width:10px;">NO</th>
+                        <th class="text-center">KODE BARANG</th>
+                        <th class="text-center">NAMA BARANG</th>
+                        <th class="text-center">KUANTITAS</th>
+                        <th class="text-center">HARGA SATUAN</th>
+                        <th class="text-center">JUMLAH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemRows}
+                    ${summaryRows}
+                    ${termRows}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Terbilang -->
+        <div class="mt-1 mb-3">
+            <table>
+                <tbody>
+                    <tr>
+                        <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
+                        <td style="font-size:11.5px;">: <i>${terbilang(grandTotal)}</i></td>
+                    </tr>
+                    ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
+                        <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="d-flex justify-content-between mt-4 mb-3">
+            <div class="d-flex flex-column kotak-pembayaran">
+                <p class="m-0" style="font-size:12px;">
+                    Pembayaran mohon dapat ditransfer ke rekening: <br>
+                    <b style="font-size:12px;color:#ef4444;">${bankInfo}</b>
+                </p>
+            </div>
+            <div class="d-flex flex-column align-items-center" style="width:200px;font-size:12px;">
+                Bagian Keuangan <br><br><br><br><br>
+                <p class="tw-bold-italic" style="font-size:12px;">Amaroh U'un Setiawan</p>
+            </div>
+        </div>
+    </div>
+    ${buildFullToolbarJS(`proforma-${inv.nomor_proforma ? inv.nomor_proforma.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+</body>
+</html>
+  `;
+};
+
 module.exports = {
   generateHTMLSuratJalan,
   generateHTMLSuratPengantar,
   generateHTMLInvoice,
+  generateHTMLProforma,
 };

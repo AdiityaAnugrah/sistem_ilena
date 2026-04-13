@@ -180,6 +180,7 @@ export default function PenjualanInteriorDetail() {
   // Form states
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [proformaCatatan, setProformaCatatan] = useState('');
+  const [proformaTerms, setProformaTerms] = useState<{ tipe: string; jumlah: string }[]>([]);
   const [bayarTipe, setBayarTipe] = useState('DP');
   const [bayarJumlah, setBayarJumlah] = useState('');
   const [bayarTanggal, setBayarTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -247,9 +248,16 @@ export default function PenjualanInteriorDetail() {
   const createProforma = async () => {
     setDocLoading(true);
     try {
-      await api.post(`/penjualan-interior/${id}/proforma`, { tanggal: proformaTanggal, catatan: proformaCatatan });
+      const terms = proformaTerms
+        .filter(t => t.tipe && Number(t.jumlah) > 0)
+        .map(t => ({ tipe: t.tipe, jumlah: Number(t.jumlah) }));
+      await api.post(`/penjualan-interior/${id}/proforma`, {
+        tanggal: proformaTanggal,
+        catatan: proformaCatatan,
+        terms: terms.length > 0 ? terms : undefined,
+      });
       toast.success('Proforma Invoice berhasil dibuat!');
-      setModal(null); fetchData();
+      setModal(null); setProformaTerms([]); fetchData();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal');
     } finally { setDocLoading(false); }
@@ -700,6 +708,51 @@ export default function PenjualanInteriorDetail() {
         <ModalHeader icon={FileText} title="Buat Proforma Invoice" sub="Tagihan awal ke customer interior" />
         <div className="space-y-4">
           <ModalInput label="Tanggal" type="date" value={proformaTanggal} onChange={(e: any) => setProformaTanggal(e.target.value)} />
+
+          {/* Cicilan Pembayaran */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold" style={{ color: '#475569' }}>Cicilan Pembayaran (opsional)</label>
+              <button type="button"
+                onClick={() => setProformaTerms(prev => [...prev, { tipe: prev.length === 0 ? 'DP' : prev.length === 1 ? 'TERMIN_1' : prev.length === 2 ? 'TERMIN_2' : prev.length === 3 ? 'TERMIN_3' : 'PELUNASAN_AKHIR', jumlah: '' }])}
+                className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                + Tambah
+              </button>
+            </div>
+            {proformaTerms.length > 0 && (
+              <div className="space-y-2">
+                {proformaTerms.map((term, idx) => (
+                  <div key={idx} className="flex gap-2 items-center p-2.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <select value={term.tipe}
+                      onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
+                      className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
+                      style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
+                      <option value="DP">DP (Uang Muka)</option>
+                      <option value="TERMIN_1">Termin 1</option>
+                      <option value="TERMIN_2">Termin 2</option>
+                      <option value="TERMIN_3">Termin 3</option>
+                      <option value="PELUNASAN_AKHIR">Pelunasan Akhir</option>
+                    </select>
+                    <div className="relative flex-1">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
+                      <input type="number" min={0} value={term.jumlah}
+                        onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah: e.target.value } : t))}
+                        className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
+                        style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
+                        placeholder="0" />
+                    </div>
+                    <button type="button"
+                      onClick={() => setProformaTerms(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan (opsional)</label>
             <textarea value={proformaCatatan} onChange={e => setProformaCatatan(e.target.value)} rows={2}
@@ -710,7 +763,7 @@ export default function PenjualanInteriorDetail() {
             />
           </div>
         </div>
-        <ModalFooter onClose={() => setModal(null)} onSubmit={createProforma} loading={docLoading} label="Buat Proforma" />
+        <ModalFooter onClose={() => { setModal(null); setProformaTerms([]); }} onSubmit={createProforma} loading={docLoading} label="Buat Proforma" />
       </ModalWrapper>
 
       {/* ── Modal Pembayaran ── */}

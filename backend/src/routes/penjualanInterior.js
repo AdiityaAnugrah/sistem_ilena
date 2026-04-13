@@ -130,12 +130,16 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
     }
 
     const nomor_proforma = await generateNomorProforma(tanggal, penjualan.is_test === 1);
+    const terms = req.body.terms && req.body.terms.length > 0
+      ? JSON.stringify(req.body.terms)
+      : null;
     const proforma = await ProformaInvoice.create({
       penjualan_interior_id: penjualan.id,
       nomor_proforma,
       tanggal,
       total,
       catatan: req.body.catatan || null,
+      terms,
       created_by: req.user.id,
     });
 

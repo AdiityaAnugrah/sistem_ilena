@@ -84,7 +84,7 @@ const generateNomorSP = async (faktur, tanggal, isTest = false) => {
 
 /**
  * Generate Proforma Invoice number
- * PRF00001/04/2026  | TEST: TEST-PRF00001/04/2026
+ * 0004/PRO-INV/CBM/03/2026  | TEST: TEST-0004/PRO-INV/CBM/03/2026
  */
 const generateNomorProforma = async (tanggal, isTest = false) => {
   const d = dayjs(tanggal);
@@ -92,9 +92,11 @@ const generateNomorProforma = async (tanggal, isTest = false) => {
   const tahun = d.year();
   const tipe = isTest ? 'TEST_PROFORMA' : 'PROFORMA';
   const num = await getNextNumber(tipe, tahun);
-  const padded = String(num).padStart(5, '0');
+  const padded = String(num).padStart(4, '0');
   const mm = String(bulan).padStart(2, '0');
-  return isTest ? `TEST-PRF${padded}/${mm}/${tahun}` : `PRF${padded}/${mm}/${tahun}`;
+  return isTest
+    ? `TEST-${padded}/PRO-INV/CBM/${mm}/${tahun}`
+    : `${padded}/PRO-INV/CBM/${mm}/${tahun}`;
 };
 
 module.exports = {
