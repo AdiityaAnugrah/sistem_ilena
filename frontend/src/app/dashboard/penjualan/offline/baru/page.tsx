@@ -52,7 +52,7 @@ export default function PenjualanOfflineBaru() {
   const [tagihanSamaPengirim, setTagihanSamaPengirim] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, formState: { errors } } = useForm<any>({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
 
