@@ -9,6 +9,7 @@ import {
   Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
+import { useRoomPresence } from '@/hooks/useRoomPresence';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReturItem {
@@ -163,6 +164,7 @@ export default function PenjualanInteriorDetail() {
   const router = useRouter();
   const { user: me } = useAuthStore();
   const canEditIdentitas = me && ['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(me.role);
+  const { others, dataUpdated, clearDataUpdated } = useRoomPresence(`penjualan-interior:${id}`, me?.id);
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -374,6 +376,31 @@ export default function PenjualanInteriorDetail() {
 
   return (
     <div className="space-y-6">
+      {/* Real-time presence warning */}
+      {others.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
+          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: '#d97706' }} />
+          <span>
+            Halaman ini juga sedang dibuka oleh: <strong>{others.map(u => u.nama).join(', ')}</strong>.
+            Hindari mengedit bersamaan untuk mencegah konflik data.
+          </span>
+        </div>
+      )}
+      {/* Data updated notification */}
+      {dataUpdated && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#065f46' }}>
+          <span>Data telah diperbarui oleh pengguna lain.</span>
+          <button
+            onClick={() => { clearDataUpdated(); window.location.reload(); }}
+            className="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+            style={{ background: '#059669', color: '#fff' }}
+          >
+            Muat Ulang
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center gap-4">
         <button

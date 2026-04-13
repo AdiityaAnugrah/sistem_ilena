@@ -9,6 +9,7 @@ import {
   User, Phone, MapPin, Hash, Calendar, Package, ShoppingCart, Pencil, AlertTriangle
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
+import { useRoomPresence } from '@/hooks/useRoomPresence';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const map: Record<string, { label: string; cls: string }> = {
@@ -307,6 +308,11 @@ export default function PenjualanOfflineDetail() {
   const { user: me } = useAuthStore();
   const canEditIdentitas = me && ['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(me.role);
 
+  const { others, dataUpdated, clearDataUpdated } = useRoomPresence(
+    id ? `penjualan-offline:${id}` : '',
+    me?.id,
+  );
+
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -523,6 +529,36 @@ export default function PenjualanOfflineDetail() {
 
   return (
     <div className="space-y-6">
+      {/* Banner: user lain sedang melihat/mengedit halaman ini */}
+      {others.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: '#f59e0b' }} />
+          <span>
+            <strong>{others.map(u => u.nama).join(', ')}</strong> sedang membuka halaman ini secara bersamaan.
+            Koordinasikan sebelum melakukan perubahan untuk menghindari konflik data.
+          </span>
+        </div>
+      )}
+
+      {/* Banner: data diperbarui oleh user lain */}
+      {dataUpdated && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium"
+          style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-lg">🔄</span>
+            <span>Data halaman ini baru saja diperbarui oleh pengguna lain.</span>
+          </div>
+          <button
+            onClick={() => { clearDataUpdated(); fetchData(); }}
+            className="px-3 py-1 rounded-lg text-xs font-bold transition-all flex-shrink-0"
+            style={{ background: '#16a34a', color: '#fff' }}
+          >
+            Muat Ulang
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <button

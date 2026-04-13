@@ -19,6 +19,7 @@ const includeAlamat = [
 const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 const { generateNomorSJ, generateNomorInvoice, generateNomorSP } = require('../utils/generateNomor');
+const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
@@ -170,6 +171,7 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     await logAction(req.user.id, 'UPDATE_PENJUALAN_OFFLINE', `ID: ${penjualan.id}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
     return res.json({ message: 'Data berhasil diupdate' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -199,6 +201,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_SURAT_JALAN', `Nomor: ${nomor_surat}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: sj.id, nomor_surat, message: 'Surat Jalan berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -228,6 +231,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_INVOICE', `Nomor: ${nomor_invoice}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -257,6 +261,7 @@ router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_SURAT_PENGANTAR', `Nomor: ${nomor_sp}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: sp.id, nomor_sp, message: 'Surat Pengantar berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -367,10 +372,11 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
       await t.commit();
       
       await logAction(req.user.id, 'PROSES_TERJUAL_DISPLAY', `Dari Display ID: ${display.id} ke Penjualan ID: ${penjualanBaru.id} (${validItemsToProcess.length} items)`, req.ip);
+      emitDataUpdated(`penjualan-offline:${display.id}`, { updatedBy: req.user.id });
 
-      return res.status(200).json({ 
-        message: 'Berhasil memproses penjualan multi-item', 
-        new_penjualan_id: penjualanBaru.id 
+      return res.status(200).json({
+        message: 'Berhasil memproses penjualan multi-item',
+        new_penjualan_id: penjualanBaru.id
       });
     } catch (err) {
       await t.rollback();
@@ -462,6 +468,7 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     await penjualan.update(updates);
     const { logAction } = require('../middleware/logger');
     await logAction(req.user.id, 'EDIT_IDENTITAS_OFFLINE', `Edit identitas penjualan offline #${penjualan.id}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
 
     return res.json({ message: 'Identitas berhasil diperbarui' });
   } catch (err) {

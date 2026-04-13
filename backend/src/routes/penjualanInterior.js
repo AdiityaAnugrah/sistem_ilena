@@ -9,6 +9,7 @@ const {
 const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 const { generateNomorProforma, generateNomorSJ, generateNomorInvoice } = require('../utils/generateNomor');
+const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
@@ -139,6 +140,7 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_PROFORMA', `Nomor: ${nomor_proforma}`, req.ip);
+    emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: proforma.id, nomor_proforma, total, message: 'Proforma berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -173,6 +175,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_PEMBAYARAN', `Tipe: ${tipe}, Jumlah: ${jumlah}`, req.ip);
+    emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil ditambahkan' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -215,6 +218,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
     }
 
     await logAction(req.user.id, 'BUAT_SJ_INTERIOR', `Nomor: ${nomor_surat}`, req.ip);
+    emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: sj.id, nomor_surat, message: 'Surat Jalan interior berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -241,6 +245,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_INVOICE_INTERIOR', `Nomor: ${nomor_invoice}`, req.ip);
+    emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice interior berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -338,6 +343,7 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
 
     await penjualan.update(updates);
     await logAction(req.user.id, 'EDIT_IDENTITAS_INTERIOR', `Edit identitas penjualan interior #${penjualan.id}`, req.ip);
+    emitDataUpdated(`penjualan-interior:${penjualan.id}`, { updatedBy: req.user.id });
 
     return res.json({ message: 'Identitas berhasil diperbarui' });
   } catch (err) {

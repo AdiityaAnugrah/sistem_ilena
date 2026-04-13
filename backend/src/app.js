@@ -1,12 +1,15 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { sequelize } = require('./models');
 const logger = require('./config/logger');
+const socketModule = require('./socket');
 
 const app = express();
+const server = http.createServer(app);
 
 // Trust proxy (OpenLiteSpeed / Nginx reverse proxy)
 app.set('trust proxy', 1);
@@ -15,6 +18,8 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
@@ -70,7 +75,8 @@ sequelize.authenticate()
   })
   .then(() => {
     logger.info('Database synced');
-    app.listen(PORT, () => {
+    socketModule.init(server, allowedOrigins);
+    server.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
     });
   })
@@ -79,4 +85,4 @@ sequelize.authenticate()
     process.exit(1);
   });
 
-module.exports = app;
+module.exports = { app, server };
