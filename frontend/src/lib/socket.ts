@@ -5,7 +5,9 @@ let socket: Socket | null = null;
 export function getSocket(token?: string): Socket {
   if (socket?.connected) return socket;
 
-  const url = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  const url = process.env.NEXT_PUBLIC_SOCKET_URL
+    || process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
+    || 'http://localhost:5000';
 
   socket = io(url, {
     path: '/socket.io',
