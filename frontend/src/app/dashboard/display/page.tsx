@@ -75,8 +75,7 @@ export default function DisplayPage() {
         {/* Tabs */}
         <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', px: 2 }}>
           <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="inherit"
-            TabIndicatorProps={{ style: { backgroundColor: '#FA2F2F' } }}
-            sx={{ '& .MuiTab-root': { fontWeight: 700, fontSize: '0.8rem', textTransform: 'none', minHeight: 48 }, '& .Mui-selected': { color: '#FA2F2F' } }}>
+            sx={{ '& .MuiTabs-indicator': { backgroundColor: '#FA2F2F' }, '& .MuiTab-root': { fontWeight: 700, fontSize: '0.8rem', textTransform: 'none', minHeight: 48 }, '& .Mui-selected': { color: '#FA2F2F' } }}>
             <Tab icon={<Store size={15} />} iconPosition="start" label="Display Aktif" />
             <Tab icon={<ShoppingBag size={15} />} iconPosition="start" label="Sudah Laku" />
           </Tabs>
