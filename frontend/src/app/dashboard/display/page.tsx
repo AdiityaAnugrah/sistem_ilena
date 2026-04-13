@@ -39,11 +39,8 @@ export default function DisplayPage() {
   const fetchLaku = async () => {
     setLakuLoading(true);
     try {
-      // Ambil semua penjualan yang berasal dari display (tipe=PENJUALAN, punya display_source_id)
-      const res = await api.get('/penjualan-offline', { params: { tipe: 'PENJUALAN', page: 1, limit: 100 } });
-      // Filter yang punya display_source_id
-      const fromDisplay = (res.data.data as any[]).filter((r: any) => r.display_source_id);
-      setLakuData(fromDisplay);
+      const res = await api.get('/penjualan-offline', { params: { from_display: '1', page: 1, limit: 100 } });
+      setLakuData(res.data.data);
     } finally {
       setLakuLoading(false);
     }

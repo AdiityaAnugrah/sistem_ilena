@@ -83,11 +83,12 @@ router.post('/', authenticate, async (req, res) => {
 // GET /api/penjualan-offline
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { tipe, faktur, status, search, page = 1, limit = 20 } = req.query;
+    const { tipe, faktur, status, search, from_display, page = 1, limit = 20 } = req.query;
     const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
     if (tipe) where.tipe = tipe;
     if (faktur) where.faktur = faktur;
     if (status) where.status = status;
+    if (from_display === '1') where.display_source_id = { [Op.not]: null };
     if (search) {
       where[Op.or] = [
         { nama_penerima: { [Op.like]: `%${search}%` } },
