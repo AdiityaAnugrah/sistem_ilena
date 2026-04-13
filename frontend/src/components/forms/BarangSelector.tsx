@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '@/lib/api';
 import { formatRupiah } from '@/lib/utils';
-import { Search, Plus, X, Package } from 'lucide-react';
+import { Search, Plus, X, Package, Filter } from 'lucide-react';
 
 interface Props {
   onSelect: (barang: any) => void;
@@ -22,16 +22,26 @@ function parseDimensi(deskripsi: any): string {
 
 export default function BarangSelector({ onSelect }: Props) {
   const [search, setSearch] = useState('');
+  const [kategori, setKategori] = useState('');
+  const [kategoriList, setKategoriList] = useState<string[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch produk — query kosong = tampilkan semua (limit 20)
-  const fetchBarang = useCallback(async (q: string) => {
+  const fetchBarang = useCallback(async (q: string, kat: string) => {
     setLoading(true);
     try {
-      const res = await api.get('/barang', { params: { search: q, limit: 20, active: 1 } });
-      setResults(res.data.data || []);
+      const params: Record<string, any> = { limit: 30, active: 1 };
+      if (q.trim()) params.search = q.trim();
+      if (kat) params.kategori = kat;
+      const res = await api.get('/barang', { params });
+      const data = res.data.data || [];
+      setResults(data);
+      // Kumpulkan kategori unik untuk filter dropdown
+      setKategoriList(prev => {
+        const cats = data.map((b: any) => b.kategori).filter(Boolean);
+        return Array.from(new Set([...prev, ...cats])).sort();
+      });
     } catch {
       setResults([]);
     } finally {
@@ -41,31 +51,26 @@ export default function BarangSelector({ onSelect }: Props) {
 
   // Fetch on mount
   useEffect(() => {
-    fetchBarang('');
+    fetchBarang('', '');
   }, [fetchBarang]);
 
-  // Debounce search input
+  // Debounce search + kategori
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchBarang(search), 300);
+    debounceRef.current = setTimeout(() => fetchBarang(search, kategori), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search, fetchBarang]);
+  }, [search, kategori, fetchBarang]);
 
   const handleSelect = (barang: any) => {
     onSelect(barang);
-    // Tidak reset search bar agar user bisa tambah banyak barang sekaligus jika sedang nyari
   };
 
-  const handleClear = () => {
-    setSearch('');
-  };
+  const hasFilter = search || kategori;
 
   return (
     <div className="rounded-xl border border-[#e2e8f0] overflow-hidden flex flex-col transition-all bg-white shadow-sm hover:shadow-md">
-      {/* Header / Input Field */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 border-b border-[#e2e8f0] bg-[#f8fafc]"
-      >
+      {/* Search bar */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-[#e2e8f0] bg-[#f8fafc]">
         {loading
           ? <div className="h-4 w-4 rounded-full border-2 border-slate-700 border-t-transparent animate-spin flex-shrink-0" />
           : <Search className="h-4 w-4 flex-shrink-0 text-slate-500" />
@@ -78,14 +83,47 @@ export default function BarangSelector({ onSelect }: Props) {
           className="flex-1 bg-transparent text-sm outline-none font-medium placeholder-slate-400"
           style={{ color: '#1e293b' }}
         />
-        {search && (
-          <button type="button" onClick={handleClear} className="flex-shrink-0 p-1 rounded-md hover:bg-slate-200 transition-colors">
+        {hasFilter && (
+          <button type="button" onClick={() => { setSearch(''); setKategori(''); }}
+            className="flex-shrink-0 p-1 rounded-md hover:bg-slate-200 transition-colors" title="Reset filter">
             <X className="h-4 w-4 text-slate-400" />
           </button>
         )}
       </div>
 
-      {/* Product List Content */}
+      {/* Filter bar */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-[#e2e8f0] bg-[#f8fafc]">
+        <Filter className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setKategori('')}
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: kategori === '' ? '#FA2F2F' : '#f1f5f9',
+              color: kategori === '' ? '#fff' : '#64748b',
+            }}
+          >
+            Semua
+          </button>
+          {kategoriList.map(k => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKategori(k === kategori ? '' : k)}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all uppercase"
+              style={{
+                background: kategori === k ? '#FA2F2F' : '#f1f5f9',
+                color: kategori === k ? '#fff' : '#64748b',
+              }}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Product List */}
       <div className="max-h-64 overflow-y-auto custom-scrollbar bg-white">
         {loading && results.length === 0 ? (
           <div className="flex items-center justify-center py-10 gap-3">
@@ -98,7 +136,7 @@ export default function BarangSelector({ onSelect }: Props) {
               <Package className="h-6 w-6 text-slate-300" />
             </div>
             <p className="text-sm font-medium text-slate-400">
-              {search ? `Produk "${search}" tidak ditemukan` : 'Tidak ada produk'}
+              {hasFilter ? 'Produk tidak ditemukan' : 'Tidak ada produk'}
             </p>
           </div>
         ) : (
@@ -112,7 +150,7 @@ export default function BarangSelector({ onSelect }: Props) {
                   <Package className="h-5 w-5 text-slate-400 group-hover:text-red-400 transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-slate-800 truncate" title={barang.nama}>
+                  <div className="text-sm font-bold text-slate-800 truncate uppercase" title={barang.nama}>
                     {barang.nama}
                   </div>
                   <div className="text-xs mt-1 text-slate-500 font-medium">
