@@ -288,7 +288,7 @@ export default function PenjualanOfflineBaru() {
                       <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase">Produk</th>
                       <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-32">Kuantitas</th>
                       <th className="text-left py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-48">Harga Satuan</th>
-                      <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-24">Diskon</th>
+                      {tipe === 'PENJUALAN' && <th className="text-center py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-24">Diskon</th>}
                       <th className="text-right py-3.5 px-5 text-slate-600 font-semibold text-xs tracking-wider uppercase w-44">Subtotal</th>
                       <th className="py-3.5 px-5 w-14"></th>
                     </tr>
@@ -359,21 +359,23 @@ export default function PenjualanOfflineBaru() {
                             />
                           </div>
                         </td>
-                        <td className="py-4 px-5">
-                          <div className="relative flex items-center shadow-sm w-16 mx-auto group-hover:shadow transition-shadow rounded-lg">
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={item.diskon || ''}
-                              onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
-                              onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
-                              className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
-                            />
-                            <div className="absolute right-2 text-slate-400 font-bold text-xs pointer-events-none">%</div>
-                          </div>
-                        </td>
+                        {tipe === 'PENJUALAN' && (
+                          <td className="py-4 px-5">
+                            <div className="relative flex items-center shadow-sm w-16 mx-auto group-hover:shadow transition-shadow rounded-lg">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={item.diskon || ''}
+                                onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                                onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
+                                className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-bold text-slate-700"
+                              />
+                              <div className="absolute right-2 text-slate-400 font-bold text-xs pointer-events-none">%</div>
+                            </div>
+                          </td>
+                        )}
                         <td className="py-4 px-5 text-right">
                           <div className="font-extrabold text-slate-800 tracking-tight text-[15px]">
                             {formatRupiah(getSubtotal(item))}
