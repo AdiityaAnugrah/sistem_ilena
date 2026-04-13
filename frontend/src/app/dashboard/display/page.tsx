@@ -6,7 +6,7 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Eye, Store, ShoppingBag } from 'lucide-react';
+import { Plus, Eye, Store, ShoppingBag, RefreshCw } from 'lucide-react';
 
 type Tab = 'display' | 'laku';
 
@@ -39,8 +39,10 @@ export default function DisplayPage() {
   const fetchLaku = async () => {
     setLakuLoading(true);
     try {
-      const res = await api.get('/penjualan-offline', { params: { from_display: '1', page: 1, limit: 100 } });
-      setLakuData(res.data.data);
+      const res = await api.get('/penjualan-offline', { params: { from_display: '1', tipe: 'PENJUALAN', page: 1, limit: 100 } });
+      setLakuData(res.data.data || []);
+    } catch {
+      setLakuData([]);
     } finally {
       setLakuLoading(false);
     }
@@ -138,8 +140,12 @@ export default function DisplayPage() {
       {/* Sudah Laku */}
       {tab === 'laku' && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-          <div className="px-4 py-3 border-b border-slate-100">
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <p className="text-sm text-slate-500">Total: <span className="font-semibold text-slate-700">{lakuData.length} penjualan dari display</span></p>
+            <Button variant="ghost" size="sm" onClick={fetchLaku} disabled={lakuLoading}>
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${lakuLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
           <Table>
             <TableHeader>

@@ -334,6 +334,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
         tagihan_kelurahan_id: display.tagihan_kelurahan_id,
         tagihan_detail: display.tagihan_detail,
         status: 'ACTIVE',
+        is_test: display.is_test,
         display_source_id: display.id,
         created_by: req.user.id,
       }, { transaction: t });
@@ -355,16 +356,12 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
           subtotal: subtotalM,
         }, { transaction: t });
 
-        // Update remaining display qty or delete if 0
+        // Update remaining display qty (set 0 jika habis, jangan dihapus — sub-SP masih perlu referensi item ini)
         const sisakQty = itemDisplay.qty - qtyJualInt;
-        if (sisakQty <= 0) {
-          // Hapus sub-SP dulu sebelum hapus item (foreign key constraint)
-          await SuratPengantarSub.destroy({ where: { penjualan_offline_item_id: itemDisplay.id }, transaction: t });
-          await itemDisplay.destroy({ transaction: t });
-        } else {
-          const subtotalSisa = parseFloat(itemDisplay.harga_satuan) * sisakQty * (1 - (itemDisplay.diskon / 100));
-          await itemDisplay.update({ qty: sisakQty, subtotal: subtotalSisa }, { transaction: t });
-        }
+        const subtotalSisa = sisakQty > 0
+          ? parseFloat(itemDisplay.harga_satuan) * sisakQty * (1 - (itemDisplay.diskon / 100))
+          : 0;
+        await itemDisplay.update({ qty: sisakQty > 0 ? sisakQty : 0, subtotal: subtotalSisa }, { transaction: t });
       }
 
       await t.commit();
