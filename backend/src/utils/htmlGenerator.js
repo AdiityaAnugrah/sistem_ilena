@@ -87,23 +87,170 @@ const TOOLBAR_CSS = `
     body { padding-top: 46px; }
     @media print {
         .doc-toolbar { display: none !important; }
+        .sig-picker-modal { display: none !important; }
         body { padding-top: 0 !important; }
         .sig-delete-btn { display: none !important; }
         .sig-resize-handle { display: none !important; }
     }
+    /* Signature picker modal */
+    .sig-picker-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: rgba(0,0,0,0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .sig-picker-modal.open { display: flex; }
+    .sig-picker-box {
+        background: #fff;
+        border-radius: 14px;
+        padding: 24px;
+        width: 520px;
+        max-width: calc(100vw - 32px);
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        font-family: inherit;
+    }
+    .sig-picker-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+    }
+    .sig-picker-header h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: #1e293b;
+    }
+    .sig-picker-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 22px;
+        color: #94a3b8;
+        line-height: 1;
+        padding: 0 4px;
+        transition: color 0.15s;
+    }
+    .sig-picker-close:hover { color: #ef4444; }
+    .sig-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 18px;
+        min-height: 80px;
+    }
+    .sig-picker-empty {
+        grid-column: 1/-1;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 13px;
+        padding: 24px 0;
+    }
+    .sig-picker-item {
+        position: relative;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px;
+        cursor: pointer;
+        background: #f8fafc;
+        transition: border-color 0.15s, background 0.15s;
+        aspect-ratio: 2/1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .sig-picker-item:hover { border-color: #3b82f6; background: #eff6ff; }
+    .sig-picker-item.selected { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.18); }
+    .sig-picker-item img { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
+    .sig-picker-del {
+        position: absolute;
+        top: 4px; right: 4px;
+        width: 18px; height: 18px;
+        background: #ef4444;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.15s;
+    }
+    .sig-picker-item:hover .sig-picker-del { opacity: 1; }
+    .sig-picker-upload {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        background: #f1f5f9;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        color: #475569;
+        transition: background 0.15s;
+    }
+    .sig-picker-upload:hover { background: #e2e8f0; }
+    .sig-picker-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid #f1f5f9;
+        padding-top: 16px;
+        margin-top: 4px;
+    }
+    .sig-picker-confirm {
+        padding: 8px 20px;
+        background: #2563eb;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .sig-picker-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+    .sig-picker-confirm:not(:disabled):hover { background: #1d4ed8; }
 `;
 
 const TOOLBAR_HTML_FULL = `
 <div class="doc-toolbar" id="docToolbar">
-    <label class="tb-label-btn" id="tbUploadLabel" title="Upload tanda tangan">
-        &#128247; Upload TTD
-        <input type="file" id="inputSignature" accept="image/*" style="display:none">
-    </label>
+    <button class="tb-btn tb-btn-ghost" id="btnPickSig">&#9998; Pilih TTD</button>
     <button class="tb-btn tb-btn-ghost" id="btnAddSig" disabled>+ Tambah ke Dokumen</button>
     <span class="tb-status" id="tbStatus"></span>
     <div class="tb-sep"></div>
     <button class="tb-btn tb-btn-ghost" id="btnPrint">&#128424; Cetak</button>
     <button class="tb-btn tb-btn-primary" id="btnSavePDF">&#11015; Simpan PDF</button>
+</div>
+
+<!-- Signature picker modal -->
+<div class="sig-picker-modal" id="sigPickerModal">
+    <div class="sig-picker-box">
+        <div class="sig-picker-header">
+            <h3>&#9998; Pilih Tanda Tangan</h3>
+            <button class="sig-picker-close" id="btnClosePicker">&#215;</button>
+        </div>
+        <div class="sig-picker-grid" id="sigPickerGrid">
+            <div class="sig-picker-empty">Memuat...</div>
+        </div>
+        <div class="sig-picker-footer">
+            <label class="sig-picker-upload">
+                + Upload TTD Baru
+                <input type="file" id="inputSignature" accept="image/*" style="display:none">
+            </label>
+            <button class="sig-picker-confirm" id="btnConfirmSig" disabled>Gunakan TTD Ini</button>
+        </div>
+    </div>
 </div>
 `;
 
@@ -133,21 +280,89 @@ const buildFullToolbarJS = (pdfFilename) => `
     var sigImg = document.getElementById('sigImg');
     var btnAddSig = document.getElementById('btnAddSig');
     var tbStatus = document.getElementById('tbStatus');
+    var modal = document.getElementById('sigPickerModal');
+    var grid = document.getElementById('sigPickerGrid');
+    var btnConfirm = document.getElementById('btnConfirmSig');
+    var selectedSigUrl = null;
 
-    function loadSignature() {
-        fetch(apiBase + '/api/settings/signature?token=' + token)
-            .then(function(r) {
-                if (r.ok) {
-                    sigImg.src = apiBase + '/api/settings/signature?token=' + token + '&t=' + Date.now();
-                    btnAddSig.disabled = false;
-                    tbStatus.textContent = 'TTD tersedia';
-                } else {
-                    tbStatus.textContent = 'Belum ada TTD';
-                }
-            })
-            .catch(function() { tbStatus.textContent = 'Gagal memuat TTD'; });
+    // ── Picker modal ──────────────────────────────────────────────────────────
+
+    function loadSignatureList() {
+        grid.innerHTML = '<div class="sig-picker-empty">Memuat...</div>';
+        fetch(apiBase + '/api/settings/signatures', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(list) {
+            if (!list.length) {
+                grid.innerHTML = '<div class="sig-picker-empty">Belum ada TTD tersimpan.<br>Upload TTD baru di bawah.</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            list.forEach(function(sig) {
+                var item = document.createElement('div');
+                item.className = 'sig-picker-item';
+                item.dataset.url = apiBase + sig.url + '?token=' + token + '&t=' + Date.now();
+                item.dataset.id = sig.id;
+
+                var img = document.createElement('img');
+                img.src = item.dataset.url;
+                img.alt = 'TTD';
+
+                var delBtn = document.createElement('button');
+                delBtn.className = 'sig-picker-del';
+                delBtn.title = 'Hapus TTD ini';
+                delBtn.innerHTML = '&#215;';
+                delBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (!confirm('Hapus tanda tangan ini?')) return;
+                    fetch(apiBase + '/api/settings/signatures/' + encodeURIComponent(sig.id), {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    })
+                    .then(function() { loadSignatureList(); });
+                });
+
+                item.appendChild(img);
+                item.appendChild(delBtn);
+                item.addEventListener('click', function() {
+                    document.querySelectorAll('.sig-picker-item').forEach(function(el) { el.classList.remove('selected'); });
+                    item.classList.add('selected');
+                    selectedSigUrl = item.dataset.url;
+                    btnConfirm.disabled = false;
+                });
+                grid.appendChild(item);
+            });
+        })
+        .catch(function() {
+            grid.innerHTML = '<div class="sig-picker-empty">Gagal memuat daftar TTD.</div>';
+        });
     }
-    loadSignature();
+
+    document.getElementById('btnPickSig').addEventListener('click', function() {
+        selectedSigUrl = null;
+        btnConfirm.disabled = true;
+        modal.classList.add('open');
+        loadSignatureList();
+    });
+
+    document.getElementById('btnClosePicker').addEventListener('click', function() {
+        modal.classList.remove('open');
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.classList.remove('open');
+    });
+
+    btnConfirm.addEventListener('click', function() {
+        if (!selectedSigUrl) return;
+        sigImg.src = selectedSigUrl;
+        btnAddSig.disabled = false;
+        tbStatus.textContent = 'TTD dipilih';
+        modal.classList.remove('open');
+    });
+
+    // ── Upload TTD baru ───────────────────────────────────────────────────────
 
     document.getElementById('inputSignature').addEventListener('change', function(e) {
         var file = e.target.files[0];
@@ -155,19 +370,26 @@ const buildFullToolbarJS = (pdfFilename) => `
         tbStatus.textContent = 'Mengupload...';
         var fd = new FormData();
         fd.append('signature', file);
-        fetch(apiBase + '/api/settings/signature', {
+        fetch(apiBase + '/api/settings/signatures', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token },
             body: fd,
         })
         .then(function(r) { return r.json(); })
-        .then(function() {
-            tbStatus.textContent = 'TTD disimpan';
-            sigImg.src = apiBase + '/api/settings/signature?token=' + token + '&t=' + Date.now();
+        .then(function(data) {
+            tbStatus.textContent = 'TTD berhasil diupload';
+            e.target.value = '';
+            loadSignatureList();
+            // Auto-select the new one
+            selectedSigUrl = apiBase + data.url + '?token=' + token + '&t=' + Date.now();
+            sigImg.src = selectedSigUrl;
             btnAddSig.disabled = false;
+            btnConfirm.disabled = false;
         })
         .catch(function() { tbStatus.textContent = 'Upload gagal'; });
     });
+
+    // ── Tambah ke dokumen ─────────────────────────────────────────────────────
 
     btnAddSig.addEventListener('click', function() {
         overlay.style.display = 'block';
@@ -181,6 +403,8 @@ const buildFullToolbarJS = (pdfFilename) => `
         e.stopPropagation();
         overlay.style.display = 'none';
     });
+
+    // ── Drag & resize ─────────────────────────────────────────────────────────
 
     var mode = null;
     var startX, startY, startW, startH, startL, startT;
@@ -207,6 +431,8 @@ const buildFullToolbarJS = (pdfFilename) => `
         }
     });
     document.addEventListener('mouseup', function() { mode = null; });
+
+    // ── Print & PDF ───────────────────────────────────────────────────────────
 
     document.getElementById('btnPrint').addEventListener('click', function() { window.print(); });
 

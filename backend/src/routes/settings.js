@@ -8,11 +8,24 @@ const { logAction } = require('../middleware/logger');
 const router = express.Router();
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
-const SIGNATURE_PATH = path.join(UPLOADS_DIR, 'signature.png');
+const SIGS_DIR = path.join(UPLOADS_DIR, 'signatures');
+const LEGACY_SIG = path.join(UPLOADS_DIR, 'signature.png');
 
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Ensure directories exist
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(SIGS_DIR)) fs.mkdirSync(SIGS_DIR, { recursive: true });
+
+// Migrate legacy signature.png → signatures/sig_legacy.png (once)
+if (fs.existsSync(LEGACY_SIG)) {
+  const dest = path.join(SIGS_DIR, 'sig_legacy.png');
+  if (!fs.existsSync(dest)) {
+    fs.copyFileSync(LEGACY_SIG, dest);
+  }
 }
+
+const isValidFilename = (name) => name && !name.includes('..') && !name.includes('/') && !name.includes('\\');
+
+// ─── Single signature (backward compat) ──────────────────────────────────────
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
@@ -23,19 +36,15 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Hanya file gambar yang diizinkan'));
-    }
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Hanya file gambar yang diizinkan'));
     cb(null, true);
   },
 });
 
-// POST /api/settings/signature — upload tanda tangan
+// POST /api/settings/signature — legacy upload (overwrites)
 router.post('/signature', authenticate, blockTestMutation, upload.single('signature'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'File tanda tangan wajib diupload' });
-    }
+    if (!req.file) return res.status(400).json({ message: 'File tanda tangan wajib diupload' });
     await logAction(req.user.id, 'UPLOAD_SIGNATURE', 'Upload tanda tangan sistem', req.ip);
     return res.json({ message: 'Tanda tangan berhasil disimpan' });
   } catch (err) {
@@ -43,13 +52,86 @@ router.post('/signature', authenticate, blockTestMutation, upload.single('signat
   }
 });
 
-// GET /api/settings/signature — ambil tanda tangan
+// GET /api/settings/signature — legacy get
 router.get('/signature', authenticate, (req, res) => {
-  if (!fs.existsSync(SIGNATURE_PATH)) {
+  if (!fs.existsSync(LEGACY_SIG)) {
     return res.status(404).json({ message: 'Tanda tangan belum diupload' });
   }
   res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(SIGNATURE_PATH);
+  res.sendFile(LEGACY_SIG);
+});
+
+// ─── Multi-signature ──────────────────────────────────────────────────────────
+
+const multiStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, SIGS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, `sig_${Date.now()}${ext}`);
+  },
+});
+
+const uploadMulti = multer({
+  storage: multiStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Hanya file gambar yang diizinkan'));
+    cb(null, true);
+  },
+});
+
+// GET /api/settings/signatures — list all signatures
+router.get('/signatures', authenticate, (req, res) => {
+  const files = fs.existsSync(SIGS_DIR)
+    ? fs.readdirSync(SIGS_DIR).filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f))
+    : [];
+  const list = files.map(f => ({
+    id: f,
+    url: `/api/settings/signatures/${encodeURIComponent(f)}`,
+    createdAt: fs.statSync(path.join(SIGS_DIR, f)).mtime.toISOString(),
+  }));
+  list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+// GET /api/settings/signatures/:id — serve one signature file
+router.get('/signatures/:id', authenticate, (req, res) => {
+  const filename = decodeURIComponent(req.params.id);
+  if (!isValidFilename(filename)) return res.status(400).json({ message: 'Nama file tidak valid' });
+  const filepath = path.join(SIGS_DIR, filename);
+  if (!fs.existsSync(filepath)) return res.status(404).json({ message: 'Tidak ditemukan' });
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(filepath);
+});
+
+// POST /api/settings/signatures — upload new signature
+router.post('/signatures', authenticate, blockTestMutation, uploadMulti.single('signature'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'File tanda tangan wajib diupload' });
+    await logAction(req.user.id, 'UPLOAD_SIGNATURE', `Upload tanda tangan: ${req.file.filename}`, req.ip);
+    return res.json({
+      message: 'Tanda tangan berhasil disimpan',
+      id: req.file.filename,
+      url: `/api/settings/signatures/${encodeURIComponent(req.file.filename)}`,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// DELETE /api/settings/signatures/:id — delete a signature
+router.delete('/signatures/:id', authenticate, blockTestMutation, async (req, res) => {
+  try {
+    const filename = decodeURIComponent(req.params.id);
+    if (!isValidFilename(filename)) return res.status(400).json({ message: 'Nama file tidak valid' });
+    const filepath = path.join(SIGS_DIR, filename);
+    if (!fs.existsSync(filepath)) return res.status(404).json({ message: 'Tidak ditemukan' });
+    fs.unlinkSync(filepath);
+    await logAction(req.user.id, 'DELETE_SIGNATURE', `Hapus tanda tangan: ${filename}`, req.ip);
+    return res.json({ message: 'Tanda tangan berhasil dihapus' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
 });
 
 module.exports = router;
