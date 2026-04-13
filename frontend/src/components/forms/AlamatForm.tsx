@@ -84,6 +84,9 @@ export default function AlamatForm({ label, value, onChange }: Props) {
             placeholder="Pilih provinsi..."
             isClearable
             className="text-sm"
+            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            menuPosition="fixed"
+            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
           />
         </div>
         <div>
@@ -96,6 +99,9 @@ export default function AlamatForm({ label, value, onChange }: Props) {
             isClearable
             isDisabled={!value.provinsi_id}
             className="text-sm"
+            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            menuPosition="fixed"
+            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
           />
         </div>
         <div>
@@ -108,6 +114,9 @@ export default function AlamatForm({ label, value, onChange }: Props) {
             isClearable
             isDisabled={!value.kabupaten_id}
             className="text-sm"
+            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            menuPosition="fixed"
+            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
           />
         </div>
         <div>
@@ -120,6 +129,9 @@ export default function AlamatForm({ label, value, onChange }: Props) {
             isClearable
             isDisabled={!value.kecamatan_id}
             className="text-sm"
+            menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+            menuPosition="fixed"
+            styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
           />
         </div>
       </div>

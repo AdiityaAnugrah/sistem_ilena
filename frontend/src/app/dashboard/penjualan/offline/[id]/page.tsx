@@ -165,7 +165,8 @@ const DocModal = ({
 // ─── Modal Proses Jual Multiple Item Display ──────────────────────────────────────────────
 const JualMultipleModal = ({
   show, items, onClose, onSubmit, loading,
-  form, setForm, faktur, setFaktur
+  form, setForm, faktur, setFaktur,
+  namaNpwp, setNamaNpwp, noNpwp, setNoNpwp,
 }: any) => {
   if (!show || !items) return null;
   const updateForm = (id: number, field: string, value: any) => {
@@ -208,7 +209,36 @@ const JualMultipleModal = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 pr-2" style={{ maxHeight: '45vh' }}>
+        {/* Nama & No NPWP */}
+        <div className="mb-4 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Data NPWP (opsional)</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nama NPWP</label>
+              <input
+                type="text"
+                value={namaNpwp}
+                onChange={e => setNamaNpwp(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                placeholder="Nama sesuai NPWP"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP</label>
+              <input
+                type="text"
+                value={noNpwp}
+                onChange={e => setNoNpwp(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                placeholder="00.000.000.0-000.000"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto mb-4 pr-2" style={{ maxHeight: '40vh' }}>
           <div className="space-y-3">
             {items.map((item: any) => {
               const f = form[item.id] || { qty: 0, harga: '' };
@@ -298,6 +328,8 @@ export default function PenjualanOfflineDetail() {
   // States for Jual Multiple Items Display
   const [jualModal, setJualModal] = useState(false);
   const [jualFaktur, setJualFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
+  const [jualNamaNpwp, setJualNamaNpwp] = useState('');
+  const [jualNoNpwp, setJualNoNpwp] = useState('');
   const [jualForm, setJualForm] = useState<Record<number, { qty: number; harga: string }>>({});
   const [jualLoading, setJualLoading] = useState(false);
 
@@ -315,6 +347,8 @@ export default function PenjualanOfflineDetail() {
       initForm[it.id] = { qty: 0, harga: '' };
     });
     setJualForm(initForm);
+    setJualNamaNpwp(data.nama_npwp || '');
+    setJualNoNpwp(data.no_npwp || '');
     setJualModal(true);
   };
 
@@ -407,7 +441,12 @@ export default function PenjualanOfflineDetail() {
 
     setJualLoading(true);
     try {
-      const res = await api.post(`/penjualan-offline/${id}/proses-jual-item`, { items: selectedItems, faktur: jualFaktur });
+      const res = await api.post(`/penjualan-offline/${id}/proses-jual-item`, {
+        items: selectedItems,
+        faktur: jualFaktur,
+        nama_npwp: jualNamaNpwp || null,
+        no_npwp: jualNoNpwp || null,
+      });
       
       const newPenjualanId = res.data.new_penjualan_id;
       toast.success(
@@ -883,6 +922,8 @@ export default function PenjualanOfflineDetail() {
         onSubmit={prosesJualItem} loading={jualLoading}
         form={jualForm} setForm={setJualForm}
         faktur={jualFaktur} setFaktur={setJualFaktur}
+        namaNpwp={jualNamaNpwp} setNamaNpwp={setJualNamaNpwp}
+        noNpwp={jualNoNpwp} setNoNpwp={setJualNoNpwp}
       />
 
       {/* Sub-SP Modal */}

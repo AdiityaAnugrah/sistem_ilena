@@ -61,6 +61,18 @@ interface Barang {
   tiktok: string | null;
 }
 
+function parseDimensi(deskripsi: string | null): string {
+  try {
+    const d = deskripsi ? JSON.parse(deskripsi) : null;
+    if (d?.dimensi?.asli) {
+      const { panjang, lebar, tinggi } = d.dimensi.asli;
+      const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
+      if (parts.length > 0) return parts.join(' × ') + ' cm';
+    }
+  } catch { /* */ }
+  return '-';
+}
+
 interface VarianItem { id: string; nama: string; kode: string; }
 
 const emptyForm = {
@@ -321,16 +333,16 @@ export default function MasterBarangPage() {
           <Table sx={{ minWidth: 800 }}>
             <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
               <TableRow>
-                {['ID', 'Produk', 'Kategori', 'Harga', 'Diskon', 'Varian', 'Status', 'Aksi'].map(h => (
+                {['ID', 'Produk', 'Kategori', 'Dimensi', 'Harga', 'Diskon', 'Varian', 'Status', 'Aksi'].map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={8} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
               ) : barangs.length === 0 ? (
-                <TableRow><TableCell colSpan={8} align="center" sx={{ py: 10 }}>Produk tidak ditemukan</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 10 }}>Produk tidak ditemukan</TableCell></TableRow>
               ) : barangs.map((b) => {
                 let varianCount = 0;
                 try { varianCount = b.varian ? JSON.parse(b.varian).length : 0; } catch { /* */ }
@@ -345,6 +357,11 @@ export default function MasterBarangPage() {
                         <Typography variant="caption" sx={{ textTransform: 'capitalize', fontWeight: 600, color: 'primary.main' }}>{b.kategori}</Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>{b.subkategori || '-'}</Typography>
                       </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary' }}>
+                        {parseDimensi(b.deskripsi)}
+                      </Typography>
                     </TableCell>
                     <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatRupiah(b.harga)}</Typography></TableCell>
                     <TableCell>

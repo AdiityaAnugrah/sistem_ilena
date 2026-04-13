@@ -266,7 +266,7 @@ router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
 // POST /api/penjualan-offline/:id/proses-jual-item
 router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
   try {
-    const { items, faktur } = req.body; // items: array dari { item_id, qty_jual, harga_jual, diskon }; faktur: 'FAKTUR'|'NON_FAKTUR'
+    const { items, faktur, nama_npwp, no_npwp } = req.body; // items: array dari { item_id, qty_jual, harga_jual, diskon }; faktur: 'FAKTUR'|'NON_FAKTUR'
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Minimal 1 item harus diisi untuk diproses.' });
@@ -320,8 +320,8 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
         no_hp_penerima: display.no_hp_penerima,
         no_po: display.no_po,
         tanggal: new Date().toISOString().split('T')[0],
-        nama_npwp: display.nama_npwp,
-        no_npwp: display.no_npwp,
+        nama_npwp: nama_npwp !== undefined ? nama_npwp : display.nama_npwp,
+        no_npwp: no_npwp !== undefined ? no_npwp : display.no_npwp,
         pengirim_provinsi_id: display.pengirim_provinsi_id,
         pengirim_kabupaten_id: display.pengirim_kabupaten_id,
         pengirim_kecamatan_id: display.pengirim_kecamatan_id,
