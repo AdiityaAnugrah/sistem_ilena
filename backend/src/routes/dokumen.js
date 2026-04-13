@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  SuratJalan, Invoice, SuratPengantar, ProformaInvoice,
+  SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, ProformaInvoice,
   PenjualanOffline, PenjualanOfflineItem, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
   PenjualanInterior, PenjualanInteriorItem,
@@ -96,6 +96,42 @@ router.get('/sp/:id/print', authenticate, async (req, res) => {
     if (!sp) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
     
     const html = generateHTMLSuratPengantar(sp.toJSON());
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/dokumen/sp-sub/:id/print
+router.get('/sp-sub/:id/print', authenticate, async (req, res) => {
+  try {
+    const sub = await SuratPengantarSub.findByPk(req.params.id, {
+      include: [
+        {
+          model: SuratPengantar, as: 'suratPengantar',
+          include: [{
+            model: PenjualanOffline, as: 'penjualan',
+            include: [...includeAlamat],
+          }],
+        },
+        { model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] },
+      ],
+    });
+    if (!sub) return res.status(404).json({ message: 'Sub-SP tidak ditemukan' });
+
+    const data = sub.toJSON();
+    // Pakai template SP utama tapi override nomor_sp dan items (hanya 1 item ini)
+    const spData = {
+      ...data.suratPengantar,
+      nomor_sp: data.nomor_sp_sub,
+      penjualan: {
+        ...data.suratPengantar.penjualan,
+        items: [data.item],
+      },
+    };
+
+    const html = generateHTMLSuratPengantar(spData);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {

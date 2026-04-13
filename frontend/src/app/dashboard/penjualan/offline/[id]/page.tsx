@@ -768,25 +768,54 @@ export default function PenjualanOfflineDetail() {
                     />
                     {/* Sub-SP section */}
                     <div className="mt-2 ml-3 pl-3" style={{ borderLeft: '2px solid #f1f5f9' }}>
-                      <button
-                        onClick={() => { setSubSpModal({ sp }); setSubSpSelected(sp.subs?.map((s: any) => s.penjualan_offline_item_id) || []); }}
-                        className="text-xs font-medium flex items-center gap-1 transition-colors"
-                        style={{ color: '#94a3b8' }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#FA2F2F'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
-                      >
-                        <FilePlus className="h-3 w-3" />
-                        {sp.subs?.length > 0 ? `${sp.subs.length} Sub-SP dibuat · Edit` : 'Buat Sub-SP per Item'}
-                      </button>
                       {sp.subs?.length > 0 && (
-                        <div className="mt-1.5 space-y-1">
+                        <div className="mb-2 space-y-1.5">
                           {sp.subs.map((sub: any) => (
-                            <div key={sub.id} className="text-xs font-mono" style={{ color: '#64748b' }}>
-                              {sub.nomor_sp_sub} — {sub.item?.barang?.nama || `Item #${sub.penjualan_offline_item_id}`}
+                            <div key={sub.id}
+                              className="flex items-center justify-between px-2.5 py-1.5 rounded-lg"
+                              style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}
+                            >
+                              <span className="text-xs font-mono font-medium" style={{ color: '#334155' }}>
+                                {sub.nomor_sp_sub}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs" style={{ color: '#94a3b8' }}>
+                                  {sub.item?.barang?.nama || `Item #${sub.penjualan_offline_item_id}`}
+                                </span>
+                                <button
+                                  onClick={() => printDoc('sp-sub', sub.id)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-all"
+                                  style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.borderColor = '#fecaca'; }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; }}
+                                >
+                                  <Printer className="h-3 w-3" /> Cetak
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
+                      {/* Tombol tambah sub-SP baru (hanya jika masih ada item yang belum dapat sub-SP) */}
+                      {(() => {
+                        const existingItemIds = sp.subs?.map((s: any) => s.penjualan_offline_item_id) || [];
+                        const availableItems = data.items?.filter((it: any) => !existingItemIds.includes(it.id)) || [];
+                        if (availableItems.length === 0) return (
+                          <p className="text-xs" style={{ color: '#94a3b8' }}>Semua item sudah memiliki Sub-SP</p>
+                        );
+                        return (
+                          <button
+                            onClick={() => { setSubSpModal({ sp }); setSubSpSelected([]); }}
+                            className="text-xs font-medium flex items-center gap-1 transition-colors"
+                            style={{ color: '#94a3b8' }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#FA2F2F'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#94a3b8'}
+                          >
+                            <FilePlus className="h-3 w-3" />
+                            Tambah Sub-SP ({availableItems.length} item tersedia)
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -857,62 +886,69 @@ export default function PenjualanOfflineDetail() {
       />
 
       {/* Sub-SP Modal */}
-      {subSpModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fff1f1' }}>
-                <FilePlus className="h-5 w-5" style={{ color: '#FA2F2F' }} />
+      {subSpModal && (() => {
+        const sp = subSpModal.sp;
+        const existingItemIds: number[] = sp.subs?.map((s: any) => s.penjualan_offline_item_id) || [];
+        const startUrutan = existingItemIds.length + 1;
+        const availableItems = data.items?.filter((it: any) => !existingItemIds.includes(it.id)) || [];
+        const seq = sp.nomor_sp.split('/')[0];
+        const rest = sp.nomor_sp.split('/').slice(1).join('/');
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+            <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fff1f1' }}>
+                  <FilePlus className="h-5 w-5" style={{ color: '#FA2F2F' }} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: '#0f172a' }}>Tambah Sub-SP per Item</h3>
+                  <p className="text-xs" style={{ color: '#94a3b8' }}>SP Utama: {sp.nomor_sp}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-sm" style={{ color: '#0f172a' }}>Buat Sub-SP per Item</h3>
-                <p className="text-xs" style={{ color: '#94a3b8' }}>SP Utama: {subSpModal.sp.nomor_sp}</p>
-              </div>
-            </div>
-            <p className="text-xs mb-3" style={{ color: '#64748b' }}>
-              Pilih item yang akan mendapat Sub-SP. Format: <span className="font-mono">{subSpModal.sp.nomor_sp.split('/')[0]}/B01/{subSpModal.sp.nomor_sp.split('/').slice(1).join('/')}</span>
-            </p>
-            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
-              {data.items?.map((item: any, idx: number) => {
-                const isChecked = subSpSelected.includes(item.id);
-                const orderIndex = subSpSelected.indexOf(item.id);
-                return (
-                  <label key={item.id} className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                    style={{ background: isChecked ? '#fff1f1' : '#f8fafc', border: `1px solid ${isChecked ? '#fecaca' : '#f1f5f9'}` }}>
-                    <input type="checkbox" checked={isChecked}
-                      onChange={() => {
-                        setSubSpSelected(prev =>
+              <p className="text-xs mb-3" style={{ color: '#64748b' }}>
+                Pilih item yang akan mendapat Sub-SP. Contoh nomor: <span className="font-mono font-semibold">{seq}/B{String(startUrutan).padStart(2,'0')}/{rest}</span>
+              </p>
+              <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                {availableItems.map((item: any) => {
+                  const isChecked = subSpSelected.includes(item.id);
+                  const orderIndex = subSpSelected.indexOf(item.id);
+                  const urutanLabel = startUrutan + orderIndex;
+                  return (
+                    <label key={item.id} className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                      style={{ background: isChecked ? '#fff1f1' : '#f8fafc', border: `1px solid ${isChecked ? '#fecaca' : '#f1f5f9'}` }}>
+                      <input type="checkbox" checked={isChecked}
+                        onChange={() => setSubSpSelected(prev =>
                           prev.includes(item.id) ? prev.filter(x => x !== item.id) : [...prev, item.id]
-                        );
-                      }}
-                      className="w-4 h-4 accent-red-600"
-                    />
-                    <div className="flex-1 text-sm font-medium" style={{ color: '#1e293b' }}>
-                      {item.barang?.nama || item.barang_id}
-                    </div>
-                    {isChecked && (
-                      <span className="text-xs font-mono font-bold" style={{ color: '#FA2F2F' }}>
-                        B{String(orderIndex + 1).padStart(2, '0')}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setSubSpModal(null); setSubSpSelected([]); }}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
-                Batal
-              </button>
-              <button onClick={saveSubSp} disabled={subSpLoading || subSpSelected.length === 0}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
-                {subSpLoading ? 'Menyimpan...' : `Simpan ${subSpSelected.length} Sub-SP`}
-              </button>
+                        )}
+                        className="w-4 h-4 accent-red-600"
+                      />
+                      <div className="flex-1 text-sm font-medium" style={{ color: '#1e293b' }}>
+                        {item.barang?.nama || item.barang_id}
+                      </div>
+                      {isChecked && (
+                        <span className="text-xs font-mono font-bold" style={{ color: '#FA2F2F' }}>
+                          {seq}/B{String(urutanLabel).padStart(2,'0')}/{rest}
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => { setSubSpModal(null); setSubSpSelected([]); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
+                  Batal
+                </button>
+                <button onClick={saveSubSp} disabled={subSpLoading || subSpSelected.length === 0}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
+                  {subSpLoading ? 'Menyimpan...' : `Buat ${subSpSelected.length} Sub-SP`}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Warning Modal Identitas */}
       {identitasWarn && (

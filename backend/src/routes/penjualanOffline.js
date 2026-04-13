@@ -407,24 +407,32 @@ router.post('/sp/:sp_id/sub-sp', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Pilih minimal 1 item' });
     }
 
-    // Hapus sub-SP lama jika ada untuk item yang sama
-    await SuratPengantarSub.destroy({ where: { surat_pengantar_id: sp.id } });
+    // Cek item mana yang sudah punya sub-SP (tidak boleh diubah)
+    const existingSubs = await SuratPengantarSub.findAll({ where: { surat_pengantar_id: sp.id } });
+    const existingItemIds = existingSubs.map(s => s.penjualan_offline_item_id);
+    const newItemIds = item_ids.filter(id => !existingItemIds.includes(id));
+
+    if (newItemIds.length === 0) {
+      return res.status(400).json({ message: 'Semua item yang dipilih sudah memiliki sub-SP.' });
+    }
 
     // Parse nomor SP utama: "0013/SP/04/2026" -> seq="0013", rest="SP/04/2026"
     const parts = sp.nomor_sp.split('/');
     const seq = parts[0];
     const rest = parts.slice(1).join('/');
 
-    const newSubs = item_ids.map((item_id, index) => ({
+    // Urutan lanjut dari yang sudah ada
+    const startUrutan = existingSubs.length + 1;
+    const newSubs = newItemIds.map((item_id, index) => ({
       surat_pengantar_id: sp.id,
       penjualan_offline_item_id: item_id,
-      nomor_sp_sub: `${seq}/B${String(index + 1).padStart(2, '0')}/${rest}`,
-      urutan: index + 1,
+      nomor_sp_sub: `${seq}/B${String(startUrutan + index).padStart(2, '0')}/${rest}`,
+      urutan: startUrutan + index,
       created_by: req.user.id,
     }));
 
     await SuratPengantarSub.bulkCreate(newSubs);
-    await logAction(req.user.id, 'BUAT_SUB_SP', `SP ID: ${sp.id}, ${newSubs.length} sub-SP`, req.ip);
+    await logAction(req.user.id, 'BUAT_SUB_SP', `SP ID: ${sp.id}, +${newSubs.length} sub-SP`, req.ip);
 
     return res.status(201).json({ message: 'Sub-SP berhasil dibuat', count: newSubs.length });
   } catch (err) {
