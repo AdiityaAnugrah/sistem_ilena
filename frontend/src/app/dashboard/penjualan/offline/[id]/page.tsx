@@ -343,7 +343,7 @@ export default function PenjualanOfflineDetail() {
 
   const openJualModal = () => {
     const initForm: any = {};
-    data.items.forEach((it: any) => {
+    data.items.filter((it: any) => it.qty > 0).forEach((it: any) => {
       initForm[it.id] = { qty: 0, harga: '' };
     });
     setJualForm(initForm);
@@ -596,7 +596,7 @@ export default function PenjualanOfflineDetail() {
                 <Package className="h-4 w-4" style={{ color: '#94a3b8' }} />
                 <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Daftar Produk</h2>
               </div>
-              {!isPenjualan && data.items?.length > 0 && (
+              {!isPenjualan && data.items?.some((it: any) => it.qty > 0) && (
                 <button
                   onClick={openJualModal}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
@@ -917,7 +917,7 @@ export default function PenjualanOfflineDetail() {
         catatan={docCatatan} setCatatan={setDocCatatan}
       />
       <JualMultipleModal
-        show={jualModal} items={data.items}
+        show={jualModal} items={data.items.filter((it: any) => it.qty > 0)}
         onClose={() => setJualModal(false)}
         onSubmit={prosesJualItem} loading={jualLoading}
         form={jualForm} setForm={setJualForm}
