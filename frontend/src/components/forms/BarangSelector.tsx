@@ -8,6 +8,18 @@ interface Props {
   onSelect: (barang: any) => void;
 }
 
+function parseDimensi(deskripsi: any): string {
+  try {
+    const d = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
+    if (d?.dimensi?.asli) {
+      const { panjang, lebar, tinggi } = d.dimensi.asli;
+      const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
+      if (parts.length > 0) return parts.join(' × ') + ' cm';
+    }
+  } catch { /* */ }
+  return '';
+}
+
 export default function BarangSelector({ onSelect }: Props) {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -108,6 +120,12 @@ export default function BarangSelector({ onSelect }: Props) {
                     <span className="mx-1.5 opacity-50">•</span>
                     {barang.kategori}
                     {barang.subkategori && <span className="opacity-75"> / {barang.subkategori}</span>}
+                    {parseDimensi(barang.deskripsi) && (
+                      <>
+                        <span className="mx-1.5 opacity-50">•</span>
+                        <span className="font-mono text-slate-500">{parseDimensi(barang.deskripsi)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 mt-2 sm:mt-0 flex-shrink-0">
