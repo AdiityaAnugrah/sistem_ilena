@@ -244,7 +244,9 @@ router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
     }
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
-    const nomor_sp = await generateNomorSP(penjualan.faktur, tanggal, penjualan.is_test === 1);
+    // DISPLAY tidak pakai prefix NF — selalu format FAKTUR (tanpa prefix)
+    const fakturSP = penjualan.tipe === 'DISPLAY' ? 'FAKTUR' : penjualan.faktur;
+    const nomor_sp = await generateNomorSP(fakturSP, tanggal, penjualan.is_test === 1);
 
     const sp = await SuratPengantar.create({
       penjualan_offline_id: penjualan.id,
