@@ -80,13 +80,18 @@ function parseDimensi(deskripsi: string | null): string {
   return '-';
 }
 
-interface VarianItem { id: string; nama: string; kode: string; }
+interface VarianItem { id: string; nama: string; kode: string; stok: string; urutan_gambar: string; }
 
 const emptyForm = {
   id: '', nama: '', kategori: '', subkategori: '',
   harga: '', diskon: '', rate: '',
   pakai_jadwal_diskon: 0, diskon_mulai: '', diskon_selesai: '',
-  panjang: '', lebar: '', tinggi: '',
+  // dimensi asli
+  panjang: '', lebar: '', tinggi: '', berat: '',
+  // dimensi paket
+  paket_panjang: '', paket_lebar: '', paket_tinggi: '', paket_berat: '',
+  // deskripsi & perawatan
+  deskripsiText: '', perawatan: '',
   shopee: '', tokped: '', tiktok: '',
   ruang_tamu: 0, ruang_keluarga: 0, ruang_tidur: 0,
   active: 1,
@@ -163,7 +168,10 @@ export default function MasterBarangPage() {
 
   const openEdit = (b: Barang) => {
     setEditTarget(b);
-    let dim = { panjang: '', lebar: '', tinggi: '' };
+    let dim = { panjang: '', lebar: '', tinggi: '', berat: '' };
+    let paket = { panjang: '', lebar: '', tinggi: '', berat: '' };
+    let deskripsiText = '';
+    let perawatan = '';
     try {
       const d = typeof b.deskripsi === 'string' ? JSON.parse(b.deskripsi) : b.deskripsi;
       if (d?.dimensi?.asli) {
@@ -171,11 +179,27 @@ export default function MasterBarangPage() {
           panjang: String(d.dimensi.asli.panjang || ''),
           lebar: String(d.dimensi.asli.lebar || ''),
           tinggi: String(d.dimensi.asli.tinggi || ''),
+          berat: String(d.dimensi.asli.berat || ''),
         };
       }
+      if (d?.dimensi?.paket) {
+        paket = {
+          panjang: String(d.dimensi.paket.panjang || ''),
+          lebar: String(d.dimensi.paket.lebar || ''),
+          tinggi: String(d.dimensi.paket.tinggi || ''),
+          berat: String(d.dimensi.paket.berat || ''),
+        };
+      }
+      if (d?.deskripsi) deskripsiText = d.deskripsi;
+      if (d?.perawatan) perawatan = d.perawatan;
     } catch { /* */ }
     let parsedVarian: VarianItem[] = [];
-    try { parsedVarian = b.varian ? JSON.parse(b.varian) : []; } catch { /* */ }
+    try {
+      parsedVarian = b.varian ? JSON.parse(b.varian).map((v: any) => ({
+        id: v.id || '', nama: v.nama || '', kode: v.kode || '#aaaaaa',
+        stok: String(v.stok || '0'), urutan_gambar: v.urutan_gambar || '',
+      })) : [];
+    } catch { /* */ }
     setVarians(parsedVarian);
     setForm({
       id: b.id, nama: b.nama || '', kategori: b.kategori || '', subkategori: b.subkategori || '',
@@ -183,7 +207,9 @@ export default function MasterBarangPage() {
       pakai_jadwal_diskon: b.pakai_jadwal_diskon || 0,
       diskon_mulai: b.diskon_mulai ? b.diskon_mulai.slice(0, 16) : '',
       diskon_selesai: b.diskon_selesai ? b.diskon_selesai.slice(0, 16) : '',
-      panjang: dim.panjang, lebar: dim.lebar, tinggi: dim.tinggi,
+      panjang: dim.panjang, lebar: dim.lebar, tinggi: dim.tinggi, berat: dim.berat,
+      paket_panjang: paket.panjang, paket_lebar: paket.lebar, paket_tinggi: paket.tinggi, paket_berat: paket.berat,
+      deskripsiText, perawatan,
       shopee: b.shopee || '', tokped: b.tokped || '', tiktok: b.tiktok || '',
       ruang_tamu: b.ruang_tamu || 0, ruang_keluarga: b.ruang_keluarga || 0, ruang_tidur: b.ruang_tidur || 0,
       active: b.active,
@@ -197,9 +223,27 @@ export default function MasterBarangPage() {
     if (!form.id.trim() || !form.nama.trim()) { toast.error('ID dan Nama wajib diisi'); return; }
     setSaving(true);
     try {
-      const deskripsi = (form.panjang || form.lebar || form.tinggi) ? {
-        dimensi: { asli: { panjang: Number(form.panjang) || 0, lebar: Number(form.lebar) || 0, tinggi: Number(form.tinggi) || 0 } }
-      } : undefined;
+      const deskripsi = {
+        deskripsi: form.deskripsiText || '',
+        dimensi: {
+          asli: {
+            panjang: form.panjang || '0', lebar: form.lebar || '0',
+            tinggi: form.tinggi || '0', berat: form.berat || '0',
+          },
+          paket: {
+            panjang: form.paket_panjang || '0', lebar: form.paket_lebar || '0',
+            tinggi: form.paket_tinggi || '0', berat: form.paket_berat || '0',
+          },
+        },
+        perawatan: form.perawatan || '',
+      };
+      const varianPayload = varians.map((v, i) => ({
+        id: v.id || String(i + 1).padStart(2, '0'),
+        nama: v.nama,
+        kode: v.kode,
+        stok: v.stok || '0',
+        urutan_gambar: v.urutan_gambar || '',
+      }));
       const payload = {
         id: form.id.trim(), nama: form.nama.trim(),
         kategori: form.kategori.trim(), subkategori: form.subkategori.trim(),
@@ -209,7 +253,7 @@ export default function MasterBarangPage() {
         pakai_jadwal_diskon: form.pakai_jadwal_diskon,
         diskon_mulai: form.pakai_jadwal_diskon && form.diskon_mulai ? form.diskon_mulai : null,
         diskon_selesai: form.pakai_jadwal_diskon && form.diskon_selesai ? form.diskon_selesai : null,
-        varian: varians.length > 0 ? varians : [],
+        varian: varianPayload,
         deskripsi,
         shopee: form.shopee.trim() || '',
         tokped: form.tokped.trim() || '',
@@ -243,7 +287,7 @@ export default function MasterBarangPage() {
     } catch { toast.error('Gagal mengubah status'); }
   };
 
-  const addVarian = () => setVarians(prev => [...prev, { id: String(prev.length + 1).padStart(2, '0'), nama: '', kode: '#aaaaaa' }]);
+  const addVarian = () => setVarians(prev => [...prev, { id: String(prev.length + 1).padStart(2, '0'), nama: '', kode: '#aaaaaa', stok: '0', urutan_gambar: '' }]);
   const removeVarian = (i: number) => setVarians(prev => prev.filter((_, idx) => idx !== i));
   const updateVarian = (i: number, key: keyof VarianItem, val: string) =>
     setVarians(prev => prev.map((v, idx) => idx === i ? { ...v, [key]: val } : v));
@@ -501,12 +545,33 @@ export default function MasterBarangPage() {
             </Box>
 
             <Box>
-              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Dimensi (mm)</Typography>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Dimensi Asli (mm / kg)</Typography>
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                <Grid size={{ xs: 4 }}><TextField fullWidth label="Panjang" size="small" value={form.panjang} onChange={e => f('panjang', e.target.value)} /></Grid>
-                <Grid size={{ xs: 4 }}><TextField fullWidth label="Lebar" size="small" value={form.lebar} onChange={e => f('lebar', e.target.value)} /></Grid>
-                <Grid size={{ xs: 4 }}><TextField fullWidth label="Tinggi" size="small" value={form.tinggi} onChange={e => f('tinggi', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Panjang" size="small" value={form.panjang} onChange={e => f('panjang', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Lebar" size="small" value={form.lebar} onChange={e => f('lebar', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Tinggi" size="small" value={form.tinggi} onChange={e => f('tinggi', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Berat (kg)" size="small" value={form.berat} onChange={e => f('berat', e.target.value)} /></Grid>
               </Grid>
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Dimensi Paket (mm / kg)</Typography>
+              <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Panjang" size="small" value={form.paket_panjang} onChange={e => f('paket_panjang', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Lebar" size="small" value={form.paket_lebar} onChange={e => f('paket_lebar', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Tinggi" size="small" value={form.paket_tinggi} onChange={e => f('paket_tinggi', e.target.value)} /></Grid>
+                <Grid size={{ xs: 3 }}><TextField fullWidth label="Berat (kg)" size="small" value={form.paket_berat} onChange={e => f('paket_berat', e.target.value)} /></Grid>
+              </Grid>
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Deskripsi Produk</Typography>
+              <TextField fullWidth multiline minRows={3} size="small" placeholder="Deskripsi HTML produk..." value={form.deskripsiText} onChange={e => f('deskripsiText', e.target.value)} sx={{ mt: 0.5 }} />
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Perawatan</Typography>
+              <TextField fullWidth multiline minRows={2} size="small" placeholder="Info bahan dan perawatan..." value={form.perawatan} onChange={e => f('perawatan', e.target.value)} sx={{ mt: 0.5 }} />
             </Box>
 
             <Box>
@@ -520,7 +585,8 @@ export default function MasterBarangPage() {
                 ) : varians.map((v, i) => (
                   <Paper key={i} variant="outlined" sx={{ p: 1, px: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: '12px', bgcolor: 'rgba(0,0,0,0.02)' }}>
                     <input type="color" value={v.kode} onChange={e => updateVarian(i, 'kode', e.target.value)} style={{ width: 24, height: 24, border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'none' }} />
-                    <TextField variant="standard" size="small" value={v.nama} onChange={e => updateVarian(i, 'nama', e.target.value)} placeholder="Nama" sx={{ width: 100 }} slotProps={{ input: { sx: { fontSize: '0.75rem' } } }} />
+                    <TextField variant="standard" size="small" value={v.nama} onChange={e => updateVarian(i, 'nama', e.target.value)} placeholder="Nama" sx={{ width: 80 }} slotProps={{ input: { sx: { fontSize: '0.75rem' } } }} />
+                    <TextField variant="standard" size="small" type="number" value={v.stok} onChange={e => updateVarian(i, 'stok', e.target.value)} placeholder="Stok" sx={{ width: 50 }} slotProps={{ input: { sx: { fontSize: '0.75rem' } } }} />
                     <IconButton size="small" onClick={() => removeVarian(i)} sx={{ color: 'error.light' }}><X size={14} /></IconButton>
                   </Paper>
                 ))}
