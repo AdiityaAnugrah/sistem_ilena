@@ -636,7 +636,7 @@ export default function PenjualanOfflineDetail() {
             Detail {isPenjualan ? 'Penjualan' : 'Display'}
           </h1>
           <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
-            {formatDate(data.tanggal)} · {data.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+            {formatDate(data.tanggal)}{isPenjualan ? ` · ${data.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}` : ''}
           </p>
         </div>
         <StatusBadge status={data.status} />

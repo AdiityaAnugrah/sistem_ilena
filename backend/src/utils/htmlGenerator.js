@@ -550,7 +550,8 @@ const generateHTMLSuratJalan = (sj) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10px; color:var(--muted); font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const spesialHtml = diskon > 0
+    const isSpesial = diskon > 0 || penjualan.tipe === 'DISPLAY' || penjualan.display_source_id != null;
+    const spesialHtml = isSpesial
       ? `<span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 4px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
     const dimensiStr = parseDimensi(item.barang?.deskripsi);
@@ -1108,7 +1109,8 @@ const generateHTMLInvoice = (inv) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10.5px; color:#6b7280; font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const spesialHtml = diskon > 0
+    const isSpesial = diskon > 0 || penjualan.tipe === 'DISPLAY' || penjualan.display_source_id != null;
+    const spesialHtml = isSpesial
       ? `<br><span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 5px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
     const dimensiStr = parseDimensiInv(item.barang?.deskripsi);
@@ -1266,9 +1268,9 @@ const generateHTMLInvoice = (inv) => {
         <!-- Tujuan -->
         <div class="d-flex justify-content-start mt-4 mb-4 flex-column">
             <p class="m-0 nt" style="max-width:260px; font-size:12px;">Kepada Yth.</p>
-            <p class="m-0 tw-bold-italic" style="max-width:260px; font-size:12px;">${penjualan.nama_penerima || '-'}</p>
+            <p class="m-0 tw-bold-italic" style="max-width:260px; font-size:12px;">${penjualan.nama_npwp || penjualan.nama_penerima || '-'}</p>
             <p class="m-0" style="max-width:260px; font-size:12px;">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}</p>
-            
+
             ${penjualan.no_npwp ? `<p style="font-size:12px; margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>` : ''}
         </div>
 
@@ -1542,7 +1544,6 @@ const generateHTMLProforma = (inv) => {
             <p class="m-0 nt" style="font-size:12px;">Kepada Yth.</p>
             <p class="m-0 tw-bold-italic" style="font-size:12px;">${penjualan.nama_customer || '-'}</p>
             ${penjualan.nama_pt_npwp ? `<p class="m-0" style="font-size:12px;">${penjualan.nama_pt_npwp}</p>` : ''}
-            ${penjualan.no_po ? `<p class="m-0 isint" style="font-size:12px;">PO : ${penjualan.no_po}</p>` : ''}
             ${npwpRow}
         </div>
 
@@ -1575,6 +1576,8 @@ const generateHTMLProforma = (inv) => {
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
                         <td style="font-size:11.5px;">: <i>${terbilang(grandTotal)}</i></td>
                     </tr>
+                    ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
+                        <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
                     ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
                         <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
                 </tbody>

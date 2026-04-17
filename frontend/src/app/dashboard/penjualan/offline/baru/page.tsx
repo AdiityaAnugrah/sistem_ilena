@@ -77,7 +77,10 @@ export default function PenjualanOfflineBaru() {
       varian_nama: defaultVarian?.nama || null,
       varian_id: defaultVarian?.id || null,
       qty: 1,
+      harga_asli: Number(barang.harga),
       harga_satuan: Number(barang.harga),
+      harga_custom: Number(barang.harga),
+      hargaMode: 'diskon' as 'diskon' | 'harga',
       diskon: 0,
     }]);
   };
@@ -88,7 +91,11 @@ export default function PenjualanOfflineBaru() {
 
   const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx));
 
-  const getSubtotal = (item: any) => item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100);
+  const getSubtotal = (item: any) => {
+    if (tipe === 'DISPLAY') return item.qty * item.harga_satuan;
+    if (item.hargaMode === 'harga') return item.qty * (Number(item.harga_custom) || item.harga_asli);
+    return item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100);
+  };
 
   const onSubmit = async (formData: any) => {
     if (items.length === 0) { toast.error('Minimal 1 produk wajib ditambahkan'); return; }
@@ -113,14 +120,26 @@ export default function PenjualanOfflineBaru() {
         tagihan_kecamatan_id: alamatTagihan.kecamatan_id,
         tagihan_kelurahan_id: alamatTagihan.kelurahan_id,
         tagihan_detail: alamatTagihan.detail,
-        items: items.map(item => ({
-          barang_id: item.barang_id,
-          varian_nama: item.varian_nama || null,
-          varian_id: item.varian_id || null,
-          qty: item.qty,
-          harga_satuan: item.harga_satuan,
-          diskon: item.diskon,
-        })),
+        items: items.map(item => {
+          let harga_satuan = item.harga_satuan;
+          let diskon = item.diskon;
+          if (tipe === 'DISPLAY') {
+            // Hitung diskon sintetis agar [SPECIAL PRICE] muncul di invoice
+            diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - item.harga_satuan / item.harga_asli) * 100)) : 0;
+          } else if (item.hargaMode === 'harga') {
+            // Mode harga jual: simpan harga asli sebagai harga_satuan, diskon dihitung
+            harga_satuan = item.harga_asli;
+            diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - (Number(item.harga_custom) || item.harga_asli) / item.harga_asli) * 100)) : 0;
+          }
+          return {
+            barang_id: item.barang_id,
+            varian_nama: item.varian_nama || null,
+            varian_id: item.varian_id || null,
+            qty: item.qty,
+            harga_satuan,
+            diskon,
+          };
+        }),
       };
       const res = await api.post('/penjualan-offline', payload);
       toast.success('Penjualan berhasil dibuat!');
@@ -226,7 +245,7 @@ export default function PenjualanOfflineBaru() {
               {errors.nama_penerima && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_penerima.message as string}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor WhatsApp *</Label>
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor HP *</Label>
               <Input
                 {...register('no_hp_penerima', {
                   required: 'Nomor HP wajib diisi',
@@ -332,7 +351,7 @@ export default function PenjualanOfflineBaru() {
                       <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase">Produk</th>
                       <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-32">Kuantitas</th>
                       <th className="text-left py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-48">Harga Satuan</th>
-                      {tipe === 'PENJUALAN' && <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-24">Diskon</th>}
+                      {tipe === 'PENJUALAN' && <th className="text-center py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-36">Diskon / Harga</th>}
                       <th className="text-right py-3 px-5 text-slate-500 font-medium text-[10px] lg:text-xs tracking-wider uppercase w-44">Subtotal</th>
                       <th className="py-3 px-5 w-14"></th>
                     </tr>
@@ -405,18 +424,50 @@ export default function PenjualanOfflineBaru() {
                         </td>
                         {tipe === 'PENJUALAN' && (
                           <td className="py-4 px-5">
-                            <div className="relative flex items-center shadow-sm w-16 mx-auto group-hover:shadow transition-shadow rounded-lg">
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step={1}
-                                value={item.diskon || ''}
-                                onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
-                                onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
-                                className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
-                              />
-                              <div className="absolute right-2 text-slate-400 font-semibold text-[10px] pointer-events-none">%</div>
+                            <div className="flex flex-col items-center gap-1.5">
+                              {/* Toggle mode */}
+                              <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px] font-bold shadow-sm">
+                                <button type="button"
+                                  onClick={() => updateItem(idx, 'hargaMode', 'diskon')}
+                                  className="px-2 py-1 transition-colors"
+                                  style={{ background: item.hargaMode !== 'harga' ? '#FA2F2F' : '#f8fafc', color: item.hargaMode !== 'harga' ? '#fff' : '#94a3b8' }}>
+                                  % Diskon
+                                </button>
+                                <button type="button"
+                                  onClick={() => updateItem(idx, 'hargaMode', 'harga')}
+                                  className="px-2 py-1 transition-colors"
+                                  style={{ background: item.hargaMode === 'harga' ? '#FA2F2F' : '#f8fafc', color: item.hargaMode === 'harga' ? '#fff' : '#94a3b8' }}>
+                                  Harga Jual
+                                </button>
+                              </div>
+                              {item.hargaMode === 'harga' ? (
+                                <div className="w-full">
+                                  <div className="relative flex items-center">
+                                    <div className="absolute left-2 text-slate-400 text-xs pointer-events-none">Rp</div>
+                                    <input
+                                      type="number" min={0}
+                                      value={item.harga_custom || ''}
+                                      onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
+                                      onChange={e => updateItem(idx, 'harga_custom', Math.max(0, Number(e.target.value)))}
+                                      className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white font-semibold text-slate-700"
+                                    />
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5 text-center">
+                                    Asli: {formatRupiah(item.harga_asli)}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="relative flex items-center shadow-sm w-16 mx-auto rounded-lg">
+                                  <input
+                                    type="number" min={0} max={100} step={1}
+                                    value={item.diskon || ''}
+                                    onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
+                                    onChange={e => updateItem(idx, 'diskon', Math.min(100, Math.max(0, Math.floor(Number(e.target.value)))))}
+                                    className="w-full pr-5 pl-2 py-2 text-center border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
+                                  />
+                                  <div className="absolute right-2 text-slate-400 font-semibold text-[10px] pointer-events-none">%</div>
+                                </div>
+                              )}
                             </div>
                           </td>
                         )}

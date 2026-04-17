@@ -4,7 +4,7 @@ const {
   PenjualanOffline, PenjualanOfflineItem, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
-  SuratJalanInterior, SuratJalanInteriorItem,
+  SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
   InvoiceInterior,
 } = require('../models');
 
@@ -95,8 +95,31 @@ router.get('/sp/:id/print', authenticate, async (req, res) => {
       }],
     });
     if (!sp) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
-    
-    const html = generateHTMLSuratPengantar(sp.toJSON());
+
+    const data = sp.toJSON();
+
+    // Untuk DISPLAY: rekonstruksi qty asli = qty sisa + qty yang sudah terjual
+    if (data.penjualan?.tipe === 'DISPLAY') {
+      const lakuPenjualans = await PenjualanOffline.findAll({
+        where: { display_source_id: data.penjualan.id },
+        include: [{ model: PenjualanOfflineItem, as: 'items' }],
+      });
+      // Map: "barang_id-varian_id" -> total qty terjual
+      const soldMap = {};
+      for (const laku of lakuPenjualans) {
+        for (const item of (laku.items || [])) {
+          const key = `${item.barang_id}-${item.varian_id || ''}`;
+          soldMap[key] = (soldMap[key] || 0) + item.qty;
+        }
+      }
+      // Restore qty asli pada setiap item display
+      data.penjualan.items = (data.penjualan.items || []).map(item => {
+        const key = `${item.barang_id}-${item.varian_id || ''}`;
+        return { ...item, qty: item.qty + (soldMap[key] || 0) };
+      });
+    }
+
+    const html = generateHTMLSuratPengantar(data);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -220,29 +243,53 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
       sjIds = [data.surat_jalan_interior_id];
     }
 
-    // Load all referenced SJs
+    // Load all referenced SJs with retur
     const suratJalans = await SuratJalanInterior.findAll({
       where: { id: sjIds },
-      include: [{
-        model: SuratJalanInteriorItem, as: 'items',
-        include: [{ model: PenjualanInteriorItem, as: 'item' }],
-      }],
+      include: [
+        {
+          model: SuratJalanInteriorItem, as: 'items',
+          include: [{ model: PenjualanInteriorItem, as: 'item' }],
+        },
+        { model: ReturSJInterior, as: 'returs' },
+      ],
     });
 
-    // Merge items from all SJs
+    // Build retur map: penjualan_interior_item_id -> total qty retur
+    const returMap = {};
+    for (const sj of suratJalans) {
+      for (const r of (sj.returs || [])) {
+        const k = r.penjualan_interior_item_id;
+        returMap[k] = (returMap[k] || 0) + r.qty_retur;
+      }
+    }
+
+    // PPN dari penjualan interior
+    const ppnPersen = data.penjualan.pakai_ppn && data.penjualan.ppn_persen
+      ? parseInt(data.penjualan.ppn_persen) : 0;
+
+    // Merge items from all SJs, kurangi retur, hitung subtotal inc PPN
     const invoiceItems = suratJalans.flatMap(sj =>
-      (sj.items || []).map(i => ({
-        barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
-        qty: i.qty_kirim,
-        harga_satuan: parseFloat(i.item?.harga_satuan || 0),
-        subtotal: parseFloat(i.item?.harga_satuan || 0) * i.qty_kirim,
-      }))
+      (sj.items || []).map(i => {
+        const returQty = returMap[i.penjualan_interior_item_id] || 0;
+        const netQty = i.qty_kirim - returQty;
+        if (netQty <= 0) return null;
+        const hargaBase = parseFloat(i.item?.harga_satuan || 0);
+        const hargaInc = ppnPersen > 0 ? Math.round(hargaBase * (1 + ppnPersen / 100)) : hargaBase;
+        return {
+          barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
+          qty: netQty,
+          harga_satuan: hargaInc,
+          subtotal: hargaInc * netQty,
+        };
+      }).filter(Boolean)
     );
 
     const normalized = {
       nomor_invoice: data.nomor_invoice,
       tanggal: data.tanggal,
       catatan: data.catatan,
+      ppn_persen: 0, // sudah embedded di harga_satuan
       penjualan: {
         nama_penerima: data.penjualan.nama_customer,
         pengirim_detail: data.penjualan.nama_pt_npwp,

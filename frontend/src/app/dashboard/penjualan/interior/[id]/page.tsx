@@ -733,10 +733,16 @@ export default function PenjualanInteriorDetail() {
 
       {/* ── Modal Proforma ── */}
       {modal === 'proforma' && (() => {
+        // Hitung total sudah dibayar dari pembayaran sebelumnya
+        const TIPE_LABEL_MAP: Record<string, string> = { DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir' };
+        const prevPembayarans: any[] = data.pembayarans || [];
+        const totalSudahBayar = prevPembayarans.reduce((s: number, p: any) => s + Number(p.jumlah || 0), 0);
+        const sisaTagihan = grandTotal - totalSudahBayar;
+
         const termTotal = proformaTerms.reduce((s, t) => s + (Number(t.jumlah) || 0), 0);
-        const termOver = termTotal > grandTotal;
-        const termUnder = proformaTerms.length > 0 && termTotal < grandTotal;
-        const selisih = grandTotal - termTotal;
+        const termOver = termTotal > sisaTagihan;
+        const termUnder = proformaTerms.length > 0 && termTotal < sisaTagihan;
+        const selisih = sisaTagihan - termTotal;
         const TIPE_OPTS = [
           { value: 'DP', label: 'DP (Uang Muka)' },
           { value: 'TERMIN_1', label: 'Termin 1' },
@@ -749,11 +755,26 @@ export default function PenjualanInteriorDetail() {
           <ModalWrapper show onClose={() => { setModal(null); setProformaTerms([]); }}>
             <ModalHeader icon={FileText} title="Buat Proforma Invoice" sub="Tagihan awal ke customer interior" />
             <div className="space-y-4">
-              {/* Ringkasan total */}
-              <div className="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold"
-                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <span style={{ color: '#475569' }}>Total Tagihan</span>
-                <span style={{ color: '#0f172a' }}>{formatRupiah(grandTotal)}</span>
+              {/* Ringkasan total & riwayat pembayaran */}
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #e2e8f0' }}>
+                <div className="flex items-center justify-between px-3 py-2 text-sm font-semibold" style={{ background: '#f8fafc' }}>
+                  <span style={{ color: '#475569' }}>Total Tagihan</span>
+                  <span style={{ color: '#0f172a' }}>{formatRupiah(grandTotal)}</span>
+                </div>
+                {prevPembayarans.length > 0 && (
+                  <>
+                    {prevPembayarans.map((p: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs" style={{ background: '#f0fdf4', borderTop: '1px solid #dcfce7' }}>
+                        <span style={{ color: '#15803d' }}>✓ {TIPE_LABEL_MAP[p.tipe] || p.tipe} ({p.tanggal ? new Date(p.tanggal).toLocaleDateString('id-ID') : '-'})</span>
+                        <span className="font-semibold" style={{ color: '#15803d' }}>-{formatRupiah(Number(p.jumlah))}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-3 py-2 text-sm font-bold" style={{ background: '#eff6ff', borderTop: '1px solid #bfdbfe' }}>
+                      <span style={{ color: '#1d4ed8' }}>Sisa Belum Dibayar</span>
+                      <span style={{ color: '#1d4ed8' }}>{formatRupiah(Math.max(0, sisaTagihan))}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <ModalInput label="Tanggal" type="date" value={proformaTanggal} onChange={(e: any) => setProformaTanggal(e.target.value)} />
@@ -801,9 +822,9 @@ export default function PenjualanInteriorDetail() {
                         color: termOver ? '#dc2626' : termUnder ? '#92400e' : '#15803d',
                       }}>
                       <span>Total cicilan: {formatRupiah(termTotal)}</span>
-                      {termOver && <span>⚠ Melebihi total tagihan sebesar {formatRupiah(termTotal - grandTotal)}</span>}
+                      {termOver && <span>⚠ Melebihi sisa tagihan sebesar {formatRupiah(termTotal - sisaTagihan)}</span>}
                       {termUnder && <span>Sisa belum dialokasikan: {formatRupiah(selisih)}</span>}
-                      {!termOver && !termUnder && termTotal > 0 && <span>✓ Sesuai total tagihan</span>}
+                      {!termOver && !termUnder && termTotal > 0 && <span>✓ Sesuai sisa tagihan</span>}
                     </div>
                   </div>
                 )}
