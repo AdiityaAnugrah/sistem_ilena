@@ -42,7 +42,7 @@ const TIPE_LABEL: Record<string, string> = {
   'invoice-interior': 'Invoice Interior',
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 export default function TreeSuratPage() {
   const { sumber, id } = useParams<{ sumber: string; id: string }>();
