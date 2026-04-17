@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+require('dotenv').config();
 
 const Barang = sequelize.define('barang', {
   id: { type: DataTypes.STRING(50), primaryKey: true },
@@ -26,6 +27,10 @@ const Barang = sequelize.define('barang', {
   tgl_update: { type: DataTypes.DATE },
 }, {
   timestamps: false,
+  schema: process.env.DB_ILENA_NAME || 'ilena', // baca dari database ilena (website utama)
 });
+
+// Jangan sync — tabel ini dikelola oleh website utama (ilena)
+Barang.sync = async () => {};
 
 module.exports = Barang;
