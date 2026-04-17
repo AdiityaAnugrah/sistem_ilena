@@ -86,19 +86,11 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       }}>
 
         {/* Logo */}
-        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-              background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{ color: '#fff', fontWeight: 800, fontSize: 12 }}>IL</span>
-            </div>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1 }}>ILENA</div>
-              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 3 }}>Sistem Manajemen</div>
-            </div>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 24, width: 'auto' }} />
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Sistem Manajemen</div>
           </div>
         </div>
 
