@@ -70,13 +70,22 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
     const pencarian = [nama, kategori, subkategori].filter(Boolean).join(' ').toLowerCase();
 
     const barang = await Barang.create({
-      id, nama, kategori, subkategori,
+      id, nama,
+      kategori: kategori || '',
+      subkategori: subkategori || '',
       harga: harga || 0,
+      rate: 0,
       diskon: diskon || 0,
-      varian: varian ? JSON.stringify(varian) : null,
-      deskripsi: deskripsi ? JSON.stringify(deskripsi) : null,
-      shopee, tokped, tiktok,
+      varian: JSON.stringify(varian || []),
+      deskripsi: deskripsi ? JSON.stringify(deskripsi) : '{}',
+      shopee: shopee || '',
+      tokped: tokped || '',
+      tiktok: tiktok || '',
       active: active !== undefined ? active : 1,
+      pengunjung: 0,
+      ruang_tamu: 0,
+      ruang_keluarga: 0,
+      ruang_tidur: 0,
       pencarian,
       tgl_update: new Date(),
     });
@@ -102,11 +111,16 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       .filter(Boolean).join(' ').toLowerCase();
 
     await barang.update({
-      nama, kategori, subkategori,
-      harga, diskon,
+      nama,
+      kategori: kategori ?? barang.kategori,
+      subkategori: subkategori ?? barang.subkategori,
+      harga: harga ?? barang.harga,
+      diskon: diskon ?? barang.diskon,
       varian: varian !== undefined ? JSON.stringify(varian) : barang.varian,
-      deskripsi: deskripsi !== undefined ? JSON.stringify(deskripsi) : barang.deskripsi,
-      shopee, tokped, tiktok,
+      deskripsi: deskripsi !== undefined ? (deskripsi ? JSON.stringify(deskripsi) : '{}') : barang.deskripsi,
+      shopee: shopee !== undefined ? (shopee || '') : barang.shopee,
+      tokped: tokped !== undefined ? (tokped || '') : barang.tokped,
+      tiktok: tiktok !== undefined ? (tiktok || '') : barang.tiktok,
       active,
       pencarian,
       tgl_update: new Date(),
