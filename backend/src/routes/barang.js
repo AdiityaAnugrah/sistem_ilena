@@ -38,6 +38,7 @@ router.get('/', authenticate, async (req, res) => {
       totalPages: Math.ceil(count / parseInt(limit)),
     });
   } catch (err) {
+    console.error('[GET /api/barang] Error:', err.message, err.sql || '');
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
