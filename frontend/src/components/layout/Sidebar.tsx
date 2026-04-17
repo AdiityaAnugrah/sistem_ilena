@@ -12,6 +12,7 @@ import {
   ChevronDown,
   LogOut,
   Users,
+  Folder,
 } from 'lucide-react';
 
 interface NavItem {
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: 'Master Barang', href: '/dashboard/master/barang', icon: Package },
+  { label: 'Semua Surat', href: '/surat', icon: Folder },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
 ];

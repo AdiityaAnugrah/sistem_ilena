@@ -52,6 +52,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/penjualan-offline', require('./routes/penjualanOffline'));
 app.use('/api/penjualan-interior', require('./routes/penjualanInterior'));
 app.use('/api/dokumen', require('./routes/dokumen'));
+app.use('/api/public/surat', require('./routes/publicSurat'));
 app.use('/api/log-activity', require('./routes/logActivity'));
 
 // Health check
