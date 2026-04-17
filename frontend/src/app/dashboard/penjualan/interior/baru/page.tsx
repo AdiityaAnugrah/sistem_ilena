@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatRupiah } from '@/lib/utils';
 import { Trash2, Plus, LayoutPanelTop, User, ClipboardList, Wallet2 } from 'lucide-react';
+import TutorialVideoModal from '@/components/TutorialVideoModal';
 
 export default function PenjualanInteriorBaru() {
   const router = useRouter();
@@ -18,6 +19,14 @@ export default function PenjualanInteriorBaru() {
   const [ppnPersen, setPpnPersen] = useState<'10' | '11'>('11');
   const [items, setItems] = useState<any[]>([{ kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const [loading, setLoading] = useState(false);
+  const [tutorial, setTutorial] = useState<{ youtube_url: string; start_second: number; end_second: number | null } | null>(null);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  useEffect(() => {
+    api.get('/tutorial-video/PENJUALAN_INTERIOR')
+      .then(r => { if (r.data?.active) setTutorial(r.data); })
+      .catch(() => {});
+  }, []);
   const { register, handleSubmit, formState: { errors } } = useForm<any>({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
@@ -72,7 +81,31 @@ export default function PenjualanInteriorBaru() {
             <p className="text-xs lg:text-sm text-slate-500 font-medium">Buat pesanan desain dan pengerjaan interior baru</p>
           </div>
         </div>
+        {tutorial && (
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 8,
+              border: '1px solid #e2e8f0', backgroundColor: '#fff',
+              color: '#475569', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            🎬 Tutorial
+          </button>
+        )}
       </div>
+      {tutorial && (
+        <TutorialVideoModal
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+          youtubeUrl={tutorial.youtube_url}
+          startSecond={tutorial.start_second}
+          endSecond={tutorial.end_second ?? undefined}
+        />
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Jenis */}

@@ -21,6 +21,7 @@ const InvoiceInterior = require('./InvoiceInterior');
 const DocumentCounter = require('./DocumentCounter');
 const ReturSJInterior = require('./ReturSJInterior');
 const SuratPengantarSub = require('./SuratPengantarSub');
+const TutorialVideo = require('./TutorialVideo');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -125,4 +126,5 @@ module.exports = {
   DocumentCounter,
   ReturSJInterior,
   SuratPengantarSub,
+  TutorialVideo,
 };

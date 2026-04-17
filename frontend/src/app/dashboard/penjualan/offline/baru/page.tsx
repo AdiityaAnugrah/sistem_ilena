@@ -12,6 +12,7 @@ import AlamatForm from '@/components/forms/AlamatForm';
 import BarangSelector from '@/components/forms/BarangSelector';
 import { formatRupiah } from '@/lib/utils';
 import { Trash2, Plus, Minus, PackageOpen, LayoutPanelTop, User, MapPin, Wallet2 } from 'lucide-react';
+import TutorialVideoModal from '@/components/TutorialVideoModal';
 
 interface AlamatState {
   provinsi_id: number | null;
@@ -52,6 +53,14 @@ export default function PenjualanOfflineBaru() {
   const [tagihanSamaPengirim, setTagihanSamaPengirim] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [tutorial, setTutorial] = useState<{ youtube_url: string; start_second: number; end_second: number | null } | null>(null);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  useEffect(() => {
+    api.get('/tutorial-video/PENJUALAN_OFFLINE')
+      .then(r => { if (r.data?.active) setTutorial(r.data); })
+      .catch(() => {});
+  }, []);
   const { register, handleSubmit, formState: { errors } } = useForm<any>({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
@@ -165,7 +174,31 @@ export default function PenjualanOfflineBaru() {
             <p className="text-xs lg:text-sm text-slate-500 font-medium">Input data pesanan barang offline / toko</p>
           </div>
         </div>
+        {tutorial && (
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 8,
+              border: '1px solid #e2e8f0', backgroundColor: '#fff',
+              color: '#475569', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            🎬 Tutorial
+          </button>
+        )}
       </div>
+      {tutorial && (
+        <TutorialVideoModal
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+          youtubeUrl={tutorial.youtube_url}
+          startSecond={tutorial.start_second}
+          endSecond={tutorial.end_second ?? undefined}
+        />
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Tipe & Faktur */}

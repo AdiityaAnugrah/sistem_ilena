@@ -13,6 +13,7 @@ import {
   LogOut,
   Users,
   Folder,
+  Settings,
 } from 'lucide-react';
 
 interface NavItem {
@@ -40,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Semua Surat', href: '/surat', icon: Folder },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
+  { label: 'Pengaturan', href: '/dashboard/pengaturan', icon: Settings, devOnly: true },
 ];
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
