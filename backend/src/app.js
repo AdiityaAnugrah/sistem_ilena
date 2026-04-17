@@ -72,7 +72,7 @@ const PORT = process.env.PORT || 5000;
 async function cleanupDuplicateIndexes() {
   const tables = [
     'surat_jalan', 'surat_jalan_interior', 'invoice', 'invoice_interior',
-    'surat_pengantar', 'proforma_invoice',
+    'surat_pengantar', 'surat_pengantar_sub', 'proforma_invoice',
   ];
   for (const table of tables) {
     try {
