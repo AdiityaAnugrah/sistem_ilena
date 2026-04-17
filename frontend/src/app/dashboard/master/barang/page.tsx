@@ -463,7 +463,7 @@ export default function MasterBarangPage() {
                   <TextField fullWidth label="Diskon (%)" type="number" size="small" value={form.diskon} onChange={e => f('diskon', e.target.value)} />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
-                  <TextField fullWidth label="Rate (0-5)" type="number" size="small" value={form.rate} onChange={e => f('rate', e.target.value)} inputProps={{ min: 0, max: 5 }} />
+                  <TextField fullWidth label="Rate (0-5)" type="number" size="small" value={form.rate} onChange={e => f('rate', e.target.value)} slotProps={{ htmlInput: { min: 0, max: 5 } }} />
                 </Grid>
               </Grid>
             </Box>
