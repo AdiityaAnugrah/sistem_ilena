@@ -38,15 +38,9 @@ export default function SuratLayout({ children }: { children: React.ReactNode })
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-            background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: 11 }}>IL</span>
-          </div>
-          <span style={{ color: 'rgba(255,255,255,0.85)', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>ILENA</span>
-          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, marginLeft: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 28, width: 'auto', flexShrink: 0 }} />
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             / Semua Surat
           </span>
         </div>
