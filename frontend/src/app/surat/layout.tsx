@@ -39,7 +39,7 @@ export default function SuratLayout({ children }: { children: React.ReactNode })
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 26, width: 'auto', flexShrink: 0 }} />
+          <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 16, width: 'auto', flexShrink: 0 }} />
         </div>
         <a
           href="/login"

@@ -122,7 +122,7 @@ export default function SemuaSuratPage() {
         </div>
       ) : data.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#94a3b8', fontSize: 14 }}>
-          Tidak ada invoice ditemukan
+          Tidak ada surat ditemukan
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

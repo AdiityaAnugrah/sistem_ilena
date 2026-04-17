@@ -120,11 +120,6 @@ export default function LoginPage() {
 
       {/* ─── Right Panel — Form ─── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center mb-10">
-          <img src="/img/logoilena.svg" alt="Ilena Furniture" style={{ height: 32, width: 'auto' }} />
-        </div>
-
         <div className="w-full max-w-[360px]">
           {/* Header */}
           <div className="mb-8">
