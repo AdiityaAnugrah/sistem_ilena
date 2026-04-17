@@ -59,7 +59,7 @@ export default function SemuaSuratPage() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>Semua Surat</h1>
         <p style={{ color: '#64748b', fontSize: 14, margin: '4px 0 0' }}>
-          {total} invoice ditemukan — klik untuk melihat dokumen terkait
+          {total} invoice ditemukan  
         </p>
       </div>
 
