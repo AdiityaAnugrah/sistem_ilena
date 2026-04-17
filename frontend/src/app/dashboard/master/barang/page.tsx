@@ -589,14 +589,27 @@ export default function MasterBarangPage() {
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                 {varians.length === 0 ? (
                   <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic', p: 1 }}>Belum ada varian warna ditentukan</Typography>
-                ) : varians.map((v, i) => (
-                  <Paper key={i} variant="outlined" sx={{ p: 1, px: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, borderRadius: '12px', bgcolor: 'rgba(0,0,0,0.02)' }}>
-                    <input type="color" value={v.kode} onChange={e => updateVarian(i, 'kode', e.target.value)} style={{ width: 24, height: 24, border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'none' }} />
-                    <TextField variant="standard" size="small" value={v.nama} onChange={e => updateVarian(i, 'nama', e.target.value)} placeholder="Nama" sx={{ width: 80 }} slotProps={{ input: { sx: { fontSize: '0.75rem' } } }} />
-                    <TextField variant="standard" size="small" type="number" value={v.stok} onChange={e => updateVarian(i, 'stok', e.target.value)} placeholder="Stok" sx={{ width: 50 }} slotProps={{ input: { sx: { fontSize: '0.75rem' } } }} />
-                    <IconButton size="small" onClick={() => removeVarian(i)} sx={{ color: 'error.light' }}><X size={14} /></IconButton>
-                  </Paper>
-                ))}
+                ) : (
+                  <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {varians.map((v, i) => (
+                      <Paper key={i} variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 2, borderRadius: '12px', bgcolor: 'rgba(0,0,0,0.02)' }}>
+                        <input type="color" value={v.kode} onChange={e => updateVarian(i, 'kode', e.target.value)} style={{ width: 32, height: 32, border: 'none', borderRadius: '6px', cursor: 'pointer', background: 'none', flexShrink: 0 }} />
+                        <TextField
+                          label="Nama Warna" variant="outlined" size="small"
+                          value={v.nama} onChange={e => updateVarian(i, 'nama', e.target.value)}
+                          sx={{ flex: 1 }} slotProps={{ input: { sx: { fontSize: '0.8rem' } } }}
+                        />
+                        <TextField
+                          label="Stok" variant="outlined" size="small" type="number"
+                          value={v.stok} onChange={e => updateVarian(i, 'stok', e.target.value)}
+                          sx={{ width: 90 }}
+                          slotProps={{ htmlInput: { min: 0 }, input: { sx: { fontSize: '0.8rem', fontWeight: 700, color: Number(v.stok) === 0 ? '#ef4444' : Number(v.stok) <= 3 ? '#f59e0b' : '#16a34a' } } }}
+                        />
+                        <IconButton size="small" onClick={() => removeVarian(i)} sx={{ color: 'error.light', flexShrink: 0 }}><X size={14} /></IconButton>
+                      </Paper>
+                    ))}
+                  </Box>
+                )}
               </Box>
             </Box>
 
