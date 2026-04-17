@@ -226,7 +226,7 @@ export default function TreeSuratPage() {
       <Dialog
         open={loginModal}
         onClose={() => setLoginModal(false)}
-        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800 }}>
           <Lock size={18} color="#FA2F2F" />
