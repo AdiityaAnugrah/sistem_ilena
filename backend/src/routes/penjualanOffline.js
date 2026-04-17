@@ -4,6 +4,40 @@ const {
   PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
 } = require('../models');
+const BarangTest = require('../models/BarangTest');
+
+// Kurangi stok varian pada barang setelah penjualan dibuat
+async function deductStok(items, isTest) {
+  const BarangModel = isTest ? BarangTest : Barang;
+  for (const item of items) {
+    if (!item.barang_id) continue;
+    try {
+      const barang = await BarangModel.findByPk(item.barang_id);
+      if (!barang || !barang.varian) continue;
+      let varians = [];
+      try { varians = JSON.parse(barang.varian); } catch { continue; }
+      if (!Array.isArray(varians) || varians.length === 0) continue;
+
+      let updated = false;
+      if (item.varian_id) {
+        varians = varians.map(v => {
+          if (String(v.id) === String(item.varian_id)) {
+            const stokBaru = Math.max(0, Number(v.stok || 0) - item.qty);
+            updated = true;
+            return { ...v, stok: String(stokBaru) };
+          }
+          return v;
+        });
+      } else {
+        // Tidak ada varian spesifik — kurangi dari varian pertama
+        const stokBaru = Math.max(0, Number(varians[0].stok || 0) - item.qty);
+        varians[0] = { ...varians[0], stok: String(stokBaru) };
+        updated = true;
+      }
+      if (updated) await barang.update({ varian: JSON.stringify(varians) });
+    } catch { /* skip item jika error */ }
+  }
+}
 
 // Reusable include untuk alamat pengirim & tagihan
 const includeAlamat = [
@@ -72,6 +106,11 @@ router.post('/', authenticate, async (req, res) => {
       subtotal: item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100),
     }));
     await PenjualanOfflineItem.bulkCreate(itemsData);
+
+    // Kurangi stok hanya untuk PENJUALAN (bukan DISPLAY — stok dikurangi saat yang laku dibuat)
+    if (tipe === 'PENJUALAN') {
+      await deductStok(itemsData, req.user.role === 'TEST');
+    }
 
     await logAction(req.user.id, 'BUAT_PENJUALAN_OFFLINE', `ID: ${penjualan.id}, Tipe: ${tipe}`, req.ip);
 
