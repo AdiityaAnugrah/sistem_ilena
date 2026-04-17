@@ -90,7 +90,7 @@ function VideoCard({
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Video size={17} color="#FA2F2F" />
-          <Typography fontWeight={700} fontSize={14}>{label}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{label}</Typography>
         </Box>
         <FormControlLabel
           control={
@@ -101,7 +101,7 @@ function VideoCard({
               sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#FA2F2F' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#FA2F2F' } }}
             />
           }
-          label={<Typography fontSize={12} color="text.secondary">{form.active ? 'Aktif' : 'Nonaktif'}</Typography>}
+          label={<Typography sx={{ fontSize: 12 }} color="text.secondary">{form.active ? 'Aktif' : 'Nonaktif'}</Typography>}
           labelPlacement="start"
           sx={{ m: 0 }}
         />
@@ -160,14 +160,14 @@ export default function PengaturanPage() {
   if (user?.role !== 'DEV') {
     return (
       <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-        <Typography fontSize={14}>Halaman ini hanya bisa diakses oleh DEV.</Typography>
+        <Typography sx={{ fontSize: 14 }}>Halaman ini hanya bisa diakses oleh DEV.</Typography>
       </Box>
     );
   }
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto', p: { xs: 2, sm: 3 } }}>
-      <Typography variant="h5" fontWeight={800} sx={{ mb: 0.5 }}>Pengaturan</Typography>
+      <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>Pengaturan</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Konfigurasi video tutorial untuk setiap form penjualan.
       </Typography>
