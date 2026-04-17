@@ -39,10 +39,7 @@ export default function SuratLayout({ children }: { children: React.ReactNode })
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 28, width: 'auto', flexShrink: 0 }} />
-          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            / Semua Surat
-          </span>
+          <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 26, width: 'auto', flexShrink: 0 }} />
         </div>
         <a
           href="/login"

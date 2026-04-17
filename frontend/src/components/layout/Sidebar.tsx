@@ -90,7 +90,6 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 24, width: 'auto' }} />
-            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>Sistem Manajemen</div>
           </div>
         </div>
 
