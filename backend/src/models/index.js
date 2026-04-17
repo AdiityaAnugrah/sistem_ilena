@@ -99,7 +99,7 @@ ReturSJInterior.belongsTo(PenjualanInteriorItem, { foreignKey: 'penjualan_interi
 PenjualanInterior.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
 // Barang associations
-PenjualanOfflineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang' });
+PenjualanOfflineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang', constraints: false });
 
 module.exports = {
   sequelize,
