@@ -58,8 +58,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
   try {
     const {
-      id, nama, kategori, subkategori, harga, diskon,
-      varian, deskripsi, shopee, tokped, tiktok, active,
+      id, nama, kategori, subkategori, harga, rate, diskon,
+      pakai_jadwal_diskon, diskon_mulai, diskon_selesai,
+      varian, deskripsi, shopee, tokped, tiktok,
+      ruang_tamu, ruang_keluarga, ruang_tidur, active,
     } = req.body;
 
     if (!id || !nama) return res.status(400).json({ message: 'ID dan Nama wajib diisi' });
@@ -74,8 +76,11 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       kategori: kategori || '',
       subkategori: subkategori || '',
       harga: harga || 0,
-      rate: 0,
+      rate: rate || 0,
       diskon: diskon || 0,
+      pakai_jadwal_diskon: pakai_jadwal_diskon || 0,
+      diskon_mulai: pakai_jadwal_diskon ? (diskon_mulai || null) : null,
+      diskon_selesai: pakai_jadwal_diskon ? (diskon_selesai || null) : null,
       varian: JSON.stringify(varian || []),
       deskripsi: deskripsi ? JSON.stringify(deskripsi) : '{}',
       shopee: shopee || '',
@@ -83,9 +88,9 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       tiktok: tiktok || '',
       active: active !== undefined ? active : 1,
       pengunjung: 0,
-      ruang_tamu: 0,
-      ruang_keluarga: 0,
-      ruang_tidur: 0,
+      ruang_tamu: ruang_tamu || 0,
+      ruang_keluarga: ruang_keluarga || 0,
+      ruang_tidur: ruang_tidur || 0,
       pencarian,
       tgl_update: new Date(),
     });
@@ -103,24 +108,35 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
 
     const {
-      nama, kategori, subkategori, harga, diskon,
-      varian, deskripsi, shopee, tokped, tiktok, active,
+      nama, kategori, subkategori, harga, rate, diskon,
+      pakai_jadwal_diskon, diskon_mulai, diskon_selesai,
+      varian, deskripsi, shopee, tokped, tiktok,
+      ruang_tamu, ruang_keluarga, ruang_tidur, active,
     } = req.body;
 
     const pencarian = [nama || barang.nama, kategori || barang.kategori, subkategori || barang.subkategori]
       .filter(Boolean).join(' ').toLowerCase();
+
+    const pakaiJadwal = pakai_jadwal_diskon !== undefined ? pakai_jadwal_diskon : barang.pakai_jadwal_diskon;
 
     await barang.update({
       nama,
       kategori: kategori ?? barang.kategori,
       subkategori: subkategori ?? barang.subkategori,
       harga: harga ?? barang.harga,
+      rate: rate ?? barang.rate,
       diskon: diskon ?? barang.diskon,
+      pakai_jadwal_diskon: pakaiJadwal,
+      diskon_mulai: pakaiJadwal ? (diskon_mulai ?? barang.diskon_mulai) : null,
+      diskon_selesai: pakaiJadwal ? (diskon_selesai ?? barang.diskon_selesai) : null,
       varian: varian !== undefined ? JSON.stringify(varian) : barang.varian,
       deskripsi: deskripsi !== undefined ? (deskripsi ? JSON.stringify(deskripsi) : '{}') : barang.deskripsi,
       shopee: shopee !== undefined ? (shopee || '') : barang.shopee,
       tokped: tokped !== undefined ? (tokped || '') : barang.tokped,
       tiktok: tiktok !== undefined ? (tiktok || '') : barang.tiktok,
+      ruang_tamu: ruang_tamu !== undefined ? ruang_tamu : barang.ruang_tamu,
+      ruang_keluarga: ruang_keluarga !== undefined ? ruang_keluarga : barang.ruang_keluarga,
+      ruang_tidur: ruang_tidur !== undefined ? ruang_tidur : barang.ruang_tidur,
       active,
       pencarian,
       tgl_update: new Date(),

@@ -52,13 +52,20 @@ interface Barang {
   kategori: string;
   subkategori: string;
   harga: number;
+  rate: number;
   diskon: number;
+  pakai_jadwal_diskon: number;
+  diskon_mulai: string | null;
+  diskon_selesai: string | null;
   active: number;
   varian: string | null;
   deskripsi: string | null;
   shopee: string | null;
   tokped: string | null;
   tiktok: string | null;
+  ruang_tamu: number;
+  ruang_keluarga: number;
+  ruang_tidur: number;
 }
 
 function parseDimensi(deskripsi: string | null): string {
@@ -77,9 +84,11 @@ interface VarianItem { id: string; nama: string; kode: string; }
 
 const emptyForm = {
   id: '', nama: '', kategori: '', subkategori: '',
-  harga: '', diskon: '',
+  harga: '', diskon: '', rate: '',
+  pakai_jadwal_diskon: 0, diskon_mulai: '', diskon_selesai: '',
   panjang: '', lebar: '', tinggi: '',
   shopee: '', tokped: '', tiktok: '',
+  ruang_tamu: 0, ruang_keluarga: 0, ruang_tidur: 0,
   active: 1,
 };
 
@@ -170,9 +179,13 @@ export default function MasterBarangPage() {
     setVarians(parsedVarian);
     setForm({
       id: b.id, nama: b.nama || '', kategori: b.kategori || '', subkategori: b.subkategori || '',
-      harga: String(b.harga || ''), diskon: String(b.diskon || ''),
+      harga: String(b.harga || ''), diskon: String(b.diskon || ''), rate: String(b.rate || ''),
+      pakai_jadwal_diskon: b.pakai_jadwal_diskon || 0,
+      diskon_mulai: b.diskon_mulai ? b.diskon_mulai.slice(0, 16) : '',
+      diskon_selesai: b.diskon_selesai ? b.diskon_selesai.slice(0, 16) : '',
       panjang: dim.panjang, lebar: dim.lebar, tinggi: dim.tinggi,
       shopee: b.shopee || '', tokped: b.tokped || '', tiktok: b.tiktok || '',
+      ruang_tamu: b.ruang_tamu || 0, ruang_keluarga: b.ruang_keluarga || 0, ruang_tidur: b.ruang_tidur || 0,
       active: b.active,
     });
     setModalOpen(true);
@@ -190,12 +203,20 @@ export default function MasterBarangPage() {
       const payload = {
         id: form.id.trim(), nama: form.nama.trim(),
         kategori: form.kategori.trim(), subkategori: form.subkategori.trim(),
-        harga: Number(form.harga) || 0, diskon: Number(form.diskon) || 0,
+        harga: Number(form.harga) || 0,
+        rate: Number(form.rate) || 0,
+        diskon: Number(form.diskon) || 0,
+        pakai_jadwal_diskon: form.pakai_jadwal_diskon,
+        diskon_mulai: form.pakai_jadwal_diskon && form.diskon_mulai ? form.diskon_mulai : null,
+        diskon_selesai: form.pakai_jadwal_diskon && form.diskon_selesai ? form.diskon_selesai : null,
         varian: varians.length > 0 ? varians : [],
         deskripsi,
-        shopee: form.shopee.trim() || null,
-        tokped: form.tokped.trim() || null,
-        tiktok: form.tiktok.trim() || null,
+        shopee: form.shopee.trim() || '',
+        tokped: form.tokped.trim() || '',
+        tiktok: form.tiktok.trim() || '',
+        ruang_tamu: form.ruang_tamu,
+        ruang_keluarga: form.ruang_keluarga,
+        ruang_tidur: form.ruang_tidur,
         active: form.active,
       };
       if (editTarget) {
@@ -441,7 +462,42 @@ export default function MasterBarangPage() {
                 <Grid size={{ xs: 6, md: 3 }}>
                   <TextField fullWidth label="Diskon (%)" type="number" size="small" value={form.diskon} onChange={e => f('diskon', e.target.value)} />
                 </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <TextField fullWidth label="Rate (0-5)" type="number" size="small" value={form.rate} onChange={e => f('rate', e.target.value)} inputProps={{ min: 0, max: 5 }} />
+                </Grid>
               </Grid>
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Jadwal Diskon</Typography>
+              <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <input type="checkbox" id="pakaiJadwal" checked={!!form.pakai_jadwal_diskon} onChange={e => f('pakai_jadwal_diskon', e.target.checked ? 1 : 0)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    <label htmlFor="pakaiJadwal" style={{ fontSize: 13, cursor: 'pointer', color: '#475569' }}>Aktifkan jadwal diskon otomatis</label>
+                  </Box>
+                </Grid>
+                {!!form.pakai_jadwal_diskon && (<>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth label="Mulai Diskon" type="datetime-local" size="small" value={form.diskon_mulai} onChange={e => f('diskon_mulai', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth label="Selesai Diskon" type="datetime-local" size="small" value={form.diskon_selesai} onChange={e => f('diskon_selesai', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+                  </Grid>
+                </>)}
+              </Grid>
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ color: 'text.disabled', fontWeight: 800, letterSpacing: '0.1em' }}>Kategori Ruangan</Typography>
+              <Box sx={{ display: 'flex', gap: 3, mt: 1 }}>
+                {([['ruang_tamu', 'Ruang Tamu'], ['ruang_keluarga', 'Ruang Keluarga'], ['ruang_tidur', 'Ruang Tidur']] as [string, string][]).map(([key, label]) => (
+                  <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <input type="checkbox" id={key} checked={!!(form as any)[key]} onChange={e => f(key, e.target.checked ? 1 : 0)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    <label htmlFor={key} style={{ fontSize: 13, cursor: 'pointer', color: '#475569' }}>{label}</label>
+                  </Box>
+                ))}
+              </Box>
             </Box>
 
             <Box>
