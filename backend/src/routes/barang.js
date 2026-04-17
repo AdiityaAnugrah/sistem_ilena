@@ -1,13 +1,17 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const { Barang } = require('../models');
+const BarangTest = require('../models/BarangTest');
 const { authenticate, requireDevOrSuperAdmin } = require('../middleware/auth');
+
+const getModel = (req) => req.user?.role === 'TEST' ? BarangTest : Barang;
 
 const router = express.Router();
 
 // GET /api/barang
 router.get('/', authenticate, async (req, res) => {
   try {
+    const M = getModel(req);
     const { search, kategori, subkategori, active, page = 1, limit = 20 } = req.query;
     const where = {};
 
@@ -23,7 +27,7 @@ router.get('/', authenticate, async (req, res) => {
     if (active !== undefined) where.active = active;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const { count, rows } = await Barang.findAndCountAll({
+    const { count, rows } = await M.findAndCountAll({
       where,
       limit: parseInt(limit),
       offset,
@@ -46,7 +50,7 @@ router.get('/', authenticate, async (req, res) => {
 // GET /api/barang/:id
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const barang = await Barang.findByPk(req.params.id);
+    const barang = await getModel(req).findByPk(req.params.id);
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
     return res.json(barang);
   } catch (err) {
@@ -57,6 +61,7 @@ router.get('/:id', authenticate, async (req, res) => {
 // POST /api/barang
 router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
   try {
+    const M = getModel(req);
     const {
       id, nama, kategori, subkategori, harga, rate, diskon,
       pakai_jadwal_diskon, diskon_mulai, diskon_selesai,
@@ -66,12 +71,12 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
 
     if (!id || !nama) return res.status(400).json({ message: 'ID dan Nama wajib diisi' });
 
-    const existing = await Barang.findByPk(id);
+    const existing = await M.findByPk(id);
     if (existing) return res.status(400).json({ message: `ID ${id} sudah digunakan` });
 
     const pencarian = [nama, kategori, subkategori].filter(Boolean).join(' ').toLowerCase();
 
-    const barang = await Barang.create({
+    const barang = await M.create({
       id, nama,
       kategori: kategori || '',
       subkategori: subkategori || '',
@@ -104,7 +109,8 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
 // PUT /api/barang/:id
 router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
   try {
-    const barang = await Barang.findByPk(req.params.id);
+    const M = getModel(req);
+    const barang = await M.findByPk(req.params.id);
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
 
     const {
@@ -151,7 +157,7 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
 // PATCH /api/barang/:id/toggle-active
 router.patch('/:id/toggle-active', authenticate, requireDevOrSuperAdmin, async (req, res) => {
   try {
-    const barang = await Barang.findByPk(req.params.id);
+    const barang = await getModel(req).findByPk(req.params.id);
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
     await barang.update({ active: barang.active ? 0 : 1 });
     return res.json({ active: barang.active });
