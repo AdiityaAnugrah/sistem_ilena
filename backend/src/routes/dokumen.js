@@ -288,6 +288,7 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
     const normalized = {
       nomor_invoice: data.nomor_invoice,
       tanggal: data.tanggal,
+      jatuh_tempo: data.jatuh_tempo,
       catatan: data.catatan,
       ppn_persen: 0, // sudah embedded di harga_satuan
       penjualan: {

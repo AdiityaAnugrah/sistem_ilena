@@ -267,6 +267,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
 
     const invTanggal = tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoice(penjualan.faktur, invTanggal, penjualan.is_test === 1);
+    const jatuh_tempo = new Date(new Date(invTanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const inv = await InvoiceInterior.create({
       penjualan_interior_id: penjualan.id,
@@ -274,6 +275,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
       surat_jalan_ids: sjIds.length > 0 ? JSON.stringify(sjIds) : null,
       nomor_invoice,
       tanggal: invTanggal,
+      jatuh_tempo,
       catatan: catatan || null,
       created_by: req.user.id,
     });

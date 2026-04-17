@@ -220,11 +220,13 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoice(penjualan.faktur, tanggal, penjualan.is_test === 1);
     const ppn_persen = [0, 10, 11].includes(Number(req.body.ppn_persen)) ? Number(req.body.ppn_persen) : 0;
+    const jatuh_tempo = new Date(new Date(tanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const inv = await Invoice.create({
       penjualan_offline_id: penjualan.id,
       nomor_invoice,
       tanggal,
+      jatuh_tempo,
       ppn_persen,
       catatan: req.body.catatan || null,
       created_by: req.user.id,
