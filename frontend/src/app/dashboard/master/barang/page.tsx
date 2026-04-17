@@ -30,20 +30,7 @@ import {
   Pagination,
 } from '@mui/material';
 import Grid from '@mui/material/Grid';
-import { 
-  Search, 
-  Plus, 
-  Pencil, 
-  Power, 
-  X, 
-  Filter, 
-  Package, 
-  Tag, 
-  DollarSign, 
-  Layers, 
-  ExternalLink,
-  Trash2
-} from 'lucide-react';
+import { Search, Plus, Pencil, Power, X, Tag, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface Barang {
@@ -66,6 +53,13 @@ interface Barang {
   ruang_tamu: number;
   ruang_keluarga: number;
   ruang_tidur: number;
+}
+
+function getTotalStok(varian: string | null): number {
+  try {
+    const v = varian ? JSON.parse(varian) : [];
+    return v.reduce((sum: number, item: any) => sum + (Number(item.stok) || 0), 0);
+  } catch { return 0; }
 }
 
 function parseDimensi(deskripsi: string | null): string {
@@ -398,16 +392,16 @@ export default function MasterBarangPage() {
           <Table sx={{ minWidth: 800 }}>
             <TableHead sx={{ bgcolor: 'rgba(248, 250, 252, 0.8)' }}>
               <TableRow>
-                {['ID', 'Produk', 'Kategori', 'Dimensi', 'Harga', 'Diskon', 'Varian', 'Status', 'Aksi'].map(h => (
+                {['ID', 'Produk', 'Kategori', 'Dimensi', 'Harga', 'Diskon', 'Varian', 'Stok', 'Status', 'Aksi'].map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
               ) : barangs.length === 0 ? (
-                <TableRow><TableCell colSpan={9} align="center" sx={{ py: 10 }}>Produk tidak ditemukan</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} align="center" sx={{ py: 10 }}>Produk tidak ditemukan</TableCell></TableRow>
               ) : barangs.map((b) => {
                 let varianCount = 0;
                 try { varianCount = b.varian ? JSON.parse(b.varian).length : 0; } catch { /* */ }
@@ -436,7 +430,20 @@ export default function MasterBarangPage() {
                       {varianCount > 0 ? <Chip label={`${varianCount} Varian`} color="primary" variant="outlined" size="small" sx={{ fontWeight: 600, borderRadius: '6px' }} /> : '-'}
                     </TableCell>
                     <TableCell>
-                      <Chip 
+                      {(() => {
+                        const stok = getTotalStok(b.varian);
+                        return (
+                          <Chip
+                            label={stok}
+                            size="small"
+                            color={stok === 0 ? 'error' : stok <= 3 ? 'warning' : 'success'}
+                            sx={{ fontWeight: 700, borderRadius: '6px', minWidth: 36 }}
+                          />
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
                         label={b.active ? 'Aktif' : 'Nonaktif'} 
                         color={b.active ? 'info' : 'default'} 
                         size="small" 
