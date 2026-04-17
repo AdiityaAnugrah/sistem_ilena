@@ -56,10 +56,45 @@ export default function SemuaSuratPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>Semua Surat</h1>
-        <p style={{ color: '#64748b', fontSize: 14, margin: '4px 0 0' }}>
-          {total} invoice ditemukan  
+      <style>{`
+        .surat-card {
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 14px 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .surat-card:hover {
+          border-color: #FA2F2F;
+          box-shadow: 0 2px 12px rgba(250,47,47,0.1);
+        }
+        .surat-card-nomor {
+          font-weight: 700;
+          font-size: 13px;
+          color: #0f172a;
+          font-family: monospace;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        @media (min-width: 480px) {
+          .surat-card { padding: 14px 18px; gap: 14px; }
+          .surat-card-nomor { font-size: 14px; }
+        }
+        .surat-chip-hide { display: none; }
+        @media (min-width: 360px) { .surat-chip-hide { display: flex; } }
+        .surat-arrow-hide { display: none; }
+        @media (min-width: 480px) { .surat-arrow-hide { display: block; } }
+      `}</style>
+
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>Semua Surat</h1>
+        <p style={{ color: '#64748b', fontSize: 13, margin: '4px 0 0' }}>
+          {total} invoice ditemukan
         </p>
       </div>
 
@@ -69,7 +104,7 @@ export default function SemuaSuratPage() {
         placeholder="Cari nomor invoice atau nama penerima..."
         value={search}
         onChange={e => handleSearch(e.target.value)}
-        sx={{ mb: 3, backgroundColor: '#fff', borderRadius: '10px' }}
+        sx={{ mb: 2.5, backgroundColor: '#fff', borderRadius: '10px' }}
         slotProps={{
           input: {
             startAdornment: (
@@ -94,54 +129,45 @@ export default function SemuaSuratPage() {
           {data.map(item => (
             <div
               key={`${item.sumber}-${item.id}`}
+              className="surat-card"
               onClick={() => router.push(`/surat/${item.sumber}/${item.penjualan_id}`)}
-              style={{
-                backgroundColor: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 12,
-                padding: '14px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                cursor: 'pointer',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = '#FA2F2F';
-                (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 12px rgba(250,47,47,0.1)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0';
-                (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-              }}
             >
+              {/* Icon */}
               <div style={{
-                width: 36, height: 36, borderRadius: 8,
+                width: 34, height: 34, borderRadius: 8,
                 backgroundColor: '#fef2f2',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0,
               }}>
-                <FileText size={17} color="#FA2F2F" />
+                <FileText size={16} color="#FA2F2F" />
               </div>
+
+              {/* Teks */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', fontFamily: 'monospace' }}>
-                  {item.nomor}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                <div className="surat-card-nomor">{item.nomor}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.nama_penerima} · {formatTgl(item.tanggal)}
-                  {item.jatuh_tempo ? ` · Jatuh Tempo: ${formatTgl(item.jatuh_tempo)}` : ''}
+                  {item.jatuh_tempo ? ` · JT: ${formatTgl(item.jatuh_tempo)}` : ''}
                 </div>
               </div>
-              <Chip
-                label={item.sumber}
-                size="small"
-                sx={{
-                  fontSize: 10, fontWeight: 700, flexShrink: 0,
-                  backgroundColor: item.sumber === 'OFFLINE' ? '#eff6ff' : '#f0fdf4',
-                  color: item.sumber === 'OFFLINE' ? '#3b82f6' : '#16a34a',
-                }}
-              />
-              <ArrowRight size={16} color="#cbd5e1" style={{ flexShrink: 0 }} />
+
+              {/* Chip sumber */}
+              <div className="surat-chip-hide" style={{ flexShrink: 0 }}>
+                <Chip
+                  label={item.sumber}
+                  size="small"
+                  sx={{
+                    fontSize: 10, fontWeight: 700,
+                    backgroundColor: item.sumber === 'OFFLINE' ? '#eff6ff' : '#f0fdf4',
+                    color: item.sumber === 'OFFLINE' ? '#3b82f6' : '#16a34a',
+                  }}
+                />
+              </div>
+
+              {/* Arrow */}
+              <div className="surat-arrow-hide">
+                <ArrowRight size={15} color="#cbd5e1" />
+              </div>
             </div>
           ))}
         </div>
@@ -154,6 +180,7 @@ export default function SemuaSuratPage() {
             page={page}
             onChange={(_, v) => setPage(v)}
             color="primary"
+            size="small"
           />
         </div>
       )}

@@ -65,10 +65,7 @@ export default function TreeSuratPage() {
 
   const handleLihat = (tipe: string, docId: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (!token) {
-      setLoginModal(true);
-      return;
-    }
+    if (!token) { setLoginModal(true); return; }
     window.open(`${API}/api/dokumen/${tipe}/${docId}/print?token=${token}`, '_blank');
   };
 
@@ -81,18 +78,22 @@ export default function TreeSuratPage() {
       border: '1px solid #e2e8f0',
       borderLeft: indent ? '3px solid #fca5a5' : '1px solid #e2e8f0',
       borderRadius: 10,
-      padding: '12px 16px',
+      padding: '12px 14px',
       display: 'flex',
       alignItems: 'center',
-      gap: 12,
-      marginLeft: indent ? 20 : 0,
+      gap: 10,
+      marginLeft: indent ? 16 : 0,
     }}>
       <FileText size={15} color="#FA2F2F" style={{ flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a', fontFamily: 'monospace' }}>
+        <div style={{
+          fontWeight: 700, fontSize: 12, color: '#0f172a',
+          fontFamily: 'monospace',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           {doc.nomor}
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
           {TIPE_LABEL[doc.tipe] || doc.tipe}
           {doc.tanggal ? ` · ${formatTgl(doc.tanggal)}` : ''}
         </div>
@@ -100,14 +101,14 @@ export default function TreeSuratPage() {
       <button
         onClick={() => handleLihat(doc.tipe, doc.id)}
         style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          padding: '6px 12px', borderRadius: 8,
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '7px 11px', borderRadius: 8,
           border: '1px solid #FA2F2F', backgroundColor: 'transparent',
           color: '#FA2F2F', fontWeight: 600, fontSize: 12,
-          cursor: 'pointer', flexShrink: 0,
+          cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
         }}
       >
-        <ExternalLink size={12} />
+        <ExternalLink size={11} />
         Lihat
       </button>
     </div>
@@ -136,7 +137,6 @@ export default function TreeSuratPage() {
   }
 
   const namaPenerima = data.penjualan.nama_penerima || data.penjualan.nama_customer || '-';
-
   const allDokumen = [
     ...(data.dokumen.invoices || []),
     ...(data.dokumen.suratJalans || []),
@@ -151,39 +151,43 @@ export default function TreeSuratPage() {
         onClick={() => router.push('/surat')}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          marginBottom: 20, background: 'none', border: 'none',
+          marginBottom: 18, background: 'none', border: 'none',
           cursor: 'pointer', color: '#64748b', fontSize: 13, padding: 0,
         }}
       >
         <ArrowLeft size={15} />
-        Kembali ke Semua Surat
+        Kembali
       </button>
 
       {/* Header penjualan */}
       <div style={{
         backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 14,
-        padding: '18px 20px', marginBottom: 24,
+        padding: '16px 18px', marginBottom: 20,
         display: 'flex', alignItems: 'flex-start',
         justifyContent: 'space-between', gap: 12,
       }}>
-        <div>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{
-            fontSize: 11, color: '#94a3b8', fontWeight: 600,
+            fontSize: 10, color: '#94a3b8', fontWeight: 600,
             textTransform: 'uppercase', letterSpacing: '0.07em',
           }}>
             Penjualan {data.sumber}
           </div>
-          <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a', marginTop: 4 }}>
+          <div style={{
+            fontWeight: 800, fontSize: 16, color: '#0f172a', marginTop: 4,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
             {namaPenerima}
           </div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
             {formatTgl(data.penjualan.tanggal)}
           </div>
         </div>
         <Chip
           label={data.sumber}
+          size="small"
           sx={{
-            fontWeight: 700, fontSize: 11,
+            fontWeight: 700, fontSize: 10, flexShrink: 0,
             backgroundColor: data.sumber === 'OFFLINE' ? '#eff6ff' : '#f0fdf4',
             color: data.sumber === 'OFFLINE' ? '#3b82f6' : '#16a34a',
           }}
@@ -191,27 +195,19 @@ export default function TreeSuratPage() {
       </div>
 
       {/* Jumlah dokumen */}
-      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 14, fontWeight: 600 }}>
+      <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12, fontWeight: 600 }}>
         {allDokumen.length} dokumen ditemukan
       </div>
 
       {/* Tree */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {data.dokumen.invoices?.map(d => (
-          <DokCard key={`inv-${d.id}`} doc={d} />
-        ))}
-        {data.dokumen.proformas?.map(d => (
-          <DokCard key={`pro-${d.id}`} doc={d} />
-        ))}
-        {data.dokumen.suratJalans?.map(d => (
-          <DokCard key={`sj-${d.id}`} doc={d} indent />
-        ))}
+        {data.dokumen.invoices?.map(d => <DokCard key={`inv-${d.id}`} doc={d} />)}
+        {data.dokumen.proformas?.map(d => <DokCard key={`pro-${d.id}`} doc={d} />)}
+        {data.dokumen.suratJalans?.map(d => <DokCard key={`sj-${d.id}`} doc={d} indent />)}
         {data.dokumen.suratPengantars?.map(d => (
           <div key={`sp-${d.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <DokCard doc={d} indent />
-            {d.subs?.map(s => (
-              <DokCard key={`sub-${s.id}`} doc={s} indent />
-            ))}
+            {d.subs?.map(s => <DokCard key={`sub-${s.id}`} doc={s} indent />)}
           </div>
         ))}
       </div>
@@ -226,19 +222,21 @@ export default function TreeSuratPage() {
       <Dialog
         open={loginModal}
         onClose={() => setLoginModal(false)}
-        slotProps={{ paper: { sx: { borderRadius: '16px', p: 1 } } }}
+        fullWidth
+        maxWidth="xs"
+        slotProps={{ paper: { sx: { borderRadius: '16px', mx: 2 } } }}
       >
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800 }}>
-          <Lock size={18} color="#FA2F2F" />
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, fontSize: 15 }}>
+          <Lock size={17} color="#FA2F2F" />
           Login Diperlukan
         </DialogTitle>
         <DialogContent>
-          <p style={{ fontSize: 14, color: '#475569', margin: 0 }}>
-            Untuk melihat detail dokumen, menambah tanda tangan, atau mengunduh, Anda perlu login terlebih dahulu.
+          <p style={{ fontSize: 13, color: '#475569', margin: 0 }}>
+            Untuk melihat detail dokumen, menambah tanda tangan, atau mengunduh, silakan login terlebih dahulu.
           </p>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => setLoginModal(false)} color="inherit" sx={{ fontWeight: 600 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setLoginModal(false)} color="inherit" sx={{ fontWeight: 600, fontSize: 13 }}>
             Tutup
           </Button>
           <Button
@@ -248,7 +246,7 @@ export default function TreeSuratPage() {
               router.push(`/login?return=${returnUrl}`);
             }}
             sx={{
-              borderRadius: '10px', fontWeight: 700,
+              borderRadius: '10px', fontWeight: 700, fontSize: 13,
               backgroundColor: '#FA2F2F',
               '&:hover': { backgroundColor: '#d41a1a' },
             }}
