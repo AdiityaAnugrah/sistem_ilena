@@ -141,10 +141,10 @@ export default function PenjualanOfflinePage() {
 
         {/* Table */}
         <TableContainer>
-          <Table sx={{ minWidth: 800 }}>
+          <Table sx={{ minWidth: 900 }}>
             <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
               <TableRow>
-                {['Tanggal', 'Nama Penerima', 'No. HP', 'Tipe', 'Faktur', 'Status', 'Aksi'].map(h => (
+                {['Tanggal', 'Nama Penerima', 'No. SJ', 'No. INV', 'Status Pajak', 'Status', 'Aksi'].map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.7rem', textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
                 ))}
               </TableRow>
@@ -158,12 +158,18 @@ export default function PenjualanOfflinePage() {
                 <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
                   <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
                   <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_penerima}</Typography></TableCell>
-                  <TableCell><Typography variant="caption" color="text.secondary">{row.no_hp_penerima || '-'}</Typography></TableCell>
                   <TableCell>
-                    <Chip label={row.tipe} size="small" variant="outlined" color={row.tipe === 'DISPLAY' ? 'warning' : 'primary'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: row.suratJalans?.length ? 'text.primary' : 'text.disabled' }}>
+                      {row.suratJalans?.map((sj: any) => sj.nomor_surat).join(', ') || '-'}
+                    </Typography>
                   </TableCell>
                   <TableCell>
-                    <Chip label={row.faktur === 'FAKTUR' ? 'Faktur' : 'Non-Fak'} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                    <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: row.invoices?.length ? 'text.primary' : 'text.disabled' }}>
+                      {row.invoices?.map((inv: any) => inv.nomor_invoice).join(', ') || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={row.faktur === 'FAKTUR' ? 'Faktur' : 'Non-Faktur'} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
                   </TableCell>
                   <TableCell>
                     <Chip label={STATUS_CONFIG[row.status]?.label || row.status} size="small" color={STATUS_CONFIG[row.status]?.color || 'default'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />

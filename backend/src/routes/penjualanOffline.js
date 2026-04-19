@@ -140,7 +140,12 @@ router.get('/', authenticate, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where,
-      include: [{ model: PenjualanOfflineItem, as: 'items' }],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items' },
+        { model: SuratJalan, as: 'suratJalans', attributes: ['nomor_surat', 'tanggal'] },
+        { model: Invoice, as: 'invoices', attributes: ['nomor_invoice', 'tanggal'] },
+        { model: SuratPengantar, as: 'suratPengantars', attributes: ['nomor_sp', 'tanggal'] },
+      ],
       limit: parseInt(limit),
       offset,
       order: [['created_at', 'DESC']],

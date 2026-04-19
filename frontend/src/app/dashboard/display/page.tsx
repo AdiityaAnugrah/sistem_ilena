@@ -91,22 +91,25 @@ export default function DisplayPage() {
               <Table sx={{ minWidth: 700 }}>
                 <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
                   <TableRow>
-                    {['Tanggal', 'Nama Penerima', 'No. HP', 'Produk', 'Status', 'Aksi'].map(h => (
+                    {['Tanggal', 'Nama Penerima', 'No. Surat Pengantar', 'Status', 'Aksi'].map(h => (
                       <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.7rem', textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
                     ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {loading ? (
-                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
                   ) : data.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}>Tidak ada data display.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} align="center" sx={{ py: 10 }}>Tidak ada data display.</TableCell></TableRow>
                   ) : data.map((row: any) => (
                     <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
                       <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
                       <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_penerima}</Typography></TableCell>
-                      <TableCell><Typography variant="caption" color="text.secondary">{row.no_hp_penerima || '-'}</Typography></TableCell>
-                      <TableCell><Typography variant="caption" color="text.secondary">{row.items?.length || 0} produk</Typography></TableCell>
+                      <TableCell>
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 600, color: row.suratPengantars?.length ? 'text.primary' : 'text.disabled' }}>
+                          {row.suratPengantars?.map((sp: any) => sp.nomor_sp).join(', ') || '-'}
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         <Chip label={row.status} size="small" color={row.status === 'ACTIVE' ? 'info' : 'default'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
                       </TableCell>
