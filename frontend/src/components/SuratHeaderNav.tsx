@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react';
 import useAuthStore from '@/store/authStore';
 
 export default function SuratHeaderNav() {
-  const { isAuthenticated, initAuth } = useAuthStore() as any;
+  const { isAuthenticated, initFromStorage } = useAuthStore() as any;
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    initAuth();
+    initFromStorage();
     setReady(true);
-  }, [initAuth]);
+  }, []);
 
   if (!ready) return null;
 
