@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import SuratHeaderNav from '@/components/SuratHeaderNav';
 
 export const metadata: Metadata = {
   title: 'Semua Surat — ILENA',
@@ -41,17 +42,7 @@ export default function SuratLayout({ children }: { children: React.ReactNode })
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 16, width: 'auto', flexShrink: 0 }} />
         </div>
-        <a
-          href="/login"
-          style={{
-            fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)',
-            textDecoration: 'none', padding: '7px 14px', borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0, marginLeft: 12,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Masuk
-        </a>
+        <SuratHeaderNav />
       </header>
       <main className="surat-main">
         {children}
