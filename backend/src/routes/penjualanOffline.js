@@ -387,8 +387,13 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
 
       // Proses setiap item
       for (const { itemDisplay, qtyJualInt, harga_jual, diskon } of validItemsToProcess) {
-        const finalHargaSatuan = harga_jual !== undefined && harga_jual !== '' ? parseFloat(harga_jual) : parseFloat(itemDisplay.harga_satuan);
-        const subtotalM = finalHargaSatuan * qtyJualInt * (1 - (parseFloat(diskon) / 100));
+        const hargaAsli = parseFloat(itemDisplay.harga_satuan);
+        const finalHargaSatuan = harga_jual !== undefined && harga_jual !== '' ? parseFloat(harga_jual) : hargaAsli;
+        // Hitung diskon efektif: kalau harga jual lebih rendah dari harga asli, anggap spesial price
+        const finalDiskon = hargaAsli > 0 && finalHargaSatuan < hargaAsli
+          ? Math.max(0, Math.round((1 - finalHargaSatuan / hargaAsli) * 100))
+          : parseFloat(diskon) || 0;
+        const subtotalM = finalHargaSatuan * qtyJualInt * (1 - (finalDiskon / 100));
 
         // Create new item in PENJUALAN
         await PenjualanOfflineItem.create({
@@ -398,7 +403,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
           varian_id: itemDisplay.varian_id || null,
           qty: qtyJualInt,
           harga_satuan: finalHargaSatuan,
-          diskon: parseFloat(diskon),
+          diskon: finalDiskon,
           subtotal: subtotalM,
         }, { transaction: t });
 
