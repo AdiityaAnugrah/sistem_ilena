@@ -86,9 +86,9 @@ export default function PenjualanOfflineBaru() {
       varian_nama: defaultVarian?.nama || null,
       varian_id: defaultVarian?.id || null,
       qty: 1,
-      harga_asli: Number(barang.harga),
-      harga_satuan: Number(barang.harga),
-      harga_custom: Number(barang.harga),
+      harga_asli: Number(barang.harga_ilena ?? barang.harga),
+      harga_satuan: Number(barang.harga_ilena ?? barang.harga),
+      harga_custom: Number(barang.harga_ilena ?? barang.harga),
       hargaMode: 'diskon' as 'diskon' | 'harga',
       diskon: 0,
     }]);

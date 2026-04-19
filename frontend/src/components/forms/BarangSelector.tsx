@@ -168,7 +168,7 @@ export default function BarangSelector({ onSelect }: Props) {
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-4 mt-2 sm:mt-0 flex-shrink-0">
                   <span className="text-sm lg:text-[15px] font-bold text-red-600 tracking-tight">
-                    {formatRupiah(barang.harga)}
+                    {formatRupiah(barang.harga_ilena ?? barang.harga)}
                   </span>
                   <button
                     type="button"

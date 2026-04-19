@@ -1,12 +1,26 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const { Barang } = require('../models');
+const { Barang, HargaKhusus } = require('../models');
 const BarangTest = require('../models/BarangTest');
 const { authenticate, requireDevOrSuperAdmin } = require('../middleware/auth');
 
-const getModel = (req) => req.user?.role === 'TEST' ? BarangTest : Barang;
+const isTest = (req) => req.user?.role === 'TEST';
+const getModel = (req) => isTest(req) ? BarangTest : Barang;
 
 const router = express.Router();
+
+// Merge harga_ilena ke rows produksi (dari tabel harga_khusus)
+async function mergeHargaIlena(rows) {
+  if (!rows.length) return rows;
+  const ids = rows.map(r => r.id);
+  const overrides = await HargaKhusus.findAll({ where: { barang_id: ids } });
+  const map = {};
+  for (const o of overrides) map[o.barang_id] = parseFloat(o.harga);
+  return rows.map(r => {
+    const plain = r.toJSON ? r.toJSON() : r;
+    return { ...plain, harga_ilena: map[plain.id] ?? null };
+  });
+}
 
 // GET /api/barang
 router.get('/', authenticate, async (req, res) => {
@@ -34,8 +48,10 @@ router.get('/', authenticate, async (req, res) => {
       order: [['nama', 'ASC']],
     });
 
+    const data = isTest(req) ? rows.map(r => r.toJSON()) : await mergeHargaIlena(rows);
+
     return res.json({
-      data: rows,
+      data,
       total: count,
       page: parseInt(page),
       limit: parseInt(limit),
@@ -52,7 +68,11 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const barang = await getModel(req).findByPk(req.params.id);
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
-    return res.json(barang);
+
+    if (isTest(req)) return res.json(barang);
+
+    const override = await HargaKhusus.findByPk(req.params.id);
+    return res.json({ ...barang.toJSON(), harga_ilena: override ? parseFloat(override.harga) : null });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -67,6 +87,7 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       pakai_jadwal_diskon, diskon_mulai, diskon_selesai,
       varian, deskripsi, shopee, tokped, tiktok,
       ruang_tamu, ruang_keluarga, ruang_tidur, active,
+      harga_ilena,
     } = req.body;
 
     if (!id || !nama) return res.status(400).json({ message: 'ID dan Nama wajib diisi' });
@@ -76,7 +97,7 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
 
     const pencarian = [nama, kategori, subkategori].filter(Boolean).join(' ').toLowerCase();
 
-    const barang = await M.create({
+    const createData = {
       id, nama,
       kategori: kategori || '',
       subkategori: subkategori || '',
@@ -98,9 +119,22 @@ router.post('/', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       ruang_tidur: ruang_tidur || 0,
       pencarian,
       tgl_update: new Date(),
-    });
+    };
 
-    return res.status(201).json(barang);
+    if (isTest(req) && harga_ilena != null) createData.harga_ilena = harga_ilena;
+
+    const barang = await M.create(createData);
+
+    // Produksi: simpan ke harga_khusus
+    if (!isTest(req) && harga_ilena != null && harga_ilena !== '') {
+      await HargaKhusus.upsert({ barang_id: id, harga: harga_ilena });
+    }
+
+    const result = isTest(req)
+      ? barang.toJSON()
+      : { ...barang.toJSON(), harga_ilena: harga_ilena != null ? parseFloat(harga_ilena) : null };
+
+    return res.status(201).json(result);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -118,6 +152,7 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       pakai_jadwal_diskon, diskon_mulai, diskon_selesai,
       varian, deskripsi, shopee, tokped, tiktok,
       ruang_tamu, ruang_keluarga, ruang_tidur, active,
+      harga_ilena,
     } = req.body;
 
     const pencarian = [nama || barang.nama, kategori || barang.kategori, subkategori || barang.subkategori]
@@ -125,7 +160,7 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
 
     const pakaiJadwal = pakai_jadwal_diskon !== undefined ? pakai_jadwal_diskon : barang.pakai_jadwal_diskon;
 
-    await barang.update({
+    const updateData = {
       nama,
       kategori: kategori ?? barang.kategori,
       subkategori: subkategori ?? barang.subkategori,
@@ -146,9 +181,23 @@ router.put('/:id', authenticate, requireDevOrSuperAdmin, async (req, res) => {
       active,
       pencarian,
       tgl_update: new Date(),
-    });
+    };
 
-    return res.json(barang);
+    if (isTest(req) && harga_ilena !== undefined) updateData.harga_ilena = harga_ilena || null;
+
+    await barang.update(updateData);
+
+    // Produksi: upsert atau hapus harga_khusus
+    if (!isTest(req)) {
+      if (harga_ilena != null && harga_ilena !== '') {
+        await HargaKhusus.upsert({ barang_id: req.params.id, harga: harga_ilena });
+      } else if (harga_ilena === null || harga_ilena === '') {
+        await HargaKhusus.destroy({ where: { barang_id: req.params.id } });
+      }
+    }
+
+    const override = isTest(req) ? null : await HargaKhusus.findByPk(req.params.id);
+    return res.json({ ...barang.toJSON(), harga_ilena: override ? parseFloat(override.harga) : (isTest(req) ? barang.harga_ilena : null) });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

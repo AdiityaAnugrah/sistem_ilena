@@ -25,6 +25,7 @@ const BarangTest = sequelize.define('barang_backup', {
   ruang_keluarga: { type: DataTypes.TINYINT(1) },
   ruang_tidur: { type: DataTypes.TINYINT(1) },
   tgl_update: { type: DataTypes.DATE },
+  harga_ilena: { type: DataTypes.DECIMAL(15, 2), defaultValue: null },
 }, {
   tableName: 'barang_backup',
   timestamps: false,

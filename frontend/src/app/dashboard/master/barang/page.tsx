@@ -53,6 +53,7 @@ interface Barang {
   ruang_tamu: number;
   ruang_keluarga: number;
   ruang_tidur: number;
+  harga_ilena: number | null;
 }
 
 function getTotalStok(varian: string | null): number {
@@ -78,7 +79,7 @@ interface VarianItem { id: string; nama: string; kode: string; stok: string; uru
 
 const emptyForm = {
   id: '', nama: '', kategori: '', subkategori: '',
-  harga: '', diskon: '', rate: '',
+  harga: '', harga_ilena: '', diskon: '', rate: '',
   pakai_jadwal_diskon: 0, diskon_mulai: '', diskon_selesai: '',
   // dimensi asli
   panjang: '', lebar: '', tinggi: '', berat: '',
@@ -197,7 +198,7 @@ export default function MasterBarangPage() {
     setVarians(parsedVarian);
     setForm({
       id: b.id, nama: b.nama || '', kategori: b.kategori || '', subkategori: b.subkategori || '',
-      harga: String(b.harga || ''), diskon: String(b.diskon || ''), rate: String(b.rate || ''),
+      harga: String(b.harga || ''), harga_ilena: b.harga_ilena != null ? String(b.harga_ilena) : '', diskon: String(b.diskon || ''), rate: String(b.rate || ''),
       pakai_jadwal_diskon: b.pakai_jadwal_diskon || 0,
       diskon_mulai: b.diskon_mulai ? b.diskon_mulai.slice(0, 16) : '',
       diskon_selesai: b.diskon_selesai ? b.diskon_selesai.slice(0, 16) : '',
@@ -242,6 +243,7 @@ export default function MasterBarangPage() {
         id: form.id.trim(), nama: form.nama.trim(),
         kategori: form.kategori.trim(), subkategori: form.subkategori.trim(),
         harga: Number(form.harga) || 0,
+        harga_ilena: form.harga_ilena !== '' ? Number(form.harga_ilena) : null,
         rate: Number(form.rate) || 0,
         diskon: Number(form.diskon) || 0,
         pakai_jadwal_diskon: form.pakai_jadwal_diskon,
@@ -509,6 +511,9 @@ export default function MasterBarangPage() {
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
                   <TextField fullWidth label="Harga (Rp)" type="number" size="small" value={form.harga} onChange={e => f('harga', e.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><DollarSign size={16} /></InputAdornment> } }} />
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <TextField fullWidth label="Harga Sistem Ilena (Rp)" type="number" size="small" value={form.harga_ilena} onChange={e => f('harga_ilena', e.target.value)} placeholder="Sama dengan harga" slotProps={{ input: { startAdornment: <InputAdornment position="start"><DollarSign size={16} /></InputAdornment> } }} helperText="Kosongkan = pakai harga normal" />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
                   <TextField fullWidth label="Diskon (%)" type="number" size="small" value={form.diskon} onChange={e => f('diskon', e.target.value)} />
