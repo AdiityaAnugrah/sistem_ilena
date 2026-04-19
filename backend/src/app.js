@@ -55,6 +55,7 @@ app.use('/api/dokumen', require('./routes/dokumen'));
 app.use('/api/public/surat', require('./routes/publicSurat'));
 app.use('/api/tutorial-video', require('./routes/tutorialVideo'));
 app.use('/api/log-activity', require('./routes/logActivity'));
+app.use('/api/dev', require('./routes/dev'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));

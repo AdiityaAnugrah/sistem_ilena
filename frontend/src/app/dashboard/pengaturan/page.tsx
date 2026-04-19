@@ -5,8 +5,9 @@ import useAuthStore from '@/store/authStore';
 import {
   Box, Typography, Paper, TextField, Button,
   Switch, FormControlLabel, Divider, CircularProgress,
+  Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { Video, Save } from 'lucide-react';
+import { Video, Save, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TutorialVideoModal from '@/components/TutorialVideoModal';
 
@@ -156,6 +157,21 @@ function VideoCard({
 export default function PengaturanPage() {
   const { user } = useAuthStore();
   const [previewData, setPreviewData] = useState<{ url: string; start: number; end: number | null } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetTestData = async () => {
+    setResetting(true);
+    try {
+      const res = await api.delete('/dev/reset-test-data');
+      toast.success(`Data testing dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus data');
+    } finally {
+      setResetting(false);
+      setConfirmOpen(false);
+    }
+  };
 
   if (user?.role !== 'DEV') {
     return (
@@ -186,6 +202,29 @@ export default function PengaturanPage() {
         />
       </Box>
 
+      <Divider sx={{ my: 3 }} />
+
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: '14px', borderColor: '#fca5a5' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <Trash2 size={17} color="#ef4444" />
+          <Typography sx={{ fontWeight: 700, fontSize: 14, color: '#ef4444' }}>Reset Data Testing</Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>
+          Hapus semua transaksi penjualan (offline & interior) yang dibuat dalam mode testing (is_test=1),
+          termasuk seluruh dokumen terkait seperti Surat Jalan, Invoice, Proforma, dan Pembayaran.
+        </Typography>
+        <Button
+          variant="outlined"
+          color="error"
+          size="small"
+          startIcon={<Trash2 size={14} />}
+          onClick={() => setConfirmOpen(true)}
+          sx={{ borderRadius: '8px' }}
+        >
+          Hapus Semua Data Testing
+        </Button>
+      </Paper>
+
       {previewData && (
         <TutorialVideoModal
           open={!!previewData}
@@ -195,6 +234,31 @@ export default function PengaturanPage() {
           endSecond={previewData.end ?? undefined}
         />
       )}
+
+      <Dialog open={confirmOpen} onClose={() => !resetting && setConfirmOpen(false)}>
+        <DialogTitle sx={{ fontWeight: 700 }}>Konfirmasi Hapus Data Testing</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Semua transaksi penjualan dengan flag <strong>is_test=1</strong> akan dihapus permanen,
+            termasuk Surat Jalan, Invoice, Proforma, Pembayaran, dan Surat Pengantar terkait.
+            Tindakan ini <strong>tidak bisa dibatalkan</strong>.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)} disabled={resetting} size="small">Batal</Button>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            disabled={resetting}
+            startIcon={resetting ? <CircularProgress size={13} color="inherit" /> : <Trash2 size={13} />}
+            onClick={handleResetTestData}
+            sx={{ borderRadius: '8px' }}
+          >
+            {resetting ? 'Menghapus...' : 'Ya, Hapus Sekarang'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
