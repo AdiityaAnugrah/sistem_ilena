@@ -1,6 +1,19 @@
 const dayjs = require('dayjs');
+const fs = require('fs');
+const path = require('path');
 require('dayjs/locale/id');
 dayjs.locale('id');
+
+// ─── Gambar lokal → data URI (agar tidak bergantung URL eksternal) ────────────
+function loadImgBase64(filename, mime) {
+  try {
+    const filePath = path.join(__dirname, '../../../frontend/public/img', filename);
+    const data = fs.readFileSync(filePath);
+    return `data:${mime};base64,${data.toString('base64')}`;
+  } catch { return ''; }
+}
+const LOGO_CBM   = loadImgBase64('logo-invoice.jpg', 'image/jpeg');
+const LOGO_STAMP = loadImgBase64('stampelfix.png',   'image/png');
 
 // ─── Shared toolbar & signature helpers ────────────────────────────────────
 
@@ -793,7 +806,7 @@ const generateHTMLSuratJalan = (sj) => {
             <div style="flex:1;" class="d-flex align-items-between gap-2">
                 <div class="d-flex gap-4 justify-content-start">
                     <div>
-                        <img src="https://ilenafurniture.com/img/logo/logo-invoice.jpg" alt="Logo" width="70" height="40">
+                        <img src="${LOGO_CBM}" alt="Logo" width="70" height="40">
                     </div>
                     <div class="d-flex flex-column justify-content-center gap-1">
                         <h5>CV.CATUR BHAKTI MANDIRI</h5>
@@ -842,8 +855,8 @@ const generateHTMLSuratJalan = (sj) => {
                 <div class="sig-box">
                     <p class="m-0 sig-title">Dibuat Oleh :</p>
                     <div class="sig-body">
-                        <img src="https://ilenafurniture.com/img/logo/stampelfix.png" alt="Stempel" class="sig-stamp">
-                        <img src="https://ilenafurniture.com/img/logo/stampelfix.png" alt="" class="sig-stamp-rough">
+                        <img src="${LOGO_STAMP}" alt="Stempel" class="sig-stamp">
+                        <img src="${LOGO_STAMP}" alt="" class="sig-stamp-rough">
                     </div>
                     <div class="sig-footer">Admin</div>
                     <p class="m-0 sig-name sig-line">____________________</p>
@@ -1002,7 +1015,7 @@ const generateHTMLSuratPengantar = (sp) => {
             <div style="flex:1;" class="d-flex align-items-between gap-2">
                 <div class="d-flex gap-4 justify-content-start">
                     <div>
-                        <img src="https://ilenafurniture.com/img/logo/logo-invoice.jpg" alt="Logo" width="70" height="40">
+                        <img src="${LOGO_CBM}" alt="Logo" width="70" height="40">
                     </div>
                     <div class="d-flex flex-column justify-content-center gap-1">
                         <h5>CV.CATUR BHAKTI MANDIRI</h5>
@@ -1051,8 +1064,8 @@ const generateHTMLSuratPengantar = (sp) => {
                 <div class="sig-box">
                     <p class="m-0 sig-title">Dibuat Oleh :</p>
                     <div class="sig-body">
-                        <img src="https://ilenafurniture.com/img/logo/stampelfix.png" alt="Stempel" class="sig-stamp">
-                        <img src="https://ilenafurniture.com/img/logo/stampelfix.png" alt="" class="sig-stamp-rough">
+                        <img src="${LOGO_STAMP}" alt="Stempel" class="sig-stamp">
+                        <img src="${LOGO_STAMP}" alt="" class="sig-stamp-rough">
                     </div>
                     <div class="sig-footer">Admin</div>
                     <p class="m-0 sig-name sig-line">____________________</p>
@@ -1236,7 +1249,7 @@ const generateHTMLInvoice = (inv) => {
     <div class="page">
         <!-- Header perusahaan -->
         <div class="d-flex gap-4 justify-content-start mb-4">
-            <div><img src="https://ilenafurniture.com/img/logo/logo-invoice.jpg" alt="Logo" width="70" height="40"></div>
+            <div><img src="${LOGO_CBM}" alt="Logo" width="70" height="40"></div>
             <div class="d-flex flex-column justify-content-center gap-1">
                 <h5 class="m-0">CV.CATUR BHAKTI MANDIRI</h5>
                 <h6 class="m-0" style="font-size:12.5px; font-weight:500;">
@@ -1512,7 +1525,7 @@ const generateHTMLProforma = (inv) => {
 
         <!-- Header perusahaan -->
         <div class="d-flex gap-4 justify-content-start mb-4">
-            <div><img src="https://ilenafurniture.com/img/logo/logo-invoice.jpg" alt="Logo" width="70" height="40"></div>
+            <div><img src="${LOGO_CBM}" alt="Logo" width="70" height="40"></div>
             <div class="d-flex flex-column justify-content-center gap-1">
                 <h5>CV.CATUR BHAKTI MANDIRI</h5>
                 <h6 class="m-0" style="font-size:12px;font-weight:500;">Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang</h6>
