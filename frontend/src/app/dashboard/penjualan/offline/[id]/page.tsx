@@ -678,6 +678,7 @@ export default function PenjualanOfflineDetail() {
                     data.pengirimKecamatan?.label,
                     data.pengirimKabupaten?.label,
                     data.pengirimProvinsi?.label,
+                    data.pengirim_kode_pos ? `Kode Pos ${data.pengirim_kode_pos}` : null,
                   ].filter(Boolean).join(', ')}
                 />
               </div>

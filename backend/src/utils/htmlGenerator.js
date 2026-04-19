@@ -825,7 +825,7 @@ const generateHTMLSuratJalan = (sj) => {
             <div style="flex:1" class="ms-5">
                 <p class="m-0" style="font-weight:500;">Kepada Yth.</p>
                 <p class="m-0 to-name">${penjualan.nama_penerima || '-'}</p>
-                <p class="m-0 mt-1">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}</p>
+                <p class="m-0 mt-1">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}${penjualan.pengirim_kode_pos ? ` ${penjualan.pengirim_kode_pos}` : ''}</p>
             </div>
         </div>
 
@@ -1034,7 +1034,7 @@ const generateHTMLSuratPengantar = (sp) => {
             <div style="flex:1" class="ms-5">
                 <p class="m-0" style="font-weight:500;">Kepada Yth.</p>
                 <p class="m-0 to-name">${penjualan.nama_penerima || '-'}</p>
-                <p class="m-0 mt-1">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}</p>
+                <p class="m-0 mt-1">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}${penjualan.pengirim_kode_pos ? ` ${penjualan.pengirim_kode_pos}` : ''}</p>
             </div>
         </div>
 
@@ -1282,7 +1282,7 @@ const generateHTMLInvoice = (inv) => {
         <div class="d-flex justify-content-start mt-4 mb-4 flex-column">
             <p class="m-0 nt" style="max-width:260px; font-size:12px;">Kepada Yth.</p>
             <p class="m-0 tw-bold-italic" style="max-width:260px; font-size:12px;">${penjualan.nama_npwp || penjualan.nama_penerima || '-'}</p>
-            <p class="m-0" style="max-width:260px; font-size:12px;">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}</p>
+            <p class="m-0" style="max-width:260px; font-size:12px;">${toTitleCase([penjualan.pengirim_detail, penjualan.pengirimKelurahan?.label, penjualan.pengirimKecamatan?.label, penjualan.pengirimKabupaten?.label, penjualan.pengirimProvinsi?.label].filter(Boolean).join(', '))}${penjualan.pengirim_kode_pos ? ` ${penjualan.pengirim_kode_pos}` : ''}</p>
 
             ${penjualan.no_npwp ? `<p style="font-size:12px; margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>` : ''}
         </div>

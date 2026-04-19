@@ -71,8 +71,8 @@ router.post('/', authenticate, async (req, res) => {
     const {
       tipe, faktur, nama_penerima, no_hp_penerima, no_po, tanggal,
       nama_npwp, no_npwp,
-      pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail,
-      tagihan_sama_pengirim, tagihan_provinsi_id, tagihan_kabupaten_id, tagihan_kecamatan_id, tagihan_kelurahan_id, tagihan_detail,
+      pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail, pengirim_kode_pos,
+      tagihan_sama_pengirim, tagihan_provinsi_id, tagihan_kabupaten_id, tagihan_kecamatan_id, tagihan_kelurahan_id, tagihan_detail, tagihan_kode_pos,
       items,
     } = req.body;
 
@@ -84,12 +84,14 @@ router.post('/', authenticate, async (req, res) => {
       tipe, faktur, nama_penerima, no_hp_penerima, no_po, tanggal,
       nama_npwp, no_npwp,
       pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail,
+      pengirim_kode_pos: pengirim_kode_pos || null,
       tagihan_sama_pengirim: tagihan_sama_pengirim ? 1 : 0,
       tagihan_provinsi_id: tagihan_sama_pengirim ? pengirim_provinsi_id : tagihan_provinsi_id,
       tagihan_kabupaten_id: tagihan_sama_pengirim ? pengirim_kabupaten_id : tagihan_kabupaten_id,
       tagihan_kecamatan_id: tagihan_sama_pengirim ? pengirim_kecamatan_id : tagihan_kecamatan_id,
       tagihan_kelurahan_id: tagihan_sama_pengirim ? pengirim_kelurahan_id : tagihan_kelurahan_id,
       tagihan_detail: tagihan_sama_pengirim ? pengirim_detail : tagihan_detail,
+      tagihan_kode_pos: tagihan_sama_pengirim ? (pengirim_kode_pos || null) : (tagihan_kode_pos || null),
       status: 'ACTIVE',
       is_test: req.user.role === 'TEST' ? 1 : 0,
       created_by: req.user.id,
@@ -182,20 +184,22 @@ router.put('/:id', authenticate, async (req, res) => {
 
     const {
       nama_penerima, no_hp_penerima, no_po, tanggal, nama_npwp, no_npwp,
-      pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail,
-      tagihan_sama_pengirim, tagihan_provinsi_id, tagihan_kabupaten_id, tagihan_kecamatan_id, tagihan_kelurahan_id, tagihan_detail,
+      pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail, pengirim_kode_pos,
+      tagihan_sama_pengirim, tagihan_provinsi_id, tagihan_kabupaten_id, tagihan_kecamatan_id, tagihan_kelurahan_id, tagihan_detail, tagihan_kode_pos,
       items, status,
     } = req.body;
 
     await penjualan.update({
       nama_penerima, no_hp_penerima, no_po, tanggal, nama_npwp, no_npwp,
       pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id, pengirim_detail,
+      pengirim_kode_pos: pengirim_kode_pos || null,
       tagihan_sama_pengirim: tagihan_sama_pengirim ? 1 : 0,
       tagihan_provinsi_id: tagihan_sama_pengirim ? pengirim_provinsi_id : tagihan_provinsi_id,
       tagihan_kabupaten_id: tagihan_sama_pengirim ? pengirim_kabupaten_id : tagihan_kabupaten_id,
       tagihan_kecamatan_id: tagihan_sama_pengirim ? pengirim_kecamatan_id : tagihan_kecamatan_id,
       tagihan_kelurahan_id: tagihan_sama_pengirim ? pengirim_kelurahan_id : tagihan_kelurahan_id,
       tagihan_detail: tagihan_sama_pengirim ? pengirim_detail : tagihan_detail,
+      tagihan_kode_pos: tagihan_sama_pengirim ? (pengirim_kode_pos || null) : (tagihan_kode_pos || null),
       status: status || penjualan.status,
     });
 

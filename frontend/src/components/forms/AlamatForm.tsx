@@ -11,6 +11,7 @@ interface AlamatData {
   kecamatan_id: number | null;
   kelurahan_id: number | null;
   detail: string;
+  kode_pos: string;
 }
 
 interface Props {
@@ -135,14 +136,28 @@ export default function AlamatForm({ label, value, onChange }: Props) {
           />
         </div>
       </div>
-      <div>
-        <Label className="text-xs">Detail Alamat</Label>
-        <Textarea
-          placeholder="Nama jalan, nomor, RT/RW, dll"
-          value={value.detail}
-          onChange={e => update('detail', e.target.value)}
-          rows={2}
-        />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="col-span-2">
+          <Label className="text-xs">Detail Alamat</Label>
+          <Textarea
+            placeholder="Nama jalan, nomor, RT/RW, dll"
+            value={value.detail}
+            onChange={e => update('detail', e.target.value)}
+            rows={2}
+          />
+        </div>
+        <div>
+          <Label className="text-xs">Kode Pos</Label>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={5}
+            placeholder="12345"
+            value={value.kode_pos}
+            onChange={e => update('kode_pos', e.target.value.replace(/\D/g, '').slice(0, 5))}
+            className="w-full mt-1 px-3 py-2 text-sm rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
       </div>
     </div>
   );

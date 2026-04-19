@@ -20,8 +20,9 @@ interface AlamatState {
   kecamatan_id: number | null;
   kelurahan_id: number | null;
   detail: string;
+  kode_pos: string;
 }
-const emptyAlamat: AlamatState = { provinsi_id: null, kabupaten_id: null, kecamatan_id: null, kelurahan_id: null, detail: '' };
+const emptyAlamat: AlamatState = { provinsi_id: null, kabupaten_id: null, kecamatan_id: null, kelurahan_id: null, detail: '', kode_pos: '' };
 
 function parseDimensi(deskripsi: any): string {
   try {
@@ -127,12 +128,14 @@ export default function PenjualanOfflineBaru() {
         pengirim_kecamatan_id: alamatPengirim.kecamatan_id,
         pengirim_kelurahan_id: alamatPengirim.kelurahan_id,
         pengirim_detail: alamatPengirim.detail,
+        pengirim_kode_pos: alamatPengirim.kode_pos || null,
         tagihan_sama_pengirim: tagihanSamaPengirim,
         tagihan_provinsi_id: alamatTagihan.provinsi_id,
         tagihan_kabupaten_id: alamatTagihan.kabupaten_id,
         tagihan_kecamatan_id: alamatTagihan.kecamatan_id,
         tagihan_kelurahan_id: alamatTagihan.kelurahan_id,
         tagihan_detail: alamatTagihan.detail,
+        tagihan_kode_pos: alamatTagihan.kode_pos || null,
         items: items.map(item => {
           let harga_satuan = item.harga_satuan;
           let diskon = item.diskon;
