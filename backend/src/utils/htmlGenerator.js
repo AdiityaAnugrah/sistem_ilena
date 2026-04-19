@@ -1160,7 +1160,7 @@ const generateHTMLInvoice = (inv) => {
   const grandTotal = totalInvoice + ppnAmount;
 
   const bankFaktur = "BCA 8715898787 a.n. CATUR BHAKTI MANDIRI";
-  const bankNonFaktur = "BCA 8715883488 a.n. EI LIE PURNAMA";
+  const bankNonFaktur = "BCA 8715883488 a.n. EL LIE PURNAMA";
   const rekeningHtml = (penjualan.faktur === 'FAKTUR') ? bankFaktur : bankNonFaktur;
 
   // Lunas Watermark (If Status is COMPLETED or paid)
@@ -1383,7 +1383,7 @@ const generateHTMLProforma = (inv) => {
   const isFaktur = penjualan.faktur === 'FAKTUR';
   const bankInfo = isFaktur
     ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
-    : 'BCA 8715883488 a.n. EI LIE PURNAMA';
+    : 'BCA 8715883488 a.n. EL LIE PURNAMA';
 
   let subtotalTotal = 0;
   const itemRows = items.map((item, index) => {
@@ -1599,7 +1599,7 @@ const generateHTMLProforma = (inv) => {
 
         <!-- Footer -->
         <div class="d-flex justify-content-between mt-4 mb-3">
-            <div class="d-flex flex-column kotak-pembayaran">
+            <div class="d-flex flex-column kotak-pembayaran" style="width:280px;">
                 <p class="m-0" style="font-size:12px;">
                     Pembayaran mohon dapat ditransfer ke rekening: <br>
                     <b style="font-size:12px;color:#ef4444;">${bankInfo}</b>
