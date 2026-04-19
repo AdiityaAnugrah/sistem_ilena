@@ -233,29 +233,27 @@ const JualMultipleModal = ({
             </div>
           </div>
 
-          {/* NPWP — hanya jika FAKTUR */}
-          {faktur === 'FAKTUR' && (
-            <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Data NPWP <span className="font-normal text-slate-400">(opsional)</span></p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nama NPWP</label>
-                  <input type="text" value={namaNpwp} onChange={e => setNamaNpwp(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
-                    style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                    placeholder="Nama sesuai NPWP" />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP</label>
-                  <input type="text" value={noNpwp}
-                    onChange={e => setNoNpwp(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
-                    style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                    placeholder="Nomor NPWP atau NIK (opsional)" />
-                </div>
+          {/* NPWP — wajib untuk semua jenis dokumen */}
+          <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: '#475569' }}>Data NPWP / Identitas <span className="font-normal text-red-400">*wajib</span></p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Nama NPWP</label>
+                <input type="text" value={namaNpwp} onChange={e => setNamaNpwp(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                  style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                  placeholder="Nama sesuai NPWP" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">No. NPWP / NIK</label>
+                <input type="text" value={noNpwp}
+                  onChange={e => setNoNpwp(e.target.value)}
+                  className="w-full px-2 py-1.5 text-sm rounded-lg outline-none"
+                  style={{ border: '1px solid #cbd5e1', background: '#fff' }}
+                  placeholder="Nomor NPWP atau NIK" />
               </div>
             </div>
-          )}
+          </div>
 
           {/* Daftar item */}
           <div className="space-y-2">
@@ -344,13 +342,13 @@ const JualMultipleModal = ({
             </button>
             <button
               onClick={onSubmit}
-              disabled={loading || totalQty === 0}
+              disabled={loading || totalQty === 0 || !namaNpwp.trim() || !noNpwp.trim()}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: totalQty > 0 ? 'linear-gradient(135deg, #10b981, #059669)' : '#94a3b8',
-                boxShadow: totalQty > 0 ? '0 2px 12px rgba(16,185,129,0.3)' : 'none',
+                background: (totalQty > 0 && namaNpwp.trim() && noNpwp.trim()) ? 'linear-gradient(135deg, #10b981, #059669)' : '#94a3b8',
+                boxShadow: (totalQty > 0 && namaNpwp.trim() && noNpwp.trim()) ? '0 2px 12px rgba(16,185,129,0.3)' : 'none',
               }}>
-              {loading ? 'Memproses...' : totalQty > 0 ? `Proses ${totalQty} Barang Terjual` : 'Pilih barang dulu'}
+              {loading ? 'Memproses...' : !namaNpwp.trim() || !noNpwp.trim() ? 'Lengkapi data NPWP dulu' : totalQty > 0 ? `Proses ${totalQty} Barang Terjual` : 'Pilih barang dulu'}
             </button>
           </div>
         </div>

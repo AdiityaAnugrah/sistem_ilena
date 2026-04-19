@@ -845,7 +845,7 @@ export default function PenjualanInteriorDetail() {
               onSubmit={createProforma}
               loading={docLoading}
               label="Buat Proforma"
-              disabled={termOver}
+              disabled={termOver || proformaTerms.length === 0}
             />
           </ModalWrapper>
         );

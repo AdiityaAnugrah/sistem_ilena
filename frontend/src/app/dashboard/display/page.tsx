@@ -154,7 +154,7 @@ export default function DisplayPage() {
                     const totalNilai = (row.items || []).reduce((s: number, i: any) => s + parseFloat(i.subtotal || 0), 0);
                     return (
                       <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
-                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
+                        <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.suratJalans?.[0]?.tanggal || row.tanggal)}</Typography></TableCell>
                         <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_penerima}</Typography></TableCell>
                         <TableCell>
                           <Chip label={row.faktur === 'FAKTUR' ? 'Faktur' : 'Non-Fak'} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />

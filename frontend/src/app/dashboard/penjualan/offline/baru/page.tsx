@@ -61,9 +61,13 @@ export default function PenjualanOfflineBaru() {
       .then(r => { if (r.data?.active) setTutorial(r.data); })
       .catch(() => {});
   }, []);
-  const { register, handleSubmit, formState: { errors } } = useForm<any>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<any>({
     defaultValues: { tanggal: new Date().toISOString().split('T')[0] },
   });
+
+  const watchedNama = watch('nama_penerima', '');
+  const watchedNoNpwp = watch('no_npwp', '');
+  const identitasLengkap = !!(watchedNama?.trim() && watchedNoNpwp?.trim());
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -305,22 +309,20 @@ export default function PenjualanOfflineBaru() {
               <Label className="text-xs font-bold text-slate-500 ml-1">Nomor PO (Opsional)</Label>
               <Input {...register('no_po')} placeholder="Ref #" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
             </div>
-            {faktur === 'FAKTUR' && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-500 ml-1">Nama NPWP</Label>
-                  <Input {...register('nama_npwp')} placeholder="Nama sesuai NPWP" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-500 ml-1">Nomor NPWP / NIK</Label>
-                  <Input
-                    {...register('no_npwp')}
-                    placeholder="00.000..."
-                    className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
-                  />
-                </div>
-              </>
-            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nama NPWP *</Label>
+              <Input {...register('nama_npwp', { required: 'Nama NPWP wajib diisi' })} placeholder="Nama sesuai NPWP" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
+              {errors.nama_npwp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_npwp.message as string}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor NPWP / NIK *</Label>
+              <Input
+                {...register('no_npwp', { required: 'Nomor NPWP/NIK wajib diisi' })}
+                placeholder="00.000..."
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
+              />
+              {errors.no_npwp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.no_npwp.message as string}</p>}
+            </div>
           </CardContent>
         </Card>
 
@@ -374,7 +376,14 @@ export default function PenjualanOfflineBaru() {
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-6 bg-white overflow-x-auto">
-            <BarangSelector onSelect={addItem} />
+            {!identitasLengkap && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: '#fef9c3', border: '1px solid #fde047', color: '#854d0e' }}>
+                ⚠ Lengkapi nama penerima dan nomor NPWP/NIK di atas sebelum memilih produk.
+              </div>
+            )}
+            <div style={{ opacity: identitasLengkap ? 1 : 0.4, pointerEvents: identitasLengkap ? 'auto' : 'none' }}>
+              <BarangSelector onSelect={addItem} />
+            </div>
 
             {items.length > 0 && (
               <div className="overflow-x-auto border border-[#e2e8f0] rounded-2xl shadow-sm">

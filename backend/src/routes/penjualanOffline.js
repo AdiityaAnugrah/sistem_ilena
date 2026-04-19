@@ -433,7 +433,10 @@ router.get('/laku-dari-display/:display_id', authenticate, async (req, res) => {
   try {
     const rows = await PenjualanOffline.findAll({
       where: { display_source_id: req.params.display_id, is_test: req.user.role === 'TEST' ? 1 : 0 },
-      include: [{ model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] }],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+        { model: SuratJalan, as: 'suratJalans', attributes: ['tanggal'], order: [['tanggal', 'ASC']] },
+      ],
       order: [['created_at', 'DESC']],
     });
     return res.json(rows);
