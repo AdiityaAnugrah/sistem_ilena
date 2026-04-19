@@ -9,6 +9,17 @@ const getModel = (req) => isTest(req) ? BarangTest : Barang;
 
 const router = express.Router();
 
+// Hitung diskon efektif berdasarkan jadwal
+function hitungDiskonEfektif(plain) {
+  const { pakai_jadwal_diskon, diskon_mulai, diskon_selesai, diskon } = plain;
+  if (!pakai_jadwal_diskon) return diskon || 0;
+  const now = new Date();
+  const mulai = diskon_mulai ? new Date(diskon_mulai) : null;
+  const selesai = diskon_selesai ? new Date(diskon_selesai) : null;
+  const aktif = mulai && selesai && now >= mulai && now <= selesai;
+  return aktif ? (diskon || 0) : 0;
+}
+
 // Merge harga_ilena ke rows produksi (dari tabel harga_khusus)
 async function mergeHargaIlena(rows) {
   if (!rows.length) return rows;
@@ -18,7 +29,7 @@ async function mergeHargaIlena(rows) {
   for (const o of overrides) map[o.barang_id] = parseFloat(o.harga);
   return rows.map(r => {
     const plain = r.toJSON ? r.toJSON() : r;
-    return { ...plain, harga_ilena: map[plain.id] ?? null };
+    return { ...plain, harga_ilena: map[plain.id] ?? null, diskon_efektif: hitungDiskonEfektif(plain) };
   });
 }
 
@@ -48,7 +59,9 @@ router.get('/', authenticate, async (req, res) => {
       order: [['nama', 'ASC']],
     });
 
-    const data = isTest(req) ? rows.map(r => r.toJSON()) : await mergeHargaIlena(rows);
+    const data = isTest(req)
+      ? rows.map(r => { const p = r.toJSON(); return { ...p, diskon_efektif: hitungDiskonEfektif(p) }; })
+      : await mergeHargaIlena(rows);
 
     return res.json({
       data,
@@ -69,10 +82,11 @@ router.get('/:id', authenticate, async (req, res) => {
     const barang = await getModel(req).findByPk(req.params.id);
     if (!barang) return res.status(404).json({ message: 'Barang tidak ditemukan' });
 
-    if (isTest(req)) return res.json(barang);
+    const plain = barang.toJSON();
+    if (isTest(req)) return res.json({ ...plain, diskon_efektif: hitungDiskonEfektif(plain) });
 
     const override = await HargaKhusus.findByPk(req.params.id);
-    return res.json({ ...barang.toJSON(), harga_ilena: override ? parseFloat(override.harga) : null });
+    return res.json({ ...plain, harga_ilena: override ? parseFloat(override.harga) : null, diskon_efektif: hitungDiskonEfektif(plain) });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

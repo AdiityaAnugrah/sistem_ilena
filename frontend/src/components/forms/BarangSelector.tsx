@@ -169,6 +169,11 @@ export default function BarangSelector({ onSelect }: Props) {
                 <div className="flex items-center justify-between sm:justify-end gap-4 mt-2 sm:mt-0 flex-shrink-0">
                   <span className="text-sm lg:text-[15px] font-bold text-red-600 tracking-tight">
                     {formatRupiah(barang.harga_ilena ?? barang.harga)}
+                    {(barang.diskon_efektif > 0) && (
+                      <span className="ml-1.5 text-[10px] font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md">
+                        -{barang.diskon_efektif}%
+                      </span>
+                    )}
                   </span>
                   <button
                     type="button"

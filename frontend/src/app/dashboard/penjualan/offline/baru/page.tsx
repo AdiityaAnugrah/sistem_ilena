@@ -95,7 +95,7 @@ export default function PenjualanOfflineBaru() {
       harga_satuan: Number(barang.harga_ilena ?? barang.harga),
       harga_custom: Number(barang.harga_ilena ?? barang.harga),
       hargaMode: 'diskon' as 'diskon' | 'harga',
-      diskon: 0,
+      diskon: barang.diskon_efektif ?? 0,
     }]);
   };
 
