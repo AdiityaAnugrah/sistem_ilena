@@ -110,7 +110,7 @@ export default function PenjualanOfflineBaru() {
   const getSubtotal = (item: any) => {
     if (tipe === 'DISPLAY') return item.qty * item.harga_satuan;
     if (item.hargaMode === 'harga') return item.qty * (Number(item.harga_custom) || item.harga_asli);
-    return item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100);
+    return item.qty * item.harga_asli * (1 - (item.diskon || 0) / 100);
   };
 
   const onSubmit = async (formData: any) => {
@@ -465,17 +465,25 @@ export default function PenjualanOfflineBaru() {
                           </div>
                         </td>
                         <td className="py-4 px-5">
-                          <div className="relative flex items-center shadow-sm group-hover:shadow transition-shadow rounded-lg">
-                            <div className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none">Rp</div>
-                            <input
-                              type="number"
-                              min={0}
-                              value={item.harga_satuan || ''}
-                              onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
-                              onChange={e => updateItem(idx, 'harga_satuan', Math.max(0, Number(e.target.value)))}
-                              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
-                            />
-                          </div>
+                          {tipe === 'DISPLAY' ? (
+                            <div className="relative flex items-center shadow-sm group-hover:shadow transition-shadow rounded-lg">
+                              <div className="absolute left-3 text-slate-400 font-bold text-sm pointer-events-none">Rp</div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={item.harga_asli}
+                                value={item.harga_satuan || ''}
+                                onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
+                                onChange={e => updateItem(idx, 'harga_satuan', Math.min(item.harga_asli, Math.max(0, Number(e.target.value))))}
+                                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white transition-all font-semibold text-slate-700"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-0.5 px-1">
+                              <span className="font-semibold text-slate-700 text-sm">{formatRupiah(item.harga_asli)}</span>
+                              <span className="text-[10px] text-slate-400">Harga katalog</span>
+                            </div>
+                          )}
                         </td>
                         {tipe === 'PENJUALAN' && (
                           <td className="py-4 px-5">
@@ -500,10 +508,10 @@ export default function PenjualanOfflineBaru() {
                                   <div className="relative flex items-center">
                                     <div className="absolute left-2 text-slate-400 text-xs pointer-events-none">Rp</div>
                                     <input
-                                      type="number" min={0}
+                                      type="number" min={0} max={item.harga_asli}
                                       value={item.harga_custom || ''}
                                       onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
-                                      onChange={e => updateItem(idx, 'harga_custom', Math.max(0, Number(e.target.value)))}
+                                      onChange={e => updateItem(idx, 'harga_custom', Math.min(item.harga_asli, Math.max(0, Number(e.target.value))))}
                                       className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white font-semibold text-slate-700"
                                     />
                                   </div>
