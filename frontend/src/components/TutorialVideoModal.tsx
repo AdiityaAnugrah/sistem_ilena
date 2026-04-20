@@ -192,12 +192,8 @@ export default function TutorialVideoModal({
           <X size={15} />
         </IconButton>
 
-        {/* Video wrapper */}
         <div ref={containerRef} style={{ position: 'relative', paddingTop: '56.25%', backgroundColor: '#000' }}>
-          {/* Placeholder untuk YouTube IFrame API */}
           <div id={iframeId} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
-
-          {/* Overlay — mencegah klik ke YouTube UI */}
           <div
             onClick={handlePlayPause}
             style={{
