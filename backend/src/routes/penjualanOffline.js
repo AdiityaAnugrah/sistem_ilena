@@ -396,15 +396,24 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
 
       // Proses setiap item
       for (const { itemDisplay, qtyJualInt, harga_jual } of validItemsToProcess) {
-        // Harga efektif display = harga_satuan × (1 - diskon/100)
-        // (Display menyimpan harga_satuan = harga display, diskon = synthetic indicator)
+        // Harga referensi = harga efektif display (harga_satuan × (1 - diskon/100))
         const displayDiskon = parseFloat(itemDisplay.diskon) || 0;
         const displayEffectivePrice = parseFloat(itemDisplay.harga_satuan) * (1 - displayDiskon / 100);
 
-        // Harga jual laku: pakai override user jika ada, default ke harga efektif display
-        const finalHargaSatuan = harga_jual !== undefined && harga_jual !== '' ? parseFloat(harga_jual) : displayEffectivePrice;
-        // Diskon = 0 karena finalHargaSatuan sudah merupakan harga final yang sebenarnya
-        const subtotalM = finalHargaSatuan * qtyJualInt;
+        let finalHargaSatuan, finalDiskon;
+        if (harga_jual !== undefined && harga_jual !== '') {
+          // User override: simpan harga referensi display sebagai base, hitung diskon ke harga yg diinput
+          const enteredHarga = parseFloat(harga_jual);
+          finalHargaSatuan = displayEffectivePrice;
+          finalDiskon = displayEffectivePrice > 0
+            ? Math.max(0, Math.round((1 - enteredHarga / displayEffectivePrice) * 100))
+            : 0;
+        } else {
+          // Tidak ada override: pakai harga display langsung, diskon 0
+          finalHargaSatuan = displayEffectivePrice;
+          finalDiskon = 0;
+        }
+        const subtotalM = finalHargaSatuan * qtyJualInt * (1 - finalDiskon / 100);
 
         // Create new item in PENJUALAN
         await PenjualanOfflineItem.create({
@@ -414,7 +423,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
           varian_id: itemDisplay.varian_id || null,
           qty: qtyJualInt,
           harga_satuan: finalHargaSatuan,
-          diskon: 0,
+          diskon: finalDiskon,
           subtotal: subtotalM,
         }, { transaction: t });
 

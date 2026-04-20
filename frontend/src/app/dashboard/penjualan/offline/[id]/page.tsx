@@ -182,8 +182,10 @@ const JualMultipleModal = ({
   const grandTotal = selectedItems.reduce((s: number, it: any) => {
     const f = form[it.id] || { qty: 0, harga: '' };
     const effectiveDisplay = it.harga_satuan * (1 - (it.diskon || 0) / 100);
-    const harga = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : effectiveDisplay;
-    return s + f.qty * harga;
+    const diskonPct = (f.harga !== '' && Number(f.harga) > 0 && effectiveDisplay > 0)
+      ? Math.max(0, Math.round((1 - Number(f.harga) / effectiveDisplay) * 100))
+      : 0;
+    return s + f.qty * effectiveDisplay * (1 - diskonPct / 100);
   }, 0);
 
   return (
@@ -263,8 +265,10 @@ const JualMultipleModal = ({
               const f = form[item.id] || { qty: 0, harga: '' };
               const isSelected = f.qty > 0;
               const effectiveDisplay = item.harga_satuan * (1 - (item.diskon || 0) / 100);
-              const hargaEfektif = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : effectiveDisplay;
-              const subtotal = isSelected ? f.qty * hargaEfektif : 0;
+              const diskonPct = (f.harga !== '' && Number(f.harga) > 0 && effectiveDisplay > 0)
+                ? Math.max(0, Math.round((1 - Number(f.harga) / effectiveDisplay) * 100))
+                : 0;
+              const subtotal = isSelected ? f.qty * effectiveDisplay * (1 - diskonPct / 100) : 0;
               return (
                 <div key={item.id} className="p-4 rounded-xl border transition-all"
                   style={{ background: isSelected ? '#f0fdf4' : '#f8fafc', borderColor: isSelected ? '#86efac' : '#e2e8f0' }}>
@@ -308,15 +312,20 @@ const JualMultipleModal = ({
                       <div className="relative flex items-center">
                         <span className="absolute left-2.5 text-xs font-bold text-slate-400 pointer-events-none">Rp</span>
                         <input
-                          type="number" min={0}
+                          type="number" min={0} max={Math.round(effectiveDisplay)}
                           value={f.harga === '' ? '' : f.harga}
                           onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
                           onChange={e => updateForm(item.id, 'harga', e.target.value)}
                           className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg outline-none transition-all"
                           style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                          placeholder={String(Math.round(item.harga_satuan * (1 - (item.diskon || 0) / 100)))}
+                          placeholder={String(Math.round(effectiveDisplay))}
                         />
                       </div>
+                      {f.harga !== '' && Number(f.harga) > 0 && effectiveDisplay > 0 && Number(f.harga) < effectiveDisplay && (
+                        <div className="text-[10px] text-orange-500 font-semibold mt-0.5">
+                          Diskon {Math.round((1 - Number(f.harga) / effectiveDisplay) * 100)}% dari harga display
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
