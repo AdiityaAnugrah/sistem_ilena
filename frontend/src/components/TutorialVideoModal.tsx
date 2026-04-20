@@ -205,8 +205,6 @@ export default function TutorialVideoModal({
               zIndex: 10, cursor: 'pointer',
             }}
           />
-
-          {/* Play indicator saat paused */}
           {!playing && (
             <div
               style={{
