@@ -68,7 +68,9 @@ export default function PenjualanOfflineBaru() {
 
   const watchedNama = watch('nama_penerima', '');
   const watchedNoNpwp = watch('no_npwp', '');
-  const identitasLengkap = !!(watchedNama?.trim() && watchedNoNpwp?.trim());
+  const identitasLengkap = tipe === 'DISPLAY'
+    ? !!(watchedNama?.trim())
+    : !!(watchedNama?.trim() && watchedNoNpwp?.trim());
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -313,14 +315,22 @@ export default function PenjualanOfflineBaru() {
               <Input {...register('no_po')} placeholder="Ref #" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Nama NPWP *</Label>
-              <Input {...register('nama_npwp', { required: 'Nama NPWP wajib diisi' })} placeholder="Nama sesuai NPWP" className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl" />
+              <Label className="text-xs font-bold text-slate-500 ml-1">
+                Nama NPWP {tipe === 'DISPLAY' ? <span className="font-normal text-slate-400">(Opsional, wajib saat laku)</span> : '*'}
+              </Label>
+              <Input
+                {...register('nama_npwp', { required: tipe !== 'DISPLAY' ? 'Nama NPWP wajib diisi' : false })}
+                placeholder="Nama sesuai NPWP"
+                className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
+              />
               {errors.nama_npwp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_npwp.message as string}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor NPWP / NIK *</Label>
+              <Label className="text-xs font-bold text-slate-500 ml-1">
+                Nomor NPWP / NIK {tipe === 'DISPLAY' ? <span className="font-normal text-slate-400">(Opsional, wajib saat laku)</span> : '*'}
+              </Label>
               <Input
-                {...register('no_npwp', { required: 'Nomor NPWP/NIK wajib diisi' })}
+                {...register('no_npwp', { required: tipe !== 'DISPLAY' ? 'Nomor NPWP/NIK wajib diisi' : false })}
                 placeholder="00.000..."
                 className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
