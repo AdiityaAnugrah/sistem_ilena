@@ -907,7 +907,34 @@ export default function PenjualanInteriorDetail() {
         const closeBayar = () => { setModal(null); setBayarProforma(null); setBayarTipe(''); setBayarJumlah(''); };
         let terms: { tipe: string; jumlah: number }[] = [];
         try { terms = bayarProforma?.terms ? JSON.parse(bayarProforma.terms) : []; } catch { terms = []; }
-        const paidTipes = new Set((data.pembayarans || []).map((p: any) => p.tipe));
+
+        // Hitung berapa term per tipe yang sudah "diklaim" proforma-proforma sebelum ini
+        const allProformas: any[] = data.proformas || [];
+        const proformaIndex = allProformas.findIndex((p: any) => p.id === bayarProforma?.id);
+        const tipeClaimedBefore: Record<string, number> = {};
+        allProformas.slice(0, proformaIndex >= 0 ? proformaIndex : 0).forEach((prev: any) => {
+          let prevTerms: { tipe: string }[] = [];
+          try { prevTerms = prev.terms ? JSON.parse(prev.terms) : []; } catch {}
+          prevTerms.forEach((t: any) => {
+            const tt = t.tipe || 'DP';
+            tipeClaimedBefore[tt] = (tipeClaimedBefore[tt] || 0) + 1;
+          });
+        });
+        // Kelompokkan pembayaran nyata per tipe (urut masuk)
+        const paymentsByTipe: Record<string, any[]> = {};
+        (data.pembayarans || []).forEach((p: any) => {
+          if (!paymentsByTipe[p.tipe]) paymentsByTipe[p.tipe] = [];
+          paymentsByTipe[p.tipe].push(p);
+        });
+        // Untuk tiap term di proforma ini, tentukan apakah sudah dibayar secara sequential
+        const tipeUsedCount: Record<string, number> = { ...tipeClaimedBefore };
+        const termPaidMap: Map<number, boolean> = new Map();
+        terms.forEach((term, idx) => {
+          const tipe = term.tipe || 'DP';
+          if (!tipeUsedCount[tipe]) tipeUsedCount[tipe] = 0;
+          termPaidMap.set(idx, !!((paymentsByTipe[tipe] || [])[tipeUsedCount[tipe]]));
+          tipeUsedCount[tipe]++;
+        });
         const TIPE_LABEL: Record<string, string> = {
           DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir',
         };
@@ -920,9 +947,9 @@ export default function PenjualanInteriorDetail() {
                 <div>
                   <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>Pilih Cicilan yang Dibayar</label>
                   <div className="space-y-2">
-                    {terms.map((term) => {
-                      const alreadyPaid = paidTipes.has(term.tipe);
-                      const isSelected = bayarTipe === term.tipe;
+                    {terms.map((term, termIdx) => {
+                      const alreadyPaid = termPaidMap.get(termIdx) === true;
+                      const isSelected = bayarTipe === term.tipe && !alreadyPaid;
                       return (
                         <button key={term.tipe} type="button" disabled={alreadyPaid}
                           onClick={() => { setBayarTipe(term.tipe); setBayarJumlah(String(term.jumlah)); }}
@@ -948,7 +975,7 @@ export default function PenjualanInteriorDetail() {
                       );
                     })}
                   </div>
-                  {bayarTipe && !paidTipes.has(bayarTipe) && (
+                  {bayarTipe && terms.some((t, i) => t.tipe === bayarTipe && !termPaidMap.get(i)) && (
                     <p className="text-xs mt-2" style={{ color: '#64748b' }}>
                       Jumlah: <strong>{formatRupiah(Number(bayarJumlah))}</strong> (sesuai proforma, tidak bisa diubah)
                     </p>
