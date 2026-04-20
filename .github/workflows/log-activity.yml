@@ -1,5 +1,15 @@
 name: Log Push Activity to Google Sheets
 
+# ─────────────────────────────────────────────────────────────────
+# GitHub Secret yang wajib diset:
+#   SHEETS_WEBHOOK_URL   → URL Web App dari Google Apps Script
+#   SHEETS_WEBHOOK_TOKEN → Token rahasia (harus sama dengan SECRET_TOKEN di Apps Script)
+#
+# Apps Script target:
+#   Sheet ID : 1BREjEjltFFKl7epbLCALALy6nuBWnkaPLOsAe6duLKI
+#   Sheet Tab: Activity Log
+# ─────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: ['**']
@@ -16,32 +26,55 @@ jobs:
           ACTOR: ${{ github.actor }}
           COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
+          # Validasi secrets
           if [ -z "$WEBHOOK_URL" ] || [ -z "$WEBHOOK_TOKEN" ]; then
             echo "::error::Missing SHEETS_WEBHOOK_URL or SHEETS_WEBHOOK_TOKEN secret"
             exit 1
           fi
 
-          # Ambil commit messages dalam array
-          COMMITS=$(echo "$COMMITS_JSON" | jq '[.[] | {message: .message}]')
+          # Bersihkan commits JSON — handle jika null/empty
+          RAW_COMMITS=$(echo "$COMMITS_JSON" | jq 'if type == "array" then . else [] end')
+          COMMITS=$(echo "$RAW_COMMITS" | jq '[.[] | {message: (.message // "(no message)")}]')
 
-          # Build payload
+          # Jika commits kosong (misal merge push), buat satu entry default
+          COMMIT_COUNT=$(echo "$COMMITS" | jq 'length')
+          if [ "$COMMIT_COUNT" -eq 0 ]; then
+            COMMITS='[{"message":"(push without commits)"}]'
+          fi
+
+          # Build payload sesuai field yang dibaca Apps Script
           PAYLOAD=$(jq -n \
             --arg token "$WEBHOOK_TOKEN" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg repo "$REPO" \
             --arg author "$ACTOR" \
             --argjson commits "$COMMITS" \
-            '{token: $token, timestamp: $timestamp, repo: $repo, author: $author, commits: $commits}')
+            '{
+              token: $token,
+              timestamp: $timestamp,
+              repo: $repo,
+              author: $author,
+              commits: $commits
+            }')
 
           echo "Sending payload to Google Sheets..."
-          RESPONSE=$(curl -s -L -X POST "$WEBHOOK_URL" \
+          echo "Repo   : $REPO"
+          echo "Author : $ACTOR"
+          echo "Commits: $COMMIT_COUNT commit(s)"
+
+          # Kirim ke Apps Script Web App
+          RESPONSE=$(curl -s -L \
+            -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
 
           echo "Response: $RESPONSE"
 
-          # Gagalkan step jika response tidak ok
-          if ! echo "$RESPONSE" | jq -e '.ok == true' > /dev/null; then
-            echo "::error::Failed to log activity"
+          # Validasi response { ok: true }
+          if ! echo "$RESPONSE" | jq -e '.ok == true' > /dev/null 2>&1; then
+            echo "::error::Failed to log activity. Response: $RESPONSE"
             exit 1
           fi
+
+          LOGGED=$(echo "$RESPONSE" | jq -r '.logged // "?"')
+          echo "✅ Successfully logged $LOGGED commit(s) to Google Sheets"

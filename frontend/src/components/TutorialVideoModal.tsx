@@ -120,8 +120,6 @@ export default function TutorialVideoModal({
       },
     });
   }, [videoId, startSecond, endSecond, speed, startTracking, stopTracking]);
-
-  // Load YouTube IFrame API sekali
   useEffect(() => {
     if (typeof window === 'undefined' || window.YT) return;
     const tag = document.createElement('script');
