@@ -1,0 +1,47 @@
+name: Log Push Activity to Google Sheets
+
+on:
+  push:
+    branches: ['**']
+
+jobs:
+  log-activity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send commit data to Google Sheets
+        env:
+          WEBHOOK_URL: ${{ secrets.SHEETS_WEBHOOK_URL }}
+          WEBHOOK_TOKEN: ${{ secrets.SHEETS_WEBHOOK_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ] || [ -z "$WEBHOOK_TOKEN" ]; then
+            echo "::error::Missing SHEETS_WEBHOOK_URL or SHEETS_WEBHOOK_TOKEN secret"
+            exit 1
+          fi
+
+          # Ambil commit messages dalam array
+          COMMITS=$(echo "$COMMITS_JSON" | jq '[.[] | {message: .message}]')
+
+          # Build payload
+          PAYLOAD=$(jq -n \
+            --arg token "$WEBHOOK_TOKEN" \
+            --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg repo "$REPO" \
+            --arg author "$ACTOR" \
+            --argjson commits "$COMMITS" \
+            '{token: $token, timestamp: $timestamp, repo: $repo, author: $author, commits: $commits}')
+
+          echo "Sending payload to Google Sheets..."
+          RESPONSE=$(curl -s -L -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          echo "Response: $RESPONSE"
+
+          # Gagalkan step jika response tidak ok
+          if ! echo "$RESPONSE" | jq -e '.ok == true' > /dev/null; then
+            echo "::error::Failed to log activity"
+            exit 1
+          fi
