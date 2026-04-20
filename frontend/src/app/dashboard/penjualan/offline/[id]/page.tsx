@@ -167,7 +167,7 @@ const DocModal = ({
 // ─── Modal Proses Jual Multiple Item Display ─────────────────────────────────
 const JualMultipleModal = ({
   show, items, onClose, onSubmit, loading,
-  form, setForm, faktur, setFaktur,
+  form, setForm, faktur, setFaktur, fakturLocked,
   namaNpwp, setNamaNpwp, noNpwp, setNoNpwp,
   tanggal, setTanggal,
 }: any) => {
@@ -219,15 +219,22 @@ const JualMultipleModal = ({
               />
             </div>
             <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <p className="text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Jenis Dokumen</p>
+              <p className="text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>
+                Jenis Dokumen
+                {fakturLocked && <span className="ml-1.5 text-[10px] font-normal text-orange-500">(mengikuti penjualan sebelumnya)</span>}
+              </p>
               <div className="flex gap-2">
                 {(['NON_FAKTUR', 'FAKTUR'] as const).map(f => (
-                  <button key={f} type="button" onClick={() => setFaktur(f)}
+                  <button key={f} type="button"
+                    onClick={() => !fakturLocked && setFaktur(f)}
+                    disabled={fakturLocked}
                     className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
                     style={{
                       background: faktur === f ? 'linear-gradient(135deg, #FA2F2F, #d41a1a)' : '#fff',
                       color: faktur === f ? '#fff' : '#64748b',
                       border: faktur === f ? '1px solid #FA2F2F' : '1px solid #e2e8f0',
+                      opacity: fakturLocked && faktur !== f ? 0.4 : 1,
+                      cursor: fakturLocked ? 'not-allowed' : 'pointer',
                     }}>
                     {f === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
                   </button>
@@ -400,6 +407,7 @@ export default function PenjualanOfflineDetail() {
   // States for Jual Multiple Items Display
   const [jualModal, setJualModal] = useState(false);
   const [jualFaktur, setJualFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
+  const [jualFakturLocked, setJualFakturLocked] = useState(false);
   const [jualNamaNpwp, setJualNamaNpwp] = useState('');
   const [jualNoNpwp, setJualNoNpwp] = useState('');
   const [jualTanggal, setJualTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -436,6 +444,20 @@ export default function PenjualanOfflineDetail() {
   };
 
   useEffect(() => { fetchData(); }, [id]);
+
+  // Untuk DISPLAY: fetch laku sebelumnya → tentukan faktur yang harus dipakai
+  useEffect(() => {
+    if (!data || data.tipe !== 'DISPLAY') return;
+    api.get(`/penjualan-offline/laku-dari-display/${id}`)
+      .then(res => {
+        if (res.data.length > 0) {
+          const fakturLaku = res.data[0].faktur as 'FAKTUR' | 'NON_FAKTUR';
+          setJualFaktur(fakturLaku);
+          setJualFakturLocked(true);
+        }
+      })
+      .catch(() => {});
+  }, [data?.tipe, id]);
 
   const openIdentitasModal = () => {
     setIdentitasForm({
@@ -1037,7 +1059,7 @@ export default function PenjualanOfflineDetail() {
         onClose={() => setJualModal(false)}
         onSubmit={prosesJualItem} loading={jualLoading}
         form={jualForm} setForm={setJualForm}
-        faktur={jualFaktur} setFaktur={setJualFaktur}
+        faktur={jualFaktur} setFaktur={setJualFaktur} fakturLocked={jualFakturLocked}
         namaNpwp={jualNamaNpwp} setNamaNpwp={setJualNamaNpwp}
         noNpwp={jualNoNpwp} setNoNpwp={setJualNoNpwp}
         tanggal={jualTanggal} setTanggal={setJualTanggal}
