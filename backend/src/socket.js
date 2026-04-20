@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 
 let io = null;
 
-// Map: socketId -> { userId, nama, room }
 const presenceMap = new Map();
 
 function init(server, allowedOrigins) {
