@@ -180,7 +180,6 @@ export default function TutorialVideoModal({
       slotProps={{ paper: { sx: { borderRadius: '14px', overflow: 'hidden', bgcolor: '#0f172a', mx: { xs: 1.5, sm: 3 } } } }}
     >
       <DialogContent sx={{ p: 0, bgcolor: '#0f172a' }}>
-        {/* Tombol tutup */}
         <IconButton
           onClick={onClose}
           size="small"
