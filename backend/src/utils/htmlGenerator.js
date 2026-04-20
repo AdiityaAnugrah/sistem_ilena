@@ -1575,38 +1575,48 @@ const generateHTMLProforma = (inv) => {
   `;
 
   // Payment terms rows
-  const TIPE_URUT_LABEL = {
-    DP: 'UANG MUKA',
+  const TIPE_LABEL = {
     TERMIN_1: 'TERMIN 1',
     TERMIN_2: 'TERMIN 2',
     TERMIN_3: 'TERMIN 3',
     PELUNASAN_AKHIR: 'PELUNASAN AKHIR',
   };
   let termRows = '';
-  // All payments ever made (across all proformas), not just matching this proforma's terms
   const totalPaid = pembayarans.reduce((s, p) => s + Number(p.jumlah || 0), 0);
-  let uangMukaCounter = 0;
 
   if (terms.length > 0) {
+    // Group actual payments by tipe (in order) so multiple DPs are matched in sequence
+    const paymentsByTipe = {};
+    pembayarans.forEach(p => {
+      if (!paymentsByTipe[p.tipe]) paymentsByTipe[p.tipe] = [];
+      paymentsByTipe[p.tipe].push(p);
+    });
+    const tipeUsedCount = {};
+
+    // Count how many DP terms exist to decide whether to number them
+    const dpTermCount = terms.filter(t => (t.tipe || 'DP') === 'DP').length;
+    let dpCounter = 0;
+
     terms.forEach((term) => {
       const tipe = term.tipe || 'DP';
       const jumlah = Number(term.jumlah) || 0;
-      const isPelunasan = tipe === 'PELUNASAN_AKHIR';
 
-      // Find matching actual payment
-      const pembayaran = pembayarans.find(p => p.tipe === tipe);
+      // Match Nth payment of this tipe in sequence
+      if (!tipeUsedCount[tipe]) tipeUsedCount[tipe] = 0;
+      const pembayaran = (paymentsByTipe[tipe] || [])[tipeUsedCount[tipe]] || null;
+      tipeUsedCount[tipe]++;
+
       const sudahBayar = !!pembayaran;
-
       const terbayarHtml = sudahBayar
         ? `<span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(pembayaran.tanggal).format('DD/MM/YYYY')}</span>`
         : `<span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span>`;
 
       let label;
-      if (isPelunasan) {
-        label = 'PELUNASAN AKHIR';
+      if (tipe === 'DP') {
+        dpCounter++;
+        label = dpTermCount > 1 ? `UANG MUKA KE-${dpCounter}` : 'UANG MUKA';
       } else {
-        uangMukaCounter++;
-        label = `UANG MUKA KE- ${uangMukaCounter}`;
+        label = TIPE_LABEL[tipe] || tipe;
       }
 
       termRows += `
