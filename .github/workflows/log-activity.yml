@@ -69,21 +69,20 @@ jobs:
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$WEBHOOK_URL")
           echo "GET HTTP code: $HTTP_CODE"
 
-          # Debug: lihat redirect chain dari POST (tanpa follow redirect dulu)
-          echo "=== POST response tanpa redirect ==="
-          FIRST_RESPONSE=$(curl -s -D - --max-redirs 0 \
-            -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -d "$PAYLOAD" 2>&1 | head -30)
-          echo "$FIRST_RESPONSE"
+          # Google Apps Script butuh 2 langkah:
+          # 1. POST ke /exec → dapat 302 redirect ke script.googleusercontent.com
+          # 2. GET dari redirect URL → inilah response JSON-nya
 
-          # POST dengan follow redirect
-          RESPONSE=$(curl -s -L --post302 \
+          echo "=== Step 1: POST ke Apps Script ==="
+          REDIRECT_URL=$(curl -s -D - --max-redirs 0 \
             -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
-            -d "$PAYLOAD")
+            -d "$PAYLOAD" | grep -i "^location:" | sed 's/location: //I' | tr -d '\r\n')
+          echo "Redirect URL: ${REDIRECT_URL:0:80}..."
+
+          echo "=== Step 2: GET response dari redirect URL ==="
+          RESPONSE=$(curl -s "$REDIRECT_URL")
 
           echo "Response: $RESPONSE"
 
