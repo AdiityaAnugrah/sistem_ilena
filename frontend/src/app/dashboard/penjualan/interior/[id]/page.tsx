@@ -383,9 +383,9 @@ export default function PenjualanInteriorDetail() {
       toast.success('Retur berhasil dicatat!');
       setReturModal({ open: false, sj: null });
       fetchData();
-      // Buka modal SP Interior
+      // Buka modal SP Interior setelah jeda singkat
       setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
-      setSpReturModal({ open: true, sjId: sjId ?? null });
+      setTimeout(() => setSpReturModal({ open: true, sjId: sjId ?? null }), 1200);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menyimpan retur');
     } finally {
