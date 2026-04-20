@@ -61,6 +61,8 @@ jobs:
           echo "Repo   : $REPO"
           echo "Author : $ACTOR"
           echo "Commits: $COMMIT_COUNT commit(s)"
+          echo "URL length : ${#WEBHOOK_URL} chars"
+          echo "URL domain : $(echo "$WEBHOOK_URL" | cut -d'/' -f1-3)"
 
           # Kirim ke Apps Script Web App
           RESPONSE=$(curl -s -L \
