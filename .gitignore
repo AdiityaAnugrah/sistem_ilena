@@ -31,3 +31,5 @@ dist/
 /CLAUDE.md
 /AGENTS.md
 /README.md
+/backfill_commits.ps1
+.backfill_commits.ps1
