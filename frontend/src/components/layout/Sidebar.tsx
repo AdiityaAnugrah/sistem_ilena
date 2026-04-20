@@ -92,8 +92,6 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 24, width: 'auto' }} />
           </div>
         </div>
-
-        {/* Navigation */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
           <div style={{
             fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
