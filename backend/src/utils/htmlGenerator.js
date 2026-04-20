@@ -1583,48 +1583,70 @@ const generateHTMLProforma = (inv) => {
   };
   let termRows = '';
   const totalPaid = pembayarans.reduce((s, p) => s + Number(p.jumlah || 0), 0);
+  const priorTermsByTipe = inv.priorTermsByTipe || {};
 
-  if (terms.length > 0) {
-    // Group actual payments by tipe (in order) so multiple DPs are matched in sequence
+  if (terms.length > 0 || pembayarans.length > 0) {
+    // Group payments by tipe in order
     const paymentsByTipe = {};
     pembayarans.forEach(p => {
-      if (!paymentsByTipe[p.tipe]) paymentsByTipe[p.tipe] = [];
-      paymentsByTipe[p.tipe].push(p);
+      const tipe = p.tipe || 'DP';
+      if (!paymentsByTipe[tipe]) paymentsByTipe[tipe] = [];
+      paymentsByTipe[tipe].push(p);
     });
-    const tipeUsedCount = {};
 
-    // Count how many DP terms exist to decide whether to number them
-    const dpTermCount = terms.filter(t => (t.tipe || 'DP') === 'DP').length;
-    let dpCounter = 0;
+    // Total DP terms across ALL proformas for numbering decision
+    const totalDPTerms = (priorTermsByTipe['DP'] || 0) + terms.filter(t => (t.tipe || 'DP') === 'DP').length;
 
-    terms.forEach((term) => {
-      const tipe = term.tipe || 'DP';
-      const jumlah = Number(term.jumlah) || 0;
-
-      // Match Nth payment of this tipe in sequence
-      if (!tipeUsedCount[tipe]) tipeUsedCount[tipe] = 0;
-      const pembayaran = (paymentsByTipe[tipe] || [])[tipeUsedCount[tipe]] || null;
-      tipeUsedCount[tipe]++;
-
-      const sudahBayar = !!pembayaran;
-      const terbayarHtml = sudahBayar
-        ? `<span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(pembayaran.tanggal).format('DD/MM/YYYY')}</span>`
-        : `<span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span>`;
+    // 1. Show ALL actual payments (includes payments from prior proformas)
+    const tipePayCounter = {};
+    pembayarans.forEach(p => {
+      const tipe = p.tipe || 'DP';
+      if (!tipePayCounter[tipe]) tipePayCounter[tipe] = 0;
+      tipePayCounter[tipe]++;
 
       let label;
       if (tipe === 'DP') {
-        dpCounter++;
-        label = dpTermCount > 1 ? `UANG MUKA KE-${dpCounter}` : 'UANG MUKA';
+        label = totalDPTerms > 1 ? `UANG MUKA KE-${tipePayCounter[tipe]}` : 'UANG MUKA';
       } else {
         label = TIPE_LABEL[tipe] || tipe;
       }
 
       termRows += `
-        <tr style="background:${sudahBayar ? '#f0fdf4' : '#fafafa'};">
-            <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} ${terbayarHtml}</td>
-            <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
+        <tr style="background:#f0fdf4;">
+            <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(p.tanggal).format('DD/MM/YYYY')}</span></td>
+            <td class="num" style="font-size:11.5px;">${formatRupiah(Number(p.jumlah || 0))}</td>
             <td></td>
         </tr>`;
+    });
+
+    // 2. Show unpaid terms from this proforma (sequential match using priorTermsByTipe offset)
+    const tipeMatchCount = { ...priorTermsByTipe };
+    const dpPaidCount = (paymentsByTipe['DP'] || []).length;
+    let dpUnpaidCounter = dpPaidCount;
+
+    terms.forEach(term => {
+      const tipe = term.tipe || 'DP';
+      if (!tipeMatchCount[tipe]) tipeMatchCount[tipe] = 0;
+      const matchedPayment = (paymentsByTipe[tipe] || [])[tipeMatchCount[tipe]] || null;
+      tipeMatchCount[tipe]++;
+
+      if (!matchedPayment) {
+        const jumlah = Number(term.jumlah) || 0;
+        let label;
+        if (tipe === 'DP') {
+          dpUnpaidCounter++;
+          label = totalDPTerms > 1 ? `UANG MUKA KE-${dpUnpaidCounter}` : 'UANG MUKA';
+        } else {
+          label = TIPE_LABEL[tipe] || tipe;
+        }
+
+        termRows += `
+          <tr style="background:#fafafa;">
+              <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
+              <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
+              <td></td>
+          </tr>`;
+      }
     });
 
     const sisa = grandTotal - totalPaid;
@@ -1760,7 +1782,7 @@ const generateHTMLProforma = (inv) => {
 
         <!-- Footer -->
         <div class="d-flex justify-content-between mt-4 mb-3">
-            <div class="d-flex flex-column kotak-pembayaran" style="width:280px;">
+            <div class="d-flex flex-column kotak-pembayaran">
                 <p class="m-0" style="font-size:12px;">
                     Pembayaran mohon dapat ditransfer ke rekening: <br>
                     <b style="font-size:12px;color:#ef4444;">${bankInfo}</b>

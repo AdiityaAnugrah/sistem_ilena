@@ -6,7 +6,6 @@ const TutorialVideo = sequelize.define('tutorial_videos', {
   form_type: {
     type: DataTypes.ENUM('PENJUALAN_OFFLINE', 'PENJUALAN_INTERIOR'),
     allowNull: false,
-    unique: true,
   },
   youtube_url: { type: DataTypes.STRING(255), allowNull: false },
   start_second: { type: DataTypes.INTEGER, defaultValue: 0 },

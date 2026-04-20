@@ -173,11 +173,30 @@ router.get('/proforma/:id/print', authenticate, async (req, res) => {
         include: [
           { model: PenjualanInteriorItem, as: 'items' },
           { model: PembayaranInterior, as: 'pembayarans' },
+          { model: ProformaInvoice, as: 'proformas', attributes: ['id', 'terms', 'created_at'] },
         ],
       }],
     });
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-    const html = generateHTMLProforma(proforma.toJSON());
+
+    const data = proforma.toJSON();
+
+    // Hitung berapa term per tipe yang sudah "diklaim" proforma-proforma sebelum ini
+    const allProformas = (data.penjualan.proformas || [])
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const thisIdx = allProformas.findIndex(p => p.id === proforma.id);
+    const priorTermsByTipe = {};
+    allProformas.slice(0, thisIdx >= 0 ? thisIdx : 0).forEach(prev => {
+      let prevTerms = [];
+      try { prevTerms = prev.terms ? JSON.parse(prev.terms) : []; } catch {}
+      prevTerms.forEach(t => {
+        const tipe = t.tipe || 'DP';
+        priorTermsByTipe[tipe] = (priorTermsByTipe[tipe] || 0) + 1;
+      });
+    });
+    data.priorTermsByTipe = priorTermsByTipe;
+
+    const html = generateHTMLProforma(data);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -190,7 +209,15 @@ router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => 
   try {
     const sji = await SuratJalanInterior.findByPk(req.params.id, {
       include: [
-        { model: PenjualanInterior, as: 'penjualan' },
+        {
+          model: PenjualanInterior, as: 'penjualan',
+          include: [
+            { model: Provinsi, as: 'alamatProvinsi' },
+            { model: Kabupaten, as: 'alamatKabupaten' },
+            { model: Kecamatan, as: 'alamatKecamatan' },
+            { model: Kelurahan, as: 'alamatKelurahan' },
+          ],
+        },
         {
           model: SuratJalanInteriorItem, as: 'items',
           include: [{ model: PenjualanInteriorItem, as: 'item' }],
@@ -201,14 +228,19 @@ router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => 
 
     const data = sji.toJSON();
 
-    // Normalize data structure agar bisa dipakai oleh generatePDFSuratJalan
+    // Normalize data structure agar bisa dipakai oleh generateHTMLSuratJalan
     const normalized = {
       nomor_surat: data.nomor_surat,
       tanggal: data.tanggal,
       catatan: data.catatan,
       penjualan: {
         nama_penerima: data.penjualan.nama_customer,
-        pengirim_detail: data.penjualan.nama_pt_npwp,
+        pengirim_detail: data.penjualan.alamat_detail,
+        pengirimProvinsi: data.penjualan.alamatProvinsi,
+        pengirimKabupaten: data.penjualan.alamatKabupaten,
+        pengirimKecamatan: data.penjualan.alamatKecamatan,
+        pengirimKelurahan: data.penjualan.alamatKelurahan,
+        pengirim_kode_pos: data.penjualan.alamat_kode_pos,
         faktur: data.penjualan.faktur,
         items: (data.items || []).map(i => ({
           barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
@@ -230,7 +262,15 @@ router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => 
 router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
   try {
     const inv = await InvoiceInterior.findByPk(req.params.id, {
-      include: [{ model: PenjualanInterior, as: 'penjualan' }],
+      include: [{
+        model: PenjualanInterior, as: 'penjualan',
+        include: [
+          { model: Provinsi, as: 'alamatProvinsi' },
+          { model: Kabupaten, as: 'alamatKabupaten' },
+          { model: Kecamatan, as: 'alamatKecamatan' },
+          { model: Kelurahan, as: 'alamatKelurahan' },
+        ],
+      }],
     });
     if (!inv) return res.status(404).json({ message: 'Invoice Interior tidak ditemukan' });
 
@@ -270,7 +310,7 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
       ? parseInt(data.penjualan.ppn_persen) : 0;
 
     // Merge items from all SJs, kurangi retur, hitung subtotal inc PPN
-    const invoiceItems = suratJalans.flatMap(sj =>
+    let invoiceItems = suratJalans.flatMap(sj =>
       (sj.items || []).map(i => {
         const returQty = returMap[i.penjualan_interior_item_id] || 0;
         const netQty = i.qty_kirim - returQty;
@@ -286,6 +326,23 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
       }).filter(Boolean)
     );
 
+    // Fallback: jika tidak ada item dari SJ (misal SJ belum punya item), ambil langsung dari penjualan
+    if (invoiceItems.length === 0) {
+      const pItems = await PenjualanInteriorItem.findAll({
+        where: { penjualan_interior_id: data.penjualan_interior_id },
+      });
+      invoiceItems = pItems.map(i => {
+        const hargaBase = parseFloat(i.harga_satuan || 0);
+        const hargaInc = ppnPersen > 0 ? Math.round(hargaBase * (1 + ppnPersen / 100)) : hargaBase;
+        return {
+          barang: { id: i.kode_barang, nama: i.nama_barang },
+          qty: i.qty,
+          harga_satuan: hargaInc,
+          subtotal: hargaInc * i.qty,
+        };
+      });
+    }
+
     const normalized = {
       nomor_invoice: data.nomor_invoice,
       tanggal: data.tanggal,
@@ -294,7 +351,13 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
       ppn_persen: 0, // sudah embedded di harga_satuan
       penjualan: {
         nama_penerima: data.penjualan.nama_customer,
-        pengirim_detail: data.penjualan.nama_pt_npwp,
+        nama_npwp: data.penjualan.nama_pt_npwp,
+        pengirim_detail: data.penjualan.alamat_detail,
+        pengirimProvinsi: data.penjualan.alamatProvinsi,
+        pengirimKabupaten: data.penjualan.alamatKabupaten,
+        pengirimKecamatan: data.penjualan.alamatKecamatan,
+        pengirimKelurahan: data.penjualan.alamatKelurahan,
+        pengirim_kode_pos: data.penjualan.alamat_kode_pos,
         no_po: data.penjualan.no_po,
         no_npwp: data.penjualan.no_npwp,
         faktur: data.penjualan.faktur,
