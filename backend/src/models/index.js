@@ -23,6 +23,8 @@ const ReturSJInterior = require('./ReturSJInterior');
 const SuratPengantarSub = require('./SuratPengantarSub');
 const TutorialVideo = require('./TutorialVideo');
 const HargaKhusus = require('./HargaKhusus');
+const SuratPengantarInterior = require('./SuratPengantarInterior');
+const SuratPengantarInteriorItem = require('./SuratPengantarInteriorItem');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -98,6 +100,13 @@ SuratJalanInterior.hasMany(ReturSJInterior, { foreignKey: 'surat_jalan_interior_
 ReturSJInterior.belongsTo(SuratJalanInterior, { foreignKey: 'surat_jalan_interior_id', as: 'suratJalan' });
 ReturSJInterior.belongsTo(PenjualanInteriorItem, { foreignKey: 'penjualan_interior_item_id', as: 'item' });
 
+// SuratPengantarInterior associations
+PenjualanInterior.hasMany(SuratPengantarInterior, { foreignKey: 'penjualan_interior_id', as: 'suratPengantars' });
+SuratPengantarInterior.belongsTo(PenjualanInterior, { foreignKey: 'penjualan_interior_id', as: 'penjualan' });
+SuratPengantarInterior.belongsTo(SuratJalanInterior, { foreignKey: 'surat_jalan_interior_id', as: 'suratJalan' });
+SuratPengantarInterior.hasMany(SuratPengantarInteriorItem, { foreignKey: 'surat_pengantar_interior_id', as: 'items' });
+SuratPengantarInteriorItem.belongsTo(SuratPengantarInterior, { foreignKey: 'surat_pengantar_interior_id', as: 'suratPengantar' });
+
 PenjualanInterior.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
 // Barang associations
@@ -129,4 +138,6 @@ module.exports = {
   SuratPengantarSub,
   TutorialVideo,
   HargaKhusus,
+  SuratPengantarInterior,
+  SuratPengantarInteriorItem,
 };

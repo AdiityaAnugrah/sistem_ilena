@@ -1095,6 +1095,149 @@ const generateHTMLSuratPengantar = (sp) => {
   `;
 };
 
+const generateHTMLSuratPengantarInterior = (sp) => {
+  const penjualan = sp.penjualan || {};
+  const items = sp.items || [];
+  const tanggalFormat = dayjs(sp.tanggal).format('DD MMMM YYYY');
+
+  const itemRows = items.map((item, index) => `
+    <tr>
+        <td class="text-center">${index + 1}</td>
+        <td>${(item.nama_barang || '-').toUpperCase()}</td>
+        <td class="text-center">${item.qty}</td>
+    </tr>
+  `).join('');
+
+  const catatanHTML = sp.catatan ? `
+    <p class="m-0 mt-3">
+        <b style="font-weight:600;">Keterangan : </b>
+        <span class="text-danger">${sp.catatan.replace(/\n/g, '<br>')}</span>
+    </p>
+  ` : '';
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <title>Surat Pengantar Interior - ${sp.nomor_surat} | Ilena Furniture</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+    :root { --ink: #0f172a; --muted: #4b5563; --line: #e5e7eb; --line2: #f3f4f6; }
+    html, body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; background: #fff; }
+    * { font-size: 12px; line-height: 1.35; }
+    h5 { font-size: 14.25px; font-weight: 600; margin: 0; letter-spacing: -.15px; }
+    .subhead { font-size: 11px; color: var(--muted); font-weight: 500; margin: 0; }
+    .title-doc { font-size: 13.25px; font-weight: 600; letter-spacing: .02em; }
+    .divider { height: 1px; background: var(--line); margin: .4rem 0 .8rem; }
+    .table { border-color: var(--line); margin-bottom: 0.5rem; }
+    .table thead th { background: #fbfbfd !important; border-bottom: 1px solid var(--line); font-weight: 600; color: #0f172a; font-size: 10.25px; vertical-align: middle; padding: .40rem .55rem; letter-spacing: .02em; text-transform: uppercase; }
+    .table tbody td { border-color: var(--line2); vertical-align: middle; font-size: 10.9px; padding: .42rem .55rem; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: #fcfdff; }
+    .to-name { font-weight: 600; font-size: 13px; }
+    body { background: #e8eaed; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,0.12); position: relative; }
+    .sig-title, .sig-name { font-weight: 600; }
+    .sig-row { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-top: 1rem; }
+    .sig-box { min-width: 180px; text-align: center; }
+    .sig-body { height: 86px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .sig-stamp, .sig-stamp-rough { width: 112px; height: auto; display: block; object-fit: contain; pointer-events: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.98); mix-blend-mode: multiply; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sig-stamp { z-index: 1; opacity: .62; filter: contrast(1.65) saturate(1.10) brightness(.90) blur(.06px); }
+    .sig-stamp-rough { z-index: 2; opacity: .20; transform: translate(-50%, -50%) scale(1.01); filter: blur(.34px) contrast(1.20) brightness(.92); }
+    .sig-footer { height: 18px; display: flex; align-items: center; justify-content: center; font-weight: 700; line-height: 1; margin-top: 2px; }
+    .sig-line { font-weight: 600; letter-spacing: .02em; margin: 0; }
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+        html, body { background: #fff !important; }
+        .page { width: 100% !important; min-height: 0 !important; padding: 14mm !important; box-shadow: none !important; margin: 0 !important; }
+        a[href]:after { content: ""; }
+        tr, img { break-inside: avoid; }
+        .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: transparent; }
+    }
+    ${TOOLBAR_CSS}
+    </style>
+</head>
+<body>
+    ${TOOLBAR_HTML_FULL}
+    <div class="page">
+        ${SIG_OVERLAY_HTML}
+        <!-- Header -->
+        <div class="d-flex justify-content-between my-4">
+            <div style="flex:1;" class="d-flex align-items-between gap-2">
+                <div class="d-flex gap-4 justify-content-start">
+                    <div><img src="${LOGO_CBM}" alt="Logo" width="70" height="40"></div>
+                    <div class="d-flex flex-column justify-content-center gap-1">
+                        <h5>CV.CATUR BHAKTI MANDIRI</h5>
+                        <p class="subhead">Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-end mb-4">
+            <div style="flex:1">
+                <p class="m-0 title-doc">SURAT PENGANTAR INTERIOR NO. ${sp.nomor_surat}</p>
+                <div class="divider"></div>
+            </div>
+            <div style="flex:1" class="ms-5">
+                <p class="m-0" style="font-weight:500;">Kepada Yth.</p>
+                <p class="m-0 to-name">${penjualan.nama_customer || '-'}</p>
+            </div>
+        </div>
+
+        <!-- Tabel -->
+        <div class="table-responsive mt-2">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 40px;">NO</th>
+                        <th class="text-center">NAMA BARANG</th>
+                        <th class="text-center" style="width: 90px;">JUMLAH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemRows}
+                </tbody>
+            </table>
+
+            ${catatanHTML}
+
+            <p class="mt-4" style="font-weight:500;">Kendal, ${tanggalFormat}</p>
+
+            <div class="sig-row">
+                <div class="sig-box">
+                    <p class="m-0 sig-title">Dibuat Oleh :</p>
+                    <div class="sig-body">
+                        <img src="${LOGO_STAMP}" alt="Stempel" class="sig-stamp">
+                        <img src="${LOGO_STAMP}" alt="" class="sig-stamp-rough">
+                    </div>
+                    <div class="sig-footer">Admin</div>
+                    <p class="m-0 sig-name sig-line">____________________</p>
+                </div>
+                <div class="sig-box">
+                    <p class="m-0 sig-title">Dibawa Oleh :</p>
+                    <div class="sig-body"></div>
+                    <div class="sig-footer">&nbsp;</div>
+                    <p class="m-0 sig-name sig-line">____________________</p>
+                </div>
+                <div class="sig-box">
+                    <p class="m-0 sig-title">Diterima Oleh :</p>
+                    <div class="sig-body"></div>
+                    <div class="sig-footer">&nbsp;</div>
+                    <p class="m-0 sig-name sig-line">____________________</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    ${buildFullToolbarJS(`sp-interior-${sp.nomor_surat ? sp.nomor_surat.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+</body>
+</html>
+  `;
+};
+
 const generateHTMLInvoice = (inv) => {
   const penjualan = inv.penjualan || {};
   const items = penjualan.items || [];
@@ -1620,6 +1763,7 @@ const generateHTMLProforma = (inv) => {
 module.exports = {
   generateHTMLSuratJalan,
   generateHTMLSuratPengantar,
+  generateHTMLSuratPengantarInterior,
   generateHTMLInvoice,
   generateHTMLProforma,
 };

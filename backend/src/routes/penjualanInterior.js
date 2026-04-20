@@ -5,10 +5,11 @@ const {
   PenjualanInterior, PenjualanInteriorItem, ProformaInvoice, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior,
   ReturSJInterior, LogActivity,
+  SuratPengantarInterior, SuratPengantarInteriorItem,
 } = require('../models');
 const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
-const { generateNomorProforma, generateNomorSJ, generateNomorInvoice } = require('../utils/generateNomor');
+const { generateNomorProforma, generateNomorSJ, generateNomorInvoice, generateNomorSPInt } = require('../utils/generateNomor');
 const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
@@ -25,6 +26,7 @@ const fullInclude = [
     ],
   },
   { model: InvoiceInterior, as: 'invoices' },
+  { model: SuratPengantarInterior, as: 'suratPengantars', include: [{ model: SuratPengantarInteriorItem, as: 'items' }] },
 ];
 
 // POST /api/penjualan-interior
@@ -309,6 +311,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     });
     if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan atau bukan milik penjualan ini' }); }
 
+    const spItems = [];
     for (const item of items) {
       const { penjualan_interior_item_id, qty_retur } = item;
 
@@ -317,19 +320,20 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         return res.status(400).json({ message: 'Qty retur harus lebih dari 0' });
       }
 
-      // Find SJ item for this penjualan item on this SJ
       const sjItem = await SuratJalanInteriorItem.findOne({
         where: { surat_jalan_interior_id, penjualan_interior_item_id },
         transaction: t,
       });
       if (!sjItem) {
         await t.rollback();
-        return res.status(400).json({ message: `Item tidak ditemukan pada Surat Jalan ini` });
+        return res.status(400).json({ message: 'Item tidak ditemukan pada Surat Jalan ini' });
       }
       if (qty_retur > sjItem.qty_kirim) {
         await t.rollback();
         return res.status(400).json({ message: 'Qty retur melebihi qty kirim pada SJ ini' });
       }
+
+      const pjItem = await PenjualanInteriorItem.findByPk(penjualan_interior_item_id, { transaction: t });
 
       await ReturSJInterior.create({
         surat_jalan_interior_id,
@@ -340,19 +344,41 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         created_by: req.user.id,
       }, { transaction: t });
 
-      // Decrement sudah_kirim on the PenjualanInteriorItem
       await PenjualanInteriorItem.decrement('sudah_kirim', {
         by: qty_retur,
         where: { id: penjualan_interior_item_id },
         transaction: t,
       });
+
+      spItems.push({ penjualan_interior_item_id, nama_barang: pjItem?.nama_barang || '-', qty: qty_retur });
+    }
+
+    // Auto-buat Surat Pengantar Interior
+    const isTest = penjualan.is_test === 1;
+    const nomorSP = await generateNomorSPInt(tanggal, isTest);
+    const sp = await SuratPengantarInterior.create({
+      nomor_surat: nomorSP,
+      tanggal,
+      penjualan_interior_id: req.params.id,
+      surat_jalan_interior_id,
+      catatan: catatan || null,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    for (const si of spItems) {
+      await SuratPengantarInteriorItem.create({
+        surat_pengantar_interior_id: sp.id,
+        penjualan_interior_item_id: si.penjualan_interior_item_id,
+        nama_barang: si.nama_barang,
+        qty: si.qty,
+      }, { transaction: t });
     }
 
     await t.commit();
 
     await logAction(req.user.id, 'CATAT_RETUR_SJ_INTERIOR',
-      `Retur SJ #${surat_jalan_interior_id} untuk Penjualan Interior #${req.params.id}`, req.ip);
-    res.status(201).json({ message: 'Retur berhasil dicatat' });
+      `Retur SJ #${surat_jalan_interior_id} → SP/INT ${nomorSP} untuk Penjualan Interior #${req.params.id}`, req.ip);
+    res.status(201).json({ message: 'Retur berhasil dicatat', nomor_sp: nomorSP });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Server error', error: err.message });

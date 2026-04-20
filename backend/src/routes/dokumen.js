@@ -5,7 +5,7 @@ const {
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
-  InvoiceInterior,
+  InvoiceInterior, SuratPengantarInterior, SuratPengantarInteriorItem,
 } = require('../models');
 
 const includeAlamat = [
@@ -24,6 +24,7 @@ const {
 const {
   generateHTMLSuratJalan,
   generateHTMLSuratPengantar,
+  generateHTMLSuratPengantarInterior,
   generateHTMLInvoice,
   generateHTMLProforma,
 } = require('../utils/htmlGenerator');
@@ -303,6 +304,24 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
     };
 
     const html = generateHTMLInvoice(normalized);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/dokumen/sp-interior/:id/print
+router.get('/sp-interior/:id/print', authenticate, async (req, res) => {
+  try {
+    const sp = await SuratPengantarInterior.findByPk(req.params.id, {
+      include: [
+        { model: PenjualanInterior, as: 'penjualan' },
+        { model: SuratPengantarInteriorItem, as: 'items' },
+      ],
+    });
+    if (!sp) return res.status(404).json({ message: 'Surat Pengantar Interior tidak ditemukan' });
+    const html = generateHTMLSuratPengantarInterior(sp.toJSON());
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {

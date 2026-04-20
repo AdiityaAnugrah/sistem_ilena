@@ -21,6 +21,15 @@ interface ReturItem {
   catatan?: string;
 }
 
+interface SuratPengantarInteriorData {
+  id: number;
+  nomor_surat: string;
+  tanggal: string;
+  surat_jalan_interior_id: number;
+  catatan?: string;
+  items: Array<{ id: number; nama_barang: string; qty: number }>;
+}
+
 interface SuratJalanInteriorData {
   id: number;
   nomor_surat: string;
@@ -707,6 +716,48 @@ export default function PenjualanInteriorDetail() {
                         })}
                       </div>
                     )}
+
+                    {/* SP/INT terkait SJ ini */}
+                    {(() => {
+                      const spList: SuratPengantarInteriorData[] = (data.suratPengantars || []).filter(
+                        (sp: SuratPengantarInteriorData) => sp.surat_jalan_interior_id === sj.id
+                      );
+                      if (!spList.length) return null;
+                      return (
+                        <div className="ml-2 space-y-1.5">
+                          <div className="text-xs font-semibold uppercase tracking-wider px-1" style={{ color: '#0369a1' }}>
+                            Surat Pengantar Interior
+                          </div>
+                          {spList.map((sp: SuratPengantarInteriorData) => (
+                            <div
+                              key={sp.id}
+                              className="p-2.5 rounded-lg text-xs"
+                              style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono font-semibold" style={{ color: '#0c4a6e' }}>{sp.nomor_surat}</span>
+                                <button
+                                  onClick={() => printDoc('sp-interior', sp.id)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+                                  style={{ background: '#fff', color: '#0369a1', border: '1px solid #bae6fd' }}
+                                >
+                                  <Printer className="h-3 w-3" /> Cetak
+                                </button>
+                              </div>
+                              <div className="mt-1" style={{ color: '#0369a1' }}>{formatDate(sp.tanggal)}</div>
+                              <div className="mt-1 space-y-0.5">
+                                {sp.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between" style={{ color: '#075985' }}>
+                                    <span className="truncate">{item.nama_barang}</span>
+                                    <span className="ml-2 flex-shrink-0 font-semibold">{item.qty} unit</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

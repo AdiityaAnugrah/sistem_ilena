@@ -99,9 +99,27 @@ const generateNomorProforma = async (tanggal, isTest = false) => {
     : `${padded}/PRO-INV/CBM/${mm}/${tahun}`;
 };
 
+/**
+ * Generate Surat Pengantar Interior number
+ * 0001/SP/INT/04/2026  | TEST: TEST-0001/SP/INT/04/2026
+ */
+const generateNomorSPInt = async (tanggal, isTest = false) => {
+  const d = dayjs(tanggal);
+  const bulan = d.month() + 1;
+  const tahun = d.year();
+  const tipe = isTest ? 'TEST_SP_INT' : 'SP_INT';
+  const num = await getNextNumber(tipe, tahun);
+  const padded = String(num).padStart(4, '0');
+  const mm = String(bulan).padStart(2, '0');
+  return isTest
+    ? `TEST-${padded}/SP/INT/${mm}/${tahun}`
+    : `${padded}/SP/INT/${mm}/${tahun}`;
+};
+
 module.exports = {
   generateNomorSJ,
   generateNomorInvoice,
   generateNomorSP,
   generateNomorProforma,
+  generateNomorSPInt,
 };
