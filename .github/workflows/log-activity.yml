@@ -82,7 +82,10 @@ jobs:
           echo "Redirect URL: ${REDIRECT_URL:0:80}..."
 
           echo "=== Step 2: GET response dari redirect URL ==="
-          RESPONSE=$(curl -s "$REDIRECT_URL")
+          RESPONSE=$(curl -s -L -w "\n===HTTPCODE:%{http_code}===" "$REDIRECT_URL")
+          HTTP_STEP2=$(echo "$RESPONSE" | grep -o "===HTTPCODE:[0-9]*===" | grep -o "[0-9]*")
+          RESPONSE=$(echo "$RESPONSE" | sed 's/===HTTPCODE:[0-9]*===$//')
+          echo "Step 2 HTTP code: $HTTP_STEP2"
 
           echo "Response: $RESPONSE"
 
