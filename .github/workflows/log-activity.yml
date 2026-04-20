@@ -5,9 +5,7 @@ name: Log Push Activity to Google Sheets
 #   SHEETS_WEBHOOK_URL   → URL Web App dari Google Apps Script
 #   SHEETS_WEBHOOK_TOKEN → Token rahasia (harus sama dengan SECRET_TOKEN di Apps Script)
 #
-# Apps Script target:
-#   Sheet ID : 1BREjEjltFFKl7epbLCALALy6nuBWnkaPLOsAe6duLKI
-#   Sheet Tab: Activity Log
+# Apps Script: Sheet Tab "DAILY ADITYA ANUGRAH"
 # ─────────────────────────────────────────────────────────────────
 
 on:
@@ -42,50 +40,30 @@ jobs:
             COMMITS='[{"message":"(push without commits)"}]'
           fi
 
-          # Build payload sesuai field yang dibaca Apps Script
+          # Build payload
           PAYLOAD=$(jq -n \
             --arg token "$WEBHOOK_TOKEN" \
             --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg repo "$REPO" \
             --arg author "$ACTOR" \
             --argjson commits "$COMMITS" \
-            '{
-              token: $token,
-              timestamp: $timestamp,
-              repo: $repo,
-              author: $author,
-              commits: $commits
-            }')
+            '{token: $token, timestamp: $timestamp, repo: $repo, author: $author, commits: $commits}')
 
-          echo "Sending payload to Google Sheets..."
+          echo "Sending activity log to Google Sheets..."
           echo "Repo   : $REPO"
           echo "Author : $ACTOR"
           echo "Commits: $COMMIT_COUNT commit(s)"
-          echo "URL length : ${#WEBHOOK_URL} chars"
-          echo "URL domain : $(echo "$WEBHOOK_URL" | cut -d'/' -f1-3)"
 
-          # Test GET dulu untuk cek apakah URL accessible
-          echo "=== Testing URL accessibility (GET) ==="
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$WEBHOOK_URL")
-          echo "GET HTTP code: $HTTP_CODE"
-
-          # Google Apps Script butuh 2 langkah:
-          # 1. POST ke /exec → dapat 302 redirect ke script.googleusercontent.com
-          # 2. GET dari redirect URL → inilah response JSON-nya
-
-          echo "=== Step 1: POST ke Apps Script ==="
+          # Google Apps Script 2-step request:
+          # Step 1: POST → dapat 302 redirect ke script.googleusercontent.com
           REDIRECT_URL=$(curl -s -D - --max-redirs 0 \
             -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "$PAYLOAD" | grep -i "^location:" | sed 's/location: //I' | tr -d '\r\n')
-          echo "Redirect URL: ${REDIRECT_URL:0:80}..."
 
-          echo "=== Step 2: GET response dari redirect URL ==="
-          RESPONSE=$(curl -s -L -w "\n===HTTPCODE:%{http_code}===" "$REDIRECT_URL")
-          HTTP_STEP2=$(echo "$RESPONSE" | grep -o "===HTTPCODE:[0-9]*===" | grep -o "[0-9]*")
-          RESPONSE=$(echo "$RESPONSE" | sed 's/===HTTPCODE:[0-9]*===$//')
-          echo "Step 2 HTTP code: $HTTP_STEP2"
+          # Step 2: GET dari redirect URL → ambil response JSON
+          RESPONSE=$(curl -s -L "$REDIRECT_URL")
 
           echo "Response: $RESPONSE"
 
