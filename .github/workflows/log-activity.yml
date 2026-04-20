@@ -64,11 +64,19 @@ jobs:
           echo "URL length : ${#WEBHOOK_URL} chars"
           echo "URL domain : $(echo "$WEBHOOK_URL" | cut -d'/' -f1-3)"
 
-          # Kirim ke Apps Script Web App
-          RESPONSE=$(curl -s -L \
+          # Test GET dulu untuk cek apakah URL accessible
+          echo "=== Testing URL accessibility (GET) ==="
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$WEBHOOK_URL")
+          echo "GET HTTP code: $HTTP_CODE"
+
+          # Kirim POST — gunakan --post302 agar method POST tetap saat redirect
+          RESPONSE=$(curl -s -L --post302 \
             -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
             -d "$PAYLOAD")
+          HTTP_POST=$(echo "$RESPONSE" | grep -o "===HTTP_CODE:[0-9]*===" | grep -o "[0-9]*" || echo "unknown")
+          echo "POST HTTP code: $HTTP_POST"
 
           echo "Response: $RESPONSE"
 
