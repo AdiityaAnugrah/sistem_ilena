@@ -47,7 +47,6 @@ export default function LoginPage() {
         className="hidden lg:flex lg:w-[46%] flex-col justify-between p-12 relative overflow-hidden"
         style={{ background: '#0c1220' }}
       >
-        {/* Subtle grid texture */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
