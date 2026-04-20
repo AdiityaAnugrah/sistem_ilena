@@ -1103,6 +1103,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
   const itemRows = items.map((item, index) => `
     <tr>
         <td class="text-center">${index + 1}</td>
+        <td class="text-center">${item.kode_barang || '-'}</td>
         <td>${(item.nama_barang || '-').toUpperCase()}</td>
         <td class="text-center">${item.qty}</td>
     </tr>
@@ -1185,6 +1186,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
             <div style="flex:1" class="ms-5">
                 <p class="m-0" style="font-weight:500;">Kepada Yth.</p>
                 <p class="m-0 to-name">${penjualan.nama_customer || '-'}</p>
+                ${penjualan.nama_pt_npwp ? `<p class="m-0 mt-1" style="font-size:11px;color:var(--muted);">${penjualan.nama_pt_npwp}</p>` : ''}
             </div>
         </div>
 
@@ -1194,6 +1196,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
                 <thead>
                     <tr>
                         <th class="text-center" style="width: 40px;">NO</th>
+                        <th class="text-center" style="width: 140px;">KODE BARANG</th>
                         <th class="text-center">NAMA BARANG</th>
                         <th class="text-center" style="width: 90px;">JUMLAH</th>
                     </tr>

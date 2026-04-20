@@ -350,7 +350,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         transaction: t,
       });
 
-      spItems.push({ penjualan_interior_item_id, nama_barang: pjItem?.nama_barang || '-', qty: qty_retur });
+      spItems.push({ penjualan_interior_item_id, kode_barang: pjItem?.kode_barang || null, nama_barang: pjItem?.nama_barang || '-', qty: qty_retur });
     }
 
     // Auto-buat Surat Pengantar Interior
@@ -369,6 +369,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
       await SuratPengantarInteriorItem.create({
         surat_pengantar_interior_id: sp.id,
         penjualan_interior_item_id: si.penjualan_interior_item_id,
+        kode_barang: si.kode_barang,
         nama_barang: si.nama_barang,
         qty: si.qty,
       }, { transaction: t });

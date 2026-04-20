@@ -5,6 +5,7 @@ const SuratPengantarInteriorItem = sequelize.define('surat_pengantar_interior_it
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   surat_pengantar_interior_id: { type: DataTypes.INTEGER, allowNull: false },
   penjualan_interior_item_id: { type: DataTypes.INTEGER, allowNull: false },
+  kode_barang: { type: DataTypes.STRING(50), allowNull: true },
   nama_barang: { type: DataTypes.STRING(150), allowNull: false },
   qty: { type: DataTypes.INTEGER, allowNull: false },
 }, { timestamps: false });
