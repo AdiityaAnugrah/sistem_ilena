@@ -51,7 +51,7 @@ export default function AlamatForm({ label, value, onChange }: Props) {
   useEffect(() => {
     if (value.kecamatan_id) {
       api.get(`/alamat/kelurahan/${value.kecamatan_id}`)
-        .then(r => setKelurahans(r.data.map((x: any) => ({ value: x.id, label: x.label }))));
+        .then(r => setKelurahans(r.data.map((x: any) => ({ value: x.id, label: x.label, kodepos: x.kodepos }))));
     } else {
       setKelurahans([]);
     }
@@ -63,13 +63,21 @@ export default function AlamatForm({ label, value, onChange }: Props) {
       updates.kabupaten_id = null;
       updates.kecamatan_id = null;
       updates.kelurahan_id = null;
+      updates.kode_pos = '';
     } else if (field === 'kabupaten_id') {
       updates.kecamatan_id = null;
       updates.kelurahan_id = null;
+      updates.kode_pos = '';
     } else if (field === 'kecamatan_id') {
       updates.kelurahan_id = null;
+      updates.kode_pos = '';
     }
     onChange({ ...value, ...updates });
+  };
+
+  const handleKelurahanChange = (opt: any) => {
+    const kodepos = opt?.kodepos ? String(opt.kodepos).slice(0, 5) : '';
+    onChange({ ...value, kelurahan_id: opt?.value || null, kode_pos: kodepos });
   };
 
   return (
@@ -125,7 +133,7 @@ export default function AlamatForm({ label, value, onChange }: Props) {
           <Select
             options={kelurahans}
             value={kelurahans.find((k: any) => k.value === value.kelurahan_id) || null}
-            onChange={(opt: any) => update('kelurahan_id', opt?.value || null)}
+            onChange={handleKelurahanChange}
             placeholder="Pilih kelurahan..."
             isClearable
             isDisabled={!value.kecamatan_id}
