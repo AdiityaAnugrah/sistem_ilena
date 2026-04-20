@@ -181,8 +181,9 @@ const JualMultipleModal = ({
   const totalQty = selectedItems.reduce((s: number, it: any) => s + (form[it.id]?.qty || 0), 0);
   const grandTotal = selectedItems.reduce((s: number, it: any) => {
     const f = form[it.id] || { qty: 0, harga: '' };
-    const harga = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : it.harga_satuan;
-    return s + f.qty * harga * (1 - (it.diskon || 0) / 100);
+    const effectiveDisplay = it.harga_satuan * (1 - (it.diskon || 0) / 100);
+    const harga = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : effectiveDisplay;
+    return s + f.qty * harga;
   }, 0);
 
   return (
@@ -261,8 +262,9 @@ const JualMultipleModal = ({
             {items.map((item: any) => {
               const f = form[item.id] || { qty: 0, harga: '' };
               const isSelected = f.qty > 0;
-              const hargaEfektif = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : item.harga_satuan;
-              const subtotal = isSelected ? f.qty * hargaEfektif * (1 - (item.diskon || 0) / 100) : 0;
+              const effectiveDisplay = item.harga_satuan * (1 - (item.diskon || 0) / 100);
+              const hargaEfektif = f.harga !== '' && Number(f.harga) > 0 ? Number(f.harga) : effectiveDisplay;
+              const subtotal = isSelected ? f.qty * hargaEfektif : 0;
               return (
                 <div key={item.id} className="p-4 rounded-xl border transition-all"
                   style={{ background: isSelected ? '#f0fdf4' : '#f8fafc', borderColor: isSelected ? '#86efac' : '#e2e8f0' }}>
@@ -273,8 +275,7 @@ const JualMultipleModal = ({
                       </div>
                       <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: '#94a3b8' }}>
                         <span>Sisa: <strong className="text-slate-700">{item.qty}</strong></span>
-                        <span>Harga asal: <strong className="text-slate-700">{formatRupiah(item.harga_satuan)}</strong></span>
-                        {item.diskon > 0 && <span className="text-orange-500 font-medium">Diskon {item.diskon}%</span>}
+                        <span>Harga display: <strong className="text-slate-700">{formatRupiah(item.harga_satuan * (1 - (item.diskon || 0) / 100))}</strong></span>
                       </div>
                     </div>
                     {isSelected && (
@@ -313,7 +314,7 @@ const JualMultipleModal = ({
                           onChange={e => updateForm(item.id, 'harga', e.target.value)}
                           className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg outline-none transition-all"
                           style={{ border: '1px solid #cbd5e1', background: '#fff' }}
-                          placeholder={String(item.harga_satuan)}
+                          placeholder={String(Math.round(item.harga_satuan * (1 - (item.diskon || 0) / 100)))}
                         />
                       </div>
                     </div>
@@ -494,8 +495,8 @@ export default function PenjualanOfflineDetail() {
         return {
           item_id: idStr,
           qty_jual: f.qty,
-          harga_jual: f.harga !== '' ? Number(f.harga) : baseItem?.harga_satuan,
-          diskon: baseItem?.diskon || 0
+          harga_jual: f.harga !== '' ? Number(f.harga) : undefined,
+          diskon: 0
         };
       }
       return null;

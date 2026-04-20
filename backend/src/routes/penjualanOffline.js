@@ -395,14 +395,16 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
       }, { transaction: t });
 
       // Proses setiap item
-      for (const { itemDisplay, qtyJualInt, harga_jual, diskon } of validItemsToProcess) {
-        const hargaAsli = parseFloat(itemDisplay.harga_satuan);
-        const finalHargaSatuan = harga_jual !== undefined && harga_jual !== '' ? parseFloat(harga_jual) : hargaAsli;
-        // Hitung diskon efektif: kalau harga jual lebih rendah dari harga asli, anggap spesial price
-        const finalDiskon = hargaAsli > 0 && finalHargaSatuan < hargaAsli
-          ? Math.max(0, Math.round((1 - finalHargaSatuan / hargaAsli) * 100))
-          : parseFloat(diskon) || 0;
-        const subtotalM = finalHargaSatuan * qtyJualInt * (1 - (finalDiskon / 100));
+      for (const { itemDisplay, qtyJualInt, harga_jual } of validItemsToProcess) {
+        // Harga efektif display = harga_satuan × (1 - diskon/100)
+        // (Display menyimpan harga_satuan = harga display, diskon = synthetic indicator)
+        const displayDiskon = parseFloat(itemDisplay.diskon) || 0;
+        const displayEffectivePrice = parseFloat(itemDisplay.harga_satuan) * (1 - displayDiskon / 100);
+
+        // Harga jual laku: pakai override user jika ada, default ke harga efektif display
+        const finalHargaSatuan = harga_jual !== undefined && harga_jual !== '' ? parseFloat(harga_jual) : displayEffectivePrice;
+        // Diskon = 0 karena finalHargaSatuan sudah merupakan harga final yang sebenarnya
+        const subtotalM = finalHargaSatuan * qtyJualInt;
 
         // Create new item in PENJUALAN
         await PenjualanOfflineItem.create({
@@ -412,15 +414,13 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
           varian_id: itemDisplay.varian_id || null,
           qty: qtyJualInt,
           harga_satuan: finalHargaSatuan,
-          diskon: finalDiskon,
+          diskon: 0,
           subtotal: subtotalM,
         }, { transaction: t });
 
-        // Update remaining display qty (set 0 jika habis, jangan dihapus — sub-SP masih perlu referensi item ini)
+        // Update remaining display qty
         const sisakQty = itemDisplay.qty - qtyJualInt;
-        const subtotalSisa = sisakQty > 0
-          ? parseFloat(itemDisplay.harga_satuan) * sisakQty * (1 - (itemDisplay.diskon / 100))
-          : 0;
+        const subtotalSisa = sisakQty > 0 ? displayEffectivePrice * sisakQty : 0;
         await itemDisplay.update({ qty: sisakQty > 0 ? sisakQty : 0, subtotal: subtotalSisa }, { transaction: t });
       }
 
