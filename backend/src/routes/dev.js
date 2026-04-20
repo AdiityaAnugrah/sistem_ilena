@@ -5,6 +5,7 @@ const {
   PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub,
   PenjualanInterior, PenjualanInteriorItem, ProformaInvoice, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior, ReturSJInterior,
+  SuratPengantarInterior, SuratPengantarInteriorItem,
 } = require('../models');
 const { logAction } = require('../middleware/logger');
 
@@ -50,6 +51,14 @@ router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => 
         await InvoiceInterior.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
         await SuratJalanInteriorItem.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
         await SuratJalanInterior.destroy({ where: { id: sjIntIds }, transaction: t });
+      }
+
+      const spIntIds = (await SuratPengantarInterior.findAll({
+        where: { penjualan_interior_id: interiorIds }, attributes: ['id'], transaction: t,
+      })).map(r => r.id);
+      if (spIntIds.length > 0) {
+        await SuratPengantarInteriorItem.destroy({ where: { surat_pengantar_interior_id: spIntIds }, transaction: t });
+        await SuratPengantarInterior.destroy({ where: { id: spIntIds }, transaction: t });
       }
 
       await PembayaranInterior.destroy({ where: { penjualan_interior_id: interiorIds }, transaction: t });
