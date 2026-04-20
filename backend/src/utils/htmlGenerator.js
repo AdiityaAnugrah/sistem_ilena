@@ -1179,7 +1179,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
 
         <div class="d-flex justify-content-between align-items-end mb-4">
             <div style="flex:1">
-                <p class="m-0 title-doc">SURAT PENGANTAR INTERIOR NO. ${sp.nomor_surat}</p>
+                <p class="m-0 title-doc">SURAT PENGANTAR NO. ${sp.nomor_surat}</p>
                 <div class="divider"></div>
             </div>
             <div style="flex:1" class="ms-5">
