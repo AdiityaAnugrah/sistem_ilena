@@ -46,19 +46,20 @@ router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => 
         where: { penjualan_interior_id: interiorIds }, attributes: ['id'], transaction: t,
       })).map(r => r.id);
 
-      if (sjIntIds.length > 0) {
-        await ReturSJInterior.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
-        await InvoiceInterior.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
-        await SuratJalanInteriorItem.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
-        await SuratJalanInterior.destroy({ where: { id: sjIntIds }, transaction: t });
-      }
-
+      // SP/INT dihapus sebelum SuratJalanInterior karena ada FK surat_jalan_interior_id
       const spIntIds = (await SuratPengantarInterior.findAll({
         where: { penjualan_interior_id: interiorIds }, attributes: ['id'], transaction: t,
       })).map(r => r.id);
       if (spIntIds.length > 0) {
         await SuratPengantarInteriorItem.destroy({ where: { surat_pengantar_interior_id: spIntIds }, transaction: t });
         await SuratPengantarInterior.destroy({ where: { id: spIntIds }, transaction: t });
+      }
+
+      if (sjIntIds.length > 0) {
+        await ReturSJInterior.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
+        await InvoiceInterior.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
+        await SuratJalanInteriorItem.destroy({ where: { surat_jalan_interior_id: sjIntIds }, transaction: t });
+        await SuratJalanInterior.destroy({ where: { id: sjIntIds }, transaction: t });
       }
 
       await PembayaranInterior.destroy({ where: { penjualan_interior_id: interiorIds }, transaction: t });
