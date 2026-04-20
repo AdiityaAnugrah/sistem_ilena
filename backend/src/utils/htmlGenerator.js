@@ -1187,6 +1187,11 @@ const generateHTMLSuratPengantarInterior = (sp) => {
                 <p class="m-0" style="font-weight:500;">Kepada Yth.</p>
                 <p class="m-0 to-name">${penjualan.nama_customer || '-'}</p>
                 ${penjualan.nama_pt_npwp ? `<p class="m-0 mt-1" style="font-size:11px;color:var(--muted);">${penjualan.nama_pt_npwp}</p>` : ''}
+                ${(() => {
+                  const parts = [penjualan.alamat_detail, penjualan.alamatKelurahan?.label, penjualan.alamatKecamatan?.label, penjualan.alamatKabupaten?.label, penjualan.alamatProvinsi?.label].filter(Boolean);
+                  const kodePos = penjualan.alamat_kode_pos ? ` ${penjualan.alamat_kode_pos}` : '';
+                  return parts.length ? `<p class="m-0 mt-1" style="font-size:11px;color:var(--muted);">${parts.join(', ')}${kodePos}</p>` : '';
+                })()}
             </div>
         </div>
 

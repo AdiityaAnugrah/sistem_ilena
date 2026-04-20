@@ -69,6 +69,12 @@ SuratPengantarSub.belongsTo(PenjualanOfflineItem, { foreignKey: 'penjualan_offli
 
 PenjualanOffline.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
+// PenjualanInterior - Alamat associations
+PenjualanInterior.belongsTo(Provinsi, { foreignKey: 'alamat_provinsi_id', as: 'alamatProvinsi' });
+PenjualanInterior.belongsTo(Kabupaten, { foreignKey: 'alamat_kabupaten_id', as: 'alamatKabupaten' });
+PenjualanInterior.belongsTo(Kecamatan, { foreignKey: 'alamat_kecamatan_id', as: 'alamatKecamatan' });
+PenjualanInterior.belongsTo(Kelurahan, { foreignKey: 'alamat_kelurahan_id', as: 'alamatKelurahan' });
+
 // PenjualanInterior associations
 PenjualanInterior.hasMany(PenjualanInteriorItem, { foreignKey: 'penjualan_interior_id', as: 'items' });
 PenjualanInteriorItem.belongsTo(PenjualanInterior, { foreignKey: 'penjualan_interior_id', as: 'penjualan' });

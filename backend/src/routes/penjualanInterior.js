@@ -6,6 +6,7 @@ const {
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior,
   ReturSJInterior, LogActivity,
   SuratPengantarInterior, SuratPengantarInteriorItem,
+  Provinsi, Kabupaten, Kecamatan, Kelurahan,
 } = require('../models');
 const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
@@ -16,6 +17,10 @@ const router = express.Router();
 
 const fullInclude = [
   { model: PenjualanInteriorItem, as: 'items' },
+  { model: Provinsi, as: 'alamatProvinsi' },
+  { model: Kabupaten, as: 'alamatKabupaten' },
+  { model: Kecamatan, as: 'alamatKecamatan' },
+  { model: Kelurahan, as: 'alamatKelurahan' },
   { model: ProformaInvoice, as: 'proformas' },
   { model: PembayaranInterior, as: 'pembayarans' },
   {
@@ -35,6 +40,8 @@ router.post('/', authenticate, async (req, res) => {
     const {
       faktur, no_po, nama_customer, nama_pt_npwp, no_hp, no_npwp,
       pakai_ppn, ppn_persen, tanggal, items,
+      alamat_provinsi_id, alamat_kabupaten_id, alamat_kecamatan_id, alamat_kelurahan_id,
+      alamat_detail, alamat_kode_pos,
     } = req.body;
 
     if (!items || items.length === 0) {
@@ -46,6 +53,12 @@ router.post('/', authenticate, async (req, res) => {
       pakai_ppn: pakai_ppn ? 1 : 0,
       ppn_persen: pakai_ppn ? ppn_persen : null,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
+      alamat_provinsi_id: alamat_provinsi_id || null,
+      alamat_kabupaten_id: alamat_kabupaten_id || null,
+      alamat_kecamatan_id: alamat_kecamatan_id || null,
+      alamat_kelurahan_id: alamat_kelurahan_id || null,
+      alamat_detail: alamat_detail || null,
+      alamat_kode_pos: alamat_kode_pos || null,
       status: 'ACTIVE',
       is_test: req.user.role === 'TEST' ? 1 : 0,
       created_by: req.user.id,

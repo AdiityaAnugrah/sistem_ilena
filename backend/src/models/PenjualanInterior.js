@@ -13,6 +13,12 @@ const PenjualanInterior = sequelize.define('penjualan_interior', {
   ppn_persen: { type: DataTypes.ENUM('10', '11'), defaultValue: null },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   status: { type: DataTypes.ENUM('DRAFT', 'ACTIVE', 'COMPLETED'), defaultValue: 'DRAFT' },
+  alamat_provinsi_id: { type: DataTypes.INTEGER, defaultValue: null },
+  alamat_kabupaten_id: { type: DataTypes.INTEGER, defaultValue: null },
+  alamat_kecamatan_id: { type: DataTypes.INTEGER, defaultValue: null },
+  alamat_kelurahan_id: { type: DataTypes.INTEGER, defaultValue: null },
+  alamat_detail: { type: DataTypes.TEXT, defaultValue: null },
+  alamat_kode_pos: { type: DataTypes.STRING(10), defaultValue: null },
   is_test: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 0 },
   created_by: { type: DataTypes.INTEGER },
 }, {

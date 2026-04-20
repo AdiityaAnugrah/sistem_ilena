@@ -314,9 +314,18 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
 // GET /api/dokumen/sp-interior/:id/print
 router.get('/sp-interior/:id/print', authenticate, async (req, res) => {
   try {
+    const { Provinsi: P, Kabupaten: Kab, Kecamatan: Kec, Kelurahan: Kel } = require('../models');
     const sp = await SuratPengantarInterior.findByPk(req.params.id, {
       include: [
-        { model: PenjualanInterior, as: 'penjualan' },
+        {
+          model: PenjualanInterior, as: 'penjualan',
+          include: [
+            { model: P, as: 'alamatProvinsi' },
+            { model: Kab, as: 'alamatKabupaten' },
+            { model: Kec, as: 'alamatKecamatan' },
+            { model: Kel, as: 'alamatKelurahan' },
+          ],
+        },
         { model: SuratPengantarInteriorItem, as: 'items' },
       ],
     });

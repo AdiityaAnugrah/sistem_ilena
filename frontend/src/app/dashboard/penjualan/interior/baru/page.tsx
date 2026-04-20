@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatRupiah } from '@/lib/utils';
-import { Trash2, Plus, LayoutPanelTop, User, ClipboardList, Wallet2 } from 'lucide-react';
+import { Trash2, Plus, LayoutPanelTop, User, ClipboardList, Wallet2, MapPin } from 'lucide-react';
 import TutorialVideoModal from '@/components/TutorialVideoModal';
+import AlamatForm from '@/components/forms/AlamatForm';
 
 export default function PenjualanInteriorBaru() {
   const router = useRouter();
@@ -19,6 +20,14 @@ export default function PenjualanInteriorBaru() {
   const [ppnPersen, setPpnPersen] = useState<'10' | '11'>('11');
   const [items, setItems] = useState<any[]>([{ kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const [loading, setLoading] = useState(false);
+  const [alamat, setAlamat] = useState({
+    provinsi_id: null as number | null,
+    kabupaten_id: null as number | null,
+    kecamatan_id: null as number | null,
+    kelurahan_id: null as number | null,
+    detail: '',
+    kode_pos: '',
+  });
   const [tutorial, setTutorial] = useState<{ youtube_url: string; start_second: number; end_second: number | null } | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
 
@@ -57,6 +66,12 @@ export default function PenjualanInteriorBaru() {
         pakai_ppn: pakaiPPN,
         ppn_persen: pakaiPPN ? ppnPersen : null,
         tanggal: formData.tanggal,
+        alamat_provinsi_id: alamat.provinsi_id,
+        alamat_kabupaten_id: alamat.kabupaten_id,
+        alamat_kecamatan_id: alamat.kecamatan_id,
+        alamat_kelurahan_id: alamat.kelurahan_id,
+        alamat_detail: alamat.detail || null,
+        alamat_kode_pos: alamat.kode_pos || null,
         items: validItems,
       };
       const res = await api.post('/penjualan-interior', payload);
@@ -233,6 +248,21 @@ export default function PenjualanInteriorBaru() {
                 className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Alamat Pengiriman */}
+        <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
+          <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-600">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <CardTitle className="text-sm lg:text-base font-semibold text-slate-800 tracking-tight">Alamat Pengiriman</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <AlamatForm label="" value={alamat} onChange={setAlamat} />
           </CardContent>
         </Card>
 
