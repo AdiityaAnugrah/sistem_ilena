@@ -209,8 +209,7 @@ export default function LogActivityPage() {
             </TableBody>
           </Table>
         </TableContainer>
-
-        {/* Footer / Pagination */}
+        
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(248, 250, 252, 0.5)' }}>
           <Typography variant="caption" color="text.secondary">Halaman {page} dari {totalPages}</Typography>
           <Pagination 
