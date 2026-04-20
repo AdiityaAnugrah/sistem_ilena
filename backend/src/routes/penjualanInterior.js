@@ -324,7 +324,6 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     });
     if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan atau bukan milik penjualan ini' }); }
 
-    const spItems = [];
     for (const item of items) {
       const { penjualan_interior_item_id, qty_retur } = item;
 
@@ -346,8 +345,6 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         return res.status(400).json({ message: 'Qty retur melebihi qty kirim pada SJ ini' });
       }
 
-      const pjItem = await PenjualanInteriorItem.findByPk(penjualan_interior_item_id, { transaction: t });
-
       await ReturSJInterior.create({
         surat_jalan_interior_id,
         penjualan_interior_item_id,
@@ -362,11 +359,48 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         where: { id: penjualan_interior_item_id },
         transaction: t,
       });
-
-      spItems.push({ penjualan_interior_item_id, kode_barang: pjItem?.kode_barang || null, nama_barang: pjItem?.nama_barang || '-', qty: qty_retur });
     }
 
-    // Auto-buat Surat Pengantar Interior
+    await t.commit();
+
+    await logAction(req.user.id, 'CATAT_RETUR_SJ_INTERIOR',
+      `Retur SJ #${surat_jalan_interior_id} untuk Penjualan Interior #${req.params.id}`, req.ip);
+    res.status(201).json({ message: 'Retur berhasil dicatat' });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/penjualan-interior/:id/sp-from-retur
+router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const penjualan = await PenjualanInterior.findByPk(req.params.id, { transaction: t });
+    if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
+
+    const { surat_jalan_interior_id, tanggal, keterangan } = req.body;
+    if (!tanggal) { await t.rollback(); return res.status(400).json({ message: 'Tanggal wajib diisi' }); }
+
+    const sj = await SuratJalanInterior.findOne({
+      where: { id: surat_jalan_interior_id, penjualan_interior_id: req.params.id },
+      transaction: t,
+    });
+    if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan' }); }
+
+    const returs = await ReturSJInterior.findAll({
+      where: { surat_jalan_interior_id },
+      transaction: t,
+    });
+    if (!returs.length) { await t.rollback(); return res.status(400).json({ message: 'Tidak ada data retur untuk SJ ini' }); }
+
+    // Aggregate qty retur per item
+    const itemMap = {};
+    for (const r of returs) {
+      const k = r.penjualan_interior_item_id;
+      itemMap[k] = (itemMap[k] || 0) + r.qty_retur;
+    }
+
     const isTest = penjualan.is_test === 1;
     const nomorSP = await generateNomorSPInt(tanggal, isTest);
     const sp = await SuratPengantarInterior.create({
@@ -374,25 +408,32 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
       tanggal,
       penjualan_interior_id: req.params.id,
       surat_jalan_interior_id,
-      catatan: catatan || null,
+      catatan: keterangan || null,
       created_by: req.user.id,
     }, { transaction: t });
 
-    for (const si of spItems) {
+    for (const [penjualan_interior_item_id, qty] of Object.entries(itemMap)) {
+      const pjItem = await PenjualanInteriorItem.findByPk(penjualan_interior_item_id, { transaction: t });
       await SuratPengantarInteriorItem.create({
         surat_pengantar_interior_id: sp.id,
-        penjualan_interior_item_id: si.penjualan_interior_item_id,
-        kode_barang: si.kode_barang,
-        nama_barang: si.nama_barang,
-        qty: si.qty,
+        penjualan_interior_item_id: Number(penjualan_interior_item_id),
+        kode_barang: pjItem?.kode_barang || null,
+        nama_barang: pjItem?.nama_barang || '-',
+        qty,
       }, { transaction: t });
+
+      // Barang dikembalikan ke customer → sudah_kirim naik kembali
+      await PenjualanInteriorItem.increment('sudah_kirim', {
+        by: qty,
+        where: { id: Number(penjualan_interior_item_id) },
+        transaction: t,
+      });
     }
 
     await t.commit();
-
-    await logAction(req.user.id, 'CATAT_RETUR_SJ_INTERIOR',
-      `Retur SJ #${surat_jalan_interior_id} → SP/INT ${nomorSP} untuk Penjualan Interior #${req.params.id}`, req.ip);
-    res.status(201).json({ message: 'Retur berhasil dicatat', nomor_sp: nomorSP });
+    await logAction(req.user.id, 'BUAT_SP_INTERIOR_RETUR',
+      `SP/INT ${nomorSP} dari retur SJ #${surat_jalan_interior_id}`, req.ip);
+    res.status(201).json({ message: 'Surat Pengantar Interior berhasil dibuat', nomor_sp: nomorSP });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Server error', error: err.message });

@@ -236,6 +236,11 @@ export default function PenjualanInteriorDetail() {
   }>({ tanggal: new Date().toISOString().split('T')[0], catatan: '', items: [] });
   const [returLoading, setReturLoading] = useState(false);
 
+  // SP dari Retur state
+  const [spReturModal, setSpReturModal] = useState<{ open: boolean; sjId: number | null }>({ open: false, sjId: null });
+  const [spReturForm, setSpReturForm] = useState({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
+  const [spReturLoading, setSpReturLoading] = useState(false);
+
   const fetchData = async () => {
     try {
       const res = await api.get(`/penjualan-interior/${id}`);
@@ -366,8 +371,9 @@ export default function PenjualanInteriorDetail() {
     }
     setReturLoading(true);
     try {
+      const sjId = returModal.sj?.id;
       await api.post(`/penjualan-interior/${id}/retur-sj`, {
-        surat_jalan_interior_id: returModal.sj?.id,
+        surat_jalan_interior_id: sjId,
         tanggal: returForm.tanggal,
         catatan: returForm.catatan,
         items: returForm.items
@@ -377,10 +383,32 @@ export default function PenjualanInteriorDetail() {
       toast.success('Retur berhasil dicatat!');
       setReturModal({ open: false, sj: null });
       fetchData();
+      // Buka modal SP Interior
+      setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
+      setSpReturModal({ open: true, sjId: sjId ?? null });
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menyimpan retur');
     } finally {
       setReturLoading(false);
+    }
+  };
+
+  const handleSubmitSpFromRetur = async () => {
+    if (!spReturForm.tanggal) { toast.error('Tanggal wajib diisi'); return; }
+    setSpReturLoading(true);
+    try {
+      const res = await api.post(`/penjualan-interior/${id}/sp-from-retur`, {
+        surat_jalan_interior_id: spReturModal.sjId,
+        tanggal: spReturForm.tanggal,
+        keterangan: spReturForm.keterangan,
+      });
+      toast.success(`Surat Pengantar ${res.data.nomor_sp} berhasil dibuat!`);
+      setSpReturModal({ open: false, sjId: null });
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal membuat Surat Pengantar');
+    } finally {
+      setSpReturLoading(false);
     }
   };
 
@@ -1152,6 +1180,33 @@ export default function PenjualanInteriorDetail() {
           </div>
         </div>
         <ModalFooter onClose={() => setReturModal({ open: false, sj: null })} onSubmit={handleSubmitRetur} loading={returLoading} label="Simpan Retur" />
+      </ModalWrapper>
+
+      {/* ── Modal SP dari Retur ── */}
+      <ModalWrapper show={spReturModal.open} onClose={() => setSpReturModal({ open: false, sjId: null })}>
+        <ModalHeader icon={FileText} title="Buat Surat Pengantar" sub="Isi data pengiriman kembali barang retur ke customer" />
+        <div className="space-y-4">
+          <ModalInput
+            label="Tanggal Pengiriman *"
+            type="date"
+            value={spReturForm.tanggal}
+            onChange={(e: any) => setSpReturForm(prev => ({ ...prev, tanggal: e.target.value }))}
+          />
+          <div>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Keterangan (opsional)</label>
+            <textarea
+              value={spReturForm.keterangan}
+              onChange={e => setSpReturForm(prev => ({ ...prev, keterangan: e.target.value }))}
+              rows={3}
+              placeholder="Keterangan pengiriman kembali..."
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
+              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #0369a1'}
+              onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+            />
+          </div>
+        </div>
+        <ModalFooter onClose={() => setSpReturModal({ open: false, sjId: null })} onSubmit={handleSubmitSpFromRetur} loading={spReturLoading} label="Buat Surat Pengantar" />
       </ModalWrapper>
 
       {/* Warning Modal Identitas */}
