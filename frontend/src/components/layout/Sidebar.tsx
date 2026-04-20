@@ -86,8 +86,6 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         borderRight: '1px solid rgba(255,255,255,0.06)',
         flexShrink: 0,
       }}>
-
-        {/* Logo */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
