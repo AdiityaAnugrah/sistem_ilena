@@ -69,14 +69,21 @@ jobs:
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$WEBHOOK_URL")
           echo "GET HTTP code: $HTTP_CODE"
 
-          # Kirim POST — gunakan --post302 agar method POST tetap saat redirect
+          # Debug: lihat redirect chain dari POST (tanpa follow redirect dulu)
+          echo "=== POST response tanpa redirect ==="
+          FIRST_RESPONSE=$(curl -s -D - --max-redirs 0 \
+            -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "$PAYLOAD" 2>&1 | head -30)
+          echo "$FIRST_RESPONSE"
+
+          # POST dengan follow redirect
           RESPONSE=$(curl -s -L --post302 \
             -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "$PAYLOAD")
-          HTTP_POST=$(echo "$RESPONSE" | grep -o "===HTTP_CODE:[0-9]*===" | grep -o "[0-9]*" || echo "unknown")
-          echo "POST HTTP code: $HTTP_POST"
 
           echo "Response: $RESPONSE"
 
