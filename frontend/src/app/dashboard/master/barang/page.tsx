@@ -126,12 +126,6 @@ export default function MasterBarangPage() {
       setBarangs(res.data.data);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
-      
-      const cats: string[] = res.data.data.map((b: Barang) => b.kategori).filter(Boolean);
-      setKategoriList(prev => {
-        const merged = Array.from(new Set([...prev, ...cats])).sort();
-        return merged;
-      });
     } catch {
       toast.error('Gagal mengambil data produk');
     } finally {
@@ -139,7 +133,15 @@ export default function MasterBarangPage() {
     }
   };
 
+  const fetchKategori = async () => {
+    try {
+      const res = await api.get('/barang/kategori');
+      setKategoriList(res.data);
+    } catch { /* abaikan */ }
+  };
+
   useEffect(() => { fetchBarangs(); }, [page, limit]);
+  useEffect(() => { fetchKategori(); }, []);
 
   const applyFilters = () => {
     setPage(1);

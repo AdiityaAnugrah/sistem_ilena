@@ -34,6 +34,22 @@ async function mergeHargaIlena(rows) {
 }
 
 // GET /api/barang
+// GET /api/barang/kategori - semua kategori unik
+router.get('/kategori', authenticate, async (req, res) => {
+  try {
+    const M = getModel(req);
+    const rows = await M.findAll({
+      attributes: [[require('sequelize').fn('DISTINCT', require('sequelize').col('kategori')), 'kategori']],
+      where: { kategori: { [Op.ne]: '' } },
+      raw: true,
+    });
+    const list = rows.map(r => r.kategori).filter(Boolean).sort();
+    return res.json(list);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 router.get('/', authenticate, async (req, res) => {
   try {
     const M = getModel(req);
