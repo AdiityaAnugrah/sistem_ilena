@@ -1739,7 +1739,12 @@ const generateHTMLProforma = (inv) => {
         <div class="d-flex justify-content-start mt-3 mb-4 flex-column">
             <p class="m-0 nt" style="font-size:12px;">Kepada Yth.</p>
             <p class="m-0 tw-bold-italic" style="font-size:12px;">${penjualan.nama_customer || '-'}</p>
-            ${penjualan.nama_pt_npwp ? `<p class="m-0" style="font-size:12px;">${penjualan.nama_pt_npwp}</p>` : ''}
+            ${penjualan.nama_pt_npwp ? `<p class="m-0" style="font-size:12px;color:#475569;">${penjualan.nama_pt_npwp}</p>` : ''}
+            ${(() => {
+              const parts = [penjualan.alamat_detail, penjualan.alamatKelurahan?.label, penjualan.alamatKecamatan?.label, penjualan.alamatKabupaten?.label, penjualan.alamatProvinsi?.label].filter(Boolean);
+              const kodePos = penjualan.alamat_kode_pos ? ` ${penjualan.alamat_kode_pos}` : '';
+              return parts.length ? `<p class="m-0" style="font-size:11px;color:#64748b;">${parts.join(', ')}${kodePos}</p>` : '';
+            })()}
             ${npwpRow}
         </div>
 
@@ -1781,14 +1786,14 @@ const generateHTMLProforma = (inv) => {
         </div>
 
         <!-- Footer -->
-        <div class="d-flex justify-content-between mt-4 mb-3">
-            <div class="d-flex flex-column kotak-pembayaran">
+        <div class="d-flex justify-content-between align-items-start mt-4 mb-3 gap-4">
+            <div class="kotak-pembayaran" style="flex:1;max-width:340px;">
                 <p class="m-0" style="font-size:12px;">
-                    Pembayaran mohon dapat ditransfer ke rekening: <br>
-                    <b style="font-size:12px;color:#ef4444;">${bankInfo}</b>
+                    Pembayaran mohon dapat ditransfer ke rekening:
                 </p>
+                <p class="m-0 mt-1" style="font-size:12px;font-weight:700;color:#ef4444;">${bankInfo}</p>
             </div>
-            <div class="d-flex flex-column align-items-center" style="width:200px;font-size:12px;">
+            <div class="d-flex flex-column align-items-center" style="width:180px;font-size:12px;flex-shrink:0;">
                 Bagian Keuangan <br><br><br><br><br>
                 <p class="tw-bold-italic" style="font-size:12px;">Amaroh U'un Setiawan</p>
             </div>

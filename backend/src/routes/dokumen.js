@@ -174,6 +174,10 @@ router.get('/proforma/:id/print', authenticate, async (req, res) => {
           { model: PenjualanInteriorItem, as: 'items' },
           { model: PembayaranInterior, as: 'pembayarans' },
           { model: ProformaInvoice, as: 'proformas', attributes: ['id', 'terms', 'created_at'] },
+          { model: Provinsi, as: 'alamatProvinsi' },
+          { model: Kabupaten, as: 'alamatKabupaten' },
+          { model: Kecamatan, as: 'alamatKecamatan' },
+          { model: Kelurahan, as: 'alamatKelurahan' },
         ],
       }],
     });
