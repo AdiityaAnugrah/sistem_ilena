@@ -424,7 +424,14 @@ export default function MasterBarangPage() {
                         {parseDimensi(b.deskripsi)}
                       </Typography>
                     </TableCell>
-                    <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatRupiah(b.harga)}</Typography></TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatRupiah(b.harga)}</Typography>
+                      {b.harga_ilena != null && (
+                        <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 600, display: 'block', mt: 0.3 }}>
+                          HPP: {formatRupiah(b.harga_ilena)}
+                        </Typography>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {b.diskon ? <Chip label={`${b.diskon}%`} color="success" size="small" sx={{ fontWeight: 700, borderRadius: '6px' }} /> : '-'}
                     </TableCell>
