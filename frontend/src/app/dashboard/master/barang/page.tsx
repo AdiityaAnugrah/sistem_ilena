@@ -525,7 +525,7 @@ export default function MasterBarangPage() {
                   <TextField fullWidth label="Harga Sistem Ilena (Rp)" type="number" size="small" value={form.harga_ilena} onChange={e => f('harga_ilena', e.target.value)} placeholder="Sama dengan harga" slotProps={{ input: { startAdornment: <InputAdornment position="start"><DollarSign size={16} /></InputAdornment> } }} helperText="Kosongkan = pakai harga normal" />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
-                  <TextField fullWidth label="Diskon (%)" type="number" size="small" value={form.diskon} onChange={e => f('diskon', e.target.value)} />
+                  <TextField fullWidth label="Diskon (%)" type="number" size="small" value={form.diskon} onChange={e => f('diskon', Math.min(100, Math.max(0, Number(e.target.value))))} slotProps={{ htmlInput: { min: 0, max: 100 } }} />
                 </Grid>
                 <Grid size={{ xs: 6, md: 3 }}>
                   <TextField fullWidth label="Rate (0-5)" type="number" size="small" value={form.rate} onChange={e => f('rate', e.target.value)} slotProps={{ htmlInput: { min: 0, max: 5 } }} />
