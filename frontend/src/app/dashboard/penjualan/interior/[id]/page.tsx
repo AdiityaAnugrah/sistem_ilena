@@ -241,14 +241,6 @@ export default function PenjualanInteriorDetail() {
   const [spReturForm, setSpReturForm] = useState({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
   const [spReturLoading, setSpReturLoading] = useState(false);
 
-  // SP umum (pilih SJ + items)
-  const [spModal, setSpModal] = useState(false);
-  const [spSjId, setSpSjId] = useState<number | ''>('');
-  const [spTanggal, setSpTanggal] = useState(new Date().toISOString().split('T')[0]);
-  const [spKeterangan, setSpKeterangan] = useState('');
-  const [spItems, setSpItems] = useState<Record<number, number | ''>>({});
-  const [spLoading, setSpLoading] = useState(false);
-
   const fetchData = async () => {
     try {
       const res = await api.get(`/penjualan-interior/${id}`);
@@ -259,6 +251,7 @@ export default function PenjualanInteriorDetail() {
         if (sisa > 0) initQty[item.id] = sisa;
       });
       setSjItems(initQty);
+      return res.data;
     } catch {
       toast.error('Gagal memuat data');
     } finally {
@@ -391,10 +384,10 @@ export default function PenjualanInteriorDetail() {
       });
       toast.success('Retur berhasil dicatat!');
       setReturModal({ open: false, sj: null });
-      fetchData();
-      // Buka modal SP Interior setelah jeda singkat
+      const freshData = await fetchData();
+      const freshSj = freshData?.suratJalans?.find((s: any) => s.id === sjId) ?? null;
       setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
-      setTimeout(() => setSpReturModal({ open: true, sjId: sjId ?? null, sj: returModal.sj }), 1200);
+      setSpReturModal({ open: true, sjId: sjId ?? null, sj: freshSj });
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menyimpan retur');
     } finally {
@@ -418,44 +411,6 @@ export default function PenjualanInteriorDetail() {
       toast.error(err.response?.data?.message || 'Gagal membuat Surat Pengantar');
     } finally {
       setSpReturLoading(false);
-    }
-  };
-
-  const openSpModal = () => {
-    const firstSj = data?.suratJalans?.[0];
-    setSpSjId(firstSj?.id ?? '');
-    setSpTanggal(new Date().toISOString().split('T')[0]);
-    setSpKeterangan('');
-    setSpItems({});
-    setSpModal(true);
-  };
-
-  const createSP = async () => {
-    if (!spSjId) { toast.error('Pilih Surat Jalan terlebih dahulu'); return; }
-    const hasAny = Object.values(spItems).some(q => Number(q) > 0);
-    if (!hasAny) { toast.error('Minimal 1 item harus memiliki qty > 0'); return; }
-    setSpLoading(true);
-    const sj = data.suratJalans.find((s: any) => s.id === spSjId);
-    const items = (sj?.items || [])
-      .map((sjItem: any) => ({
-        penjualan_interior_item_id: sjItem.penjualan_interior_item_id,
-        qty: Number(spItems[sjItem.penjualan_interior_item_id] || 0),
-      }))
-      .filter((i: any) => i.qty > 0);
-    try {
-      const res = await api.post(`/penjualan-interior/${id}/surat-pengantar`, {
-        surat_jalan_interior_id: spSjId,
-        tanggal: spTanggal,
-        keterangan: spKeterangan,
-        items,
-      });
-      toast.success(`${res.data.nomor_sp} berhasil dibuat!`);
-      setSpModal(false);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal membuat Surat Pengantar');
-    } finally {
-      setSpLoading(false);
     }
   };
 
@@ -661,9 +616,6 @@ export default function PenjualanInteriorDetail() {
             </div>
             <div className="p-4 space-y-2">
               <ActionButton onClick={() => setModal('proforma')} icon={FileText} label="Proforma Invoice" desc="Tagihan awal ke customer" />
-              {data.suratJalans?.length > 0 && (
-                <ActionButton onClick={openSpModal} icon={FilePlus} label="Surat Pengantar" desc="Pilih SJ & barang yang diantar" />
-              )}
               {data.items?.some((i: any) => i.qty - i.sudah_kirim > 0) && (
                 <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Kirim barang ke customer" />
               )}
@@ -1330,92 +1282,6 @@ export default function PenjualanInteriorDetail() {
           </div>
         </div>
         <ModalFooter onClose={() => setSpReturModal({ open: false, sjId: null, sj: null })} onSubmit={handleSubmitSpFromRetur} loading={spReturLoading} label="Buat Surat Pengantar" />
-      </ModalWrapper>
-
-      {/* ── Modal Surat Pengantar Interior ── */}
-      <ModalWrapper show={spModal} onClose={() => setSpModal(false)}>
-        <ModalHeader icon={FilePlus} title="Buat Surat Pengantar" sub="Pilih Surat Jalan & tentukan qty barang" />
-        <div className="space-y-4">
-          {/* Pilih SJ */}
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Surat Jalan</label>
-            <select
-              value={spSjId}
-              onChange={e => {
-                setSpSjId(Number(e.target.value));
-                setSpItems({});
-              }}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
-              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
-              onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
-            >
-              <option value="">-- Pilih Surat Jalan --</option>
-              {(data?.suratJalans || []).map((sj: any) => (
-                <option key={sj.id} value={sj.id}>{sj.nomor_surat} · {formatDate(sj.tanggal)}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Item list dari SJ terpilih */}
-          {spSjId !== '' && (() => {
-            const sj = (data?.suratJalans || []).find((s: any) => s.id === spSjId);
-            if (!sj?.items?.length) return <p className="text-xs text-center py-2" style={{ color: '#94a3b8' }}>Tidak ada item di Surat Jalan ini</p>;
-            return (
-              <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>Qty per Barang</label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {sj.items.map((sjItem: any) => (
-                    <div key={sjItem.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                      <div className="flex-1 min-w-0">
-                        {sjItem.item?.kode_barang && (
-                          <div className="text-xs font-mono" style={{ color: '#94a3b8' }}>{sjItem.item.kode_barang}</div>
-                        )}
-                        <div className="text-xs font-semibold truncate" style={{ color: '#1e293b' }}>{sjItem.item?.nama_barang || '-'}</div>
-                        <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Dikirim: {sjItem.qty_kirim} unit</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs" style={{ color: '#94a3b8' }}>Qty:</span>
-                        <input
-                          type="number" min={0} max={sjItem.qty_kirim}
-                          value={spItems[sjItem.penjualan_interior_item_id] ?? ''}
-                          onChange={e => {
-                            const val = e.target.value === '' ? '' : Math.min(sjItem.qty_kirim, Math.max(0, Number(e.target.value)));
-                            setSpItems(prev => ({ ...prev, [sjItem.penjualan_interior_item_id]: val as number }));
-                          }}
-                          className="w-16 h-8 text-center rounded-lg text-sm outline-none"
-                          style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          <ModalInput label="Tanggal" type="date" value={spTanggal} onChange={(e: any) => setSpTanggal(e.target.value)} />
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Keterangan (opsional)</label>
-            <textarea
-              value={spKeterangan}
-              onChange={e => setSpKeterangan(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
-              style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-              onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
-              onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
-            />
-          </div>
-        </div>
-        <ModalFooter
-          onClose={() => setSpModal(false)}
-          onSubmit={createSP}
-          loading={spLoading}
-          label="Buat Surat Pengantar"
-          disabled={!spSjId || !Object.values(spItems).some(q => Number(q) > 0)}
-        />
       </ModalWrapper>
 
       {/* Warning Modal Identitas */}
