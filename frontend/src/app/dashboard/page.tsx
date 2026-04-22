@@ -11,28 +11,26 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ offline: 0, interior: 0, display: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [offRes, intRes, dispRes] = await Promise.all([
-          api.get('/penjualan-offline?tipe=PENJUALAN&limit=1'),
-          api.get('/penjualan-interior?limit=1'),
-          api.get('/penjualan-offline?tipe=DISPLAY&limit=1'),
-        ]);
-        setStats({
-          offline: offRes.data.total || 0,
-          interior: intRes.data.total || 0,
-          display: dispRes.data.total || 0,
-        });
-      } catch {
-        // ignore
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
+  const fetchStats = async () => {
+    try {
+      const [offRes, intRes, dispRes] = await Promise.all([
+        api.get('/penjualan-offline?tipe=PENJUALAN&limit=1'),
+        api.get('/penjualan-interior?limit=1'),
+        api.get('/penjualan-offline?tipe=DISPLAY&limit=1'),
+      ]);
+      setStats({
+        offline: offRes.data.total || 0,
+        interior: intRes.data.total || 0,
+        display: dispRes.data.total || 0,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => { fetchStats(); }, []);
   useListSync('penjualan-offline-list', fetchStats);
   useListSync('penjualan-interior-list', fetchStats);
 
