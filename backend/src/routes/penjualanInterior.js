@@ -372,6 +372,57 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
   }
 });
 
+// POST /api/penjualan-interior/:id/surat-pengantar
+router.post('/:id/surat-pengantar', authenticate, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const penjualan = await PenjualanInterior.findByPk(req.params.id, { transaction: t });
+    if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
+
+    const { surat_jalan_interior_id, tanggal, keterangan, items } = req.body;
+    if (!tanggal) { await t.rollback(); return res.status(400).json({ message: 'Tanggal wajib diisi' }); }
+    if (!surat_jalan_interior_id) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan wajib dipilih' }); }
+    if (!Array.isArray(items) || !items.some(i => Number(i.qty) > 0)) {
+      await t.rollback(); return res.status(400).json({ message: 'Minimal 1 item harus memiliki qty > 0' });
+    }
+
+    const sj = await SuratJalanInterior.findOne({
+      where: { id: surat_jalan_interior_id, penjualan_interior_id: req.params.id },
+      transaction: t,
+    });
+    if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan' }); }
+
+    const isTest = penjualan.is_test === 1;
+    const nomorSP = await generateNomorSPInt(tanggal, isTest);
+    const sp = await SuratPengantarInterior.create({
+      nomor_surat: nomorSP,
+      tanggal,
+      penjualan_interior_id: req.params.id,
+      surat_jalan_interior_id,
+      catatan: keterangan || null,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    for (const item of items.filter(i => Number(i.qty) > 0)) {
+      const pjItem = await PenjualanInteriorItem.findByPk(item.penjualan_interior_item_id, { transaction: t });
+      await SuratPengantarInteriorItem.create({
+        surat_pengantar_interior_id: sp.id,
+        penjualan_interior_item_id: item.penjualan_interior_item_id,
+        kode_barang: pjItem?.kode_barang || null,
+        nama_barang: pjItem?.nama_barang || '-',
+        qty: Number(item.qty),
+      }, { transaction: t });
+    }
+
+    await t.commit();
+    await logAction(req.user.id, 'BUAT_SP_INTERIOR', `SP/INT ${nomorSP} dari SJ #${surat_jalan_interior_id}`, req.ip);
+    res.status(201).json({ message: 'Surat Pengantar Interior berhasil dibuat', nomor_sp: nomorSP });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // POST /api/penjualan-interior/:id/sp-from-retur
 router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
   const t = await sequelize.transaction();
