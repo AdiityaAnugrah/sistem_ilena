@@ -120,24 +120,33 @@ export default function PenjualanInteriorPage() {
           <Table sx={{ minWidth: 800 }}>
             <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
               <TableRow>
-                {['Tanggal', 'No. PO', 'Nama Customer', 'No. HP', 'Faktur', 'Status', 'Aksi'].map(h => (
+                {['Tanggal', 'No. PO', 'Nama Customer', 'Status Pajak', 'Status', 'Aksi'].map(h => (
                   <TableCell key={h} sx={{ fontWeight: 700, p: 2, fontSize: '0.7rem', textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
                 ))}
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={7} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
               ) : data.length === 0 ? (
-                <TableRow><TableCell colSpan={7} align="center" sx={{ py: 10 }}>Tidak ada data.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}>Tidak ada data.</TableCell></TableRow>
               ) : data.map((row: any) => (
                 <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
                   <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
                   <TableCell><Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.disabled' }}>{row.no_po || '-'}</Typography></TableCell>
                   <TableCell><Typography variant="body2" sx={{ fontWeight: 800 }}>{row.nama_customer}</Typography></TableCell>
-                  <TableCell><Typography variant="caption" color="text.secondary">{row.no_hp || '-'}</Typography></TableCell>
                   <TableCell>
-                    <Chip label={row.faktur === 'FAKTUR' ? 'Faktur' : 'Non-Fak'} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />
+                    <Chip
+                      label={row.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontWeight: 700, fontSize: '10px', borderRadius: '4px',
+                        ...(row.faktur === 'FAKTUR'
+                          ? { borderColor: '#6366f1', color: '#6366f1', bgcolor: '#eef2ff' }
+                          : { borderColor: '#94a3b8', color: '#64748b', bgcolor: '#f8fafc' }),
+                      }}
+                    />
                   </TableCell>
                   <TableCell>
                     <Chip label={STATUS_CONFIG[row.status]?.label || row.status} size="small" color={STATUS_CONFIG[row.status]?.color || 'default'} sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }} />

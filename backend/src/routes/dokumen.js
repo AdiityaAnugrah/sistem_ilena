@@ -4,7 +4,7 @@ const {
   PenjualanOffline, PenjualanOfflineItem, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
-  SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
+  SuratJalanInterior, SuratJalanInteriorItem,
   InvoiceInterior, SuratPengantarInterior, SuratPengantarInteriorItem,
 } = require('../models');
 
@@ -288,7 +288,7 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
       sjIds = [data.surat_jalan_interior_id];
     }
 
-    // Load all referenced SJs with retur
+    // Load all referenced SJs
     const suratJalans = await SuratJalanInterior.findAll({
       where: { id: sjIds },
       include: [
@@ -296,38 +296,25 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
           model: SuratJalanInteriorItem, as: 'items',
           include: [{ model: PenjualanInteriorItem, as: 'item' }],
         },
-        { model: ReturSJInterior, as: 'returs' },
       ],
     });
-
-    // Build retur map: penjualan_interior_item_id -> total qty retur
-    const returMap = {};
-    for (const sj of suratJalans) {
-      for (const r of (sj.returs || [])) {
-        const k = r.penjualan_interior_item_id;
-        returMap[k] = (returMap[k] || 0) + r.qty_retur;
-      }
-    }
 
     // PPN dari penjualan interior
     const ppnPersen = data.penjualan.pakai_ppn && data.penjualan.ppn_persen
       ? parseInt(data.penjualan.ppn_persen) : 0;
 
-    // Merge items from all SJs, kurangi retur, hitung subtotal inc PPN
+    // Merge items dari semua SJ — qty_kirim penuh (retur tidak dikurangi di invoice)
     let invoiceItems = suratJalans.flatMap(sj =>
       (sj.items || []).map(i => {
-        const returQty = returMap[i.penjualan_interior_item_id] || 0;
-        const netQty = i.qty_kirim - returQty;
-        if (netQty <= 0) return null;
         const hargaBase = parseFloat(i.item?.harga_satuan || 0);
         const hargaInc = ppnPersen > 0 ? Math.round(hargaBase * (1 + ppnPersen / 100)) : hargaBase;
         return {
           barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang },
-          qty: netQty,
+          qty: i.qty_kirim,
           harga_satuan: hargaInc,
-          subtotal: hargaInc * netQty,
+          subtotal: hargaInc * i.qty_kirim,
         };
-      }).filter(Boolean)
+      })
     );
 
     // Fallback: jika tidak ada item dari SJ (misal SJ belum punya item), ambil langsung dari penjualan

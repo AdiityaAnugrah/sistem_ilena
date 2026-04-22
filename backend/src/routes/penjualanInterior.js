@@ -26,7 +26,7 @@ const fullInclude = [
   {
     model: SuratJalanInterior, as: 'suratJalans',
     include: [
-      { model: SuratJalanInteriorItem, as: 'items' },
+      { model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] },
       { model: ReturSJInterior, as: 'returs' },
     ],
   },

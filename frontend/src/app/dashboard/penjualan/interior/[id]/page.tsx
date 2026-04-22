@@ -39,7 +39,7 @@ interface SuratJalanInteriorData {
     id: number;
     penjualan_interior_item_id: number;
     qty_kirim: number;
-    item?: { nama_barang: string };
+    item?: { nama_barang: string; kode_barang?: string };
   }>;
   returs?: ReturItem[];
 }
@@ -232,12 +232,12 @@ export default function PenjualanInteriorDetail() {
   const [returForm, setReturForm] = useState<{
     tanggal: string;
     catatan: string;
-    items: Array<{ penjualan_interior_item_id: number; nama_barang: string; qty_kirim: number; qty_retur: number | '' }>;
+    items: Array<{ penjualan_interior_item_id: number; kode_barang: string; nama_barang: string; qty_kirim: number; qty_retur: number | '' }>;
   }>({ tanggal: new Date().toISOString().split('T')[0], catatan: '', items: [] });
   const [returLoading, setReturLoading] = useState(false);
 
   // SP dari Retur state
-  const [spReturModal, setSpReturModal] = useState<{ open: boolean; sjId: number | null }>({ open: false, sjId: null });
+  const [spReturModal, setSpReturModal] = useState<{ open: boolean; sjId: number | null; sj: SuratJalanInteriorData | null }>({ open: false, sjId: null, sj: null });
   const [spReturForm, setSpReturForm] = useState({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
   const [spReturLoading, setSpReturLoading] = useState(false);
 
@@ -352,6 +352,7 @@ export default function PenjualanInteriorDetail() {
       catatan: '',
       items: sj.items.map((sjItem: any) => ({
         penjualan_interior_item_id: sjItem.penjualan_interior_item_id,
+        kode_barang: sjItem.item?.kode_barang || '',
         nama_barang: sjItem.item?.nama_barang || '',
         qty_kirim: sjItem.qty_kirim,
         qty_retur: '',
@@ -385,7 +386,7 @@ export default function PenjualanInteriorDetail() {
       fetchData();
       // Buka modal SP Interior setelah jeda singkat
       setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
-      setTimeout(() => setSpReturModal({ open: true, sjId: sjId ?? null }), 1200);
+      setTimeout(() => setSpReturModal({ open: true, sjId: sjId ?? null, sj: returModal.sj }), 1200);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menyimpan retur');
     } finally {
@@ -403,7 +404,7 @@ export default function PenjualanInteriorDetail() {
         keterangan: spReturForm.keterangan,
       });
       toast.success(`Surat Pengantar ${res.data.nomor_sp} berhasil dibuat!`);
-      setSpReturModal({ open: false, sjId: null });
+      setSpReturModal({ open: false, sjId: null, sj: null });
       fetchData();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal membuat Surat Pengantar');
@@ -503,26 +504,44 @@ export default function PenjualanInteriorDetail() {
         </span>
       </div>
 
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+          <div className="text-xs font-medium mb-1" style={{ color: '#94a3b8' }}>Total Pesanan</div>
+          <div className="text-base font-black" style={{ color: '#1e293b' }}>{formatRupiah(grandTotal)}</div>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+          <div className="text-xs font-medium mb-1" style={{ color: '#6ee7b7' }}>Total Terbayar</div>
+          <div className="text-base font-black" style={{ color: '#059669' }}>{formatRupiah(totalBayar)}</div>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: sisa > 0 ? '#fff7ed' : '#ecfdf5', border: `1px solid ${sisa > 0 ? '#fed7aa' : '#a7f3d0'}`, boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+          <div className="text-xs font-medium mb-1" style={{ color: sisa > 0 ? '#f97316' : '#6ee7b7' }}>Sisa Tagihan</div>
+          <div className="text-base font-black" style={{ color: sisa > 0 ? '#c2410c' : '#059669' }}>{formatRupiah(sisa)}</div>
+        </div>
+      </div>
+
+      {/* 2-column desktop layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Left panel */}
+        {/* ── LEFT: Customer Info + Daftar Barang ── */}
         <div className="lg:col-span-2 space-y-5">
-          {/* Customer info */}
-          <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Identitas Customer</h2>
+          {/* Informasi Customer */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4" style={{ color: '#94a3b8' }} />
+                <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Informasi Customer</h2>
+              </div>
               {canEditIdentitas && (
-                <button
-                  onClick={openIdentitasModal}
+                <button onClick={openIdentitasModal}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                   style={{ background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fee2e2'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}
-                >
-                  <Pencil className="h-3 w-3" /> Edit Identitas
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}>
+                  <Pencil className="h-3 w-3" /> Edit
                 </button>
               )}
             </div>
-            <div className="space-y-3">
+            <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
               <InfoRow label="Nama Customer" value={data.nama_customer} />
               <InfoRow label="PT / NPWP" value={data.nama_pt_npwp} />
               <InfoRow label="No. HP" value={data.no_hp} />
@@ -532,7 +551,7 @@ export default function PenjualanInteriorDetail() {
             </div>
           </div>
 
-          {/* Produk */}
+          {/* Daftar Barang */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
             <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
               <Package className="h-4 w-4" style={{ color: '#94a3b8' }} />
@@ -585,230 +604,252 @@ export default function PenjualanInteriorDetail() {
               </table>
             </div>
           </div>
-
-          {/* Pembayaran */}
-          {data.pembayarans?.length > 0 && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-              <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <CreditCard className="h-4 w-4" style={{ color: '#94a3b8' }} />
-                <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Riwayat Pembayaran</h2>
-              </div>
-              <table className="w-full">
-                <tbody>
-                  {data.pembayarans.map((p: any, idx: number) => (
-                    <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc', borderBottom: '1px solid #f8fafc' }}>
-                      <td className="px-5 py-3 text-sm" style={{ color: '#64748b' }}>{formatDate(p.tanggal)}</td>
-                      <td className="px-5 py-3">
-                        <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ background: '#f1f5f9', color: '#475569' }}>
-                          {p.tipe.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-sm font-bold text-right" style={{ color: '#059669' }}>{formatRupiah(p.jumlah)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
-                    <td colSpan={2} className="px-5 py-3 text-sm font-bold" style={{ color: '#475569' }}>Total Terbayar</td>
-                    <td className="px-5 py-3 text-right font-black" style={{ color: '#059669' }}>{formatRupiah(totalBayar)}</td>
-                  </tr>
-                  {sisa > 0 && (
-                    <tr style={{ background: '#fef9f0' }}>
-                      <td colSpan={2} className="px-5 py-2.5 text-sm font-semibold" style={{ color: '#92400e' }}>Sisa Tagihan</td>
-                      <td className="px-5 py-2.5 text-right font-black" style={{ color: '#c2410c' }}>{formatRupiah(sisa)}</td>
-                    </tr>
-                  )}
-                </tfoot>
-              </table>
-            </div>
-          )}
         </div>
 
-        {/* Right panel — dokumen */}
+        {/* ── RIGHT: Dokumen Panel ── */}
         <div className="space-y-4">
-          {/* Aksi */}
-          <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-            <h2 className="text-sm font-bold mb-4" style={{ color: '#1e293b' }}>Buat Dokumen</h2>
-            <div className="space-y-2">
-              <ActionButton onClick={() => setModal('proforma')} icon={FileText} label="Proforma Invoice" desc="Tagihan ke customer" />
-              <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Dokumen pengiriman (partial)" />
-              <ActionButton onClick={() => setModal('invoice-interior')} icon={Receipt} label="Invoice Interior" desc="Invoice berdasarkan SJ" />
+          {/* Buat Dokumen */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Buat Dokumen</h2>
+            </div>
+            <div className="p-4 space-y-2">
+              <ActionButton onClick={() => setModal('proforma')} icon={FileText} label="Proforma Invoice" desc="Tagihan awal ke customer" />
+
+              {data.items?.some((i: any) => i.qty - i.sudah_kirim > 0) && (
+                <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Kirim barang ke customer" />
+              )}
+              <ActionButton onClick={() => setModal('invoice-interior')} icon={Receipt} label="Invoice Interior" desc="Tagihan berdasarkan pengiriman" />
             </div>
           </div>
 
-          {/* Proforma list */}
-          {data.proformas?.length > 0 && (
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="h-3.5 w-3.5" style={{ color: '#94a3b8' }} />
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Proforma Invoice</h3>
-              </div>
-              <div className="space-y-2">
-                {data.proformas.map((p: any) => (
-                  <DocItem key={p.id} nomor={p.nomor_proforma} sub={`${formatDate(p.tanggal)} · ${formatRupiah(p.total)}`}
-                    onPrint={() => printDoc('proforma', p.id)}
-                    onAction={() => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setModal('pembayaran'); }}
-                    ActionIcon={CreditCard}
-                    actionLabel="Catat Pembayaran" />
-                ))}
-              </div>
+          {/* Proforma Invoice & Pembayaran */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <FileText className="h-4 w-4" style={{ color: '#94a3b8' }} />
+              <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Proforma & Pembayaran</h2>
             </div>
-          )}
-
-          {/* Surat Jalan list */}
-          {data.suratJalans?.length > 0 && (
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Truck className="h-3.5 w-3.5" style={{ color: '#94a3b8' }} />
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Surat Jalan</h3>
-              </div>
-              <div className="space-y-3">
-                {data.suratJalans.map((sj: any) => (
-                  <div key={sj.id} className="space-y-2">
-                    {/* SJ card with print + retur buttons */}
-                    <div
-                      className="flex items-center justify-between p-3 rounded-xl"
-                      style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}
-                    >
+            <div className="p-4 space-y-3">
+              {(!data.proformas || data.proformas.length === 0) ? (
+                <p className="text-xs text-center py-2" style={{ color: '#94a3b8' }}>Belum ada proforma invoice</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.proformas.map((p: any) => (
+                    <div key={p.id} className="flex items-center justify-between p-3 rounded-xl"
+                      style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                       <div>
-                        <div className="text-xs font-mono font-medium" style={{ color: '#334155' }}>{sj.nomor_surat}</div>
-                        <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(sj.tanggal)}</div>
+                        <div className="text-xs font-mono font-semibold" style={{ color: '#334155' }}>{p.nomor_proforma}</div>
+                        <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(p.tanggal)} · {formatRupiah(p.total)}</div>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => printDoc('surat-jalan-interior', sj.id)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        <button onClick={() => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setModal('pembayaran'); }}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
                           style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                          onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.background = '#fff1f1';
-                            (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
-                            (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
-                          }}
-                          onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.background = '#fff';
-                            (e.currentTarget as HTMLElement).style.color = '#475569';
-                            (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
-                          }}
-                        >
-                          <Printer className="h-3.5 w-3.5" />
-                          Cetak
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; (e.currentTarget as HTMLElement).style.color = '#16a34a'; (e.currentTarget as HTMLElement).style.border = '1px solid #bbf7d0'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                          <CreditCard className="h-3 w-3" /> Bayar
                         </button>
-                        <button
-                          onClick={() => openReturModal(sj)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        <button onClick={() => printDoc('proforma', p.id)}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
                           style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                          onMouseEnter={e => {
-                            (e.currentTarget as HTMLElement).style.background = '#fff7ed';
-                            (e.currentTarget as HTMLElement).style.color = '#c2410c';
-                            (e.currentTarget as HTMLElement).style.border = '1px solid #fed7aa';
-                          }}
-                          onMouseLeave={e => {
-                            (e.currentTarget as HTMLElement).style.background = '#fff';
-                            (e.currentTarget as HTMLElement).style.color = '#475569';
-                            (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
-                          }}
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Retur
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                          <Printer className="h-3 w-3" />
                         </button>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
 
-                    {/* Retur history for this SJ */}
-                    {sj.returs?.length > 0 && (
-                      <div className="ml-2 space-y-1.5">
-                        <div className="text-xs font-semibold uppercase tracking-wider px-1" style={{ color: '#c2410c' }}>
-                          Riwayat Retur
-                        </div>
-                        {sj.returs.map((retur: any) => {
-                          const sjItem = sj.items?.find((i: any) => i.penjualan_interior_item_id === retur.penjualan_interior_item_id);
-                          const namaBarang = sjItem?.item?.nama_barang || '-';
-                          return (
-                            <div
-                              key={retur.id}
-                              className="p-2.5 rounded-lg text-xs"
-                              style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-medium truncate" style={{ color: '#92400e' }}>{namaBarang}</span>
-                                <span className="flex-shrink-0 font-bold px-2 py-0.5 rounded-full" style={{ background: '#fecaca', color: '#be123c' }}>
-                                  -{retur.qty_retur} unit
-                                </span>
-                              </div>
-                              <div className="mt-1" style={{ color: '#b45309' }}>{formatDate(retur.tanggal)}</div>
-                              {retur.catatan && (
-                                <div className="mt-0.5 italic" style={{ color: '#b45309' }}>{retur.catatan}</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+              {data.pembayarans?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider mb-2 pt-2" style={{ color: '#94a3b8', borderTop: '1px solid #f1f5f9' }}>
+                    Riwayat Pembayaran
+                  </div>
+                  <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #f1f5f9' }}>
+                    <table className="w-full">
+                      <tbody>
+                        {data.pembayarans.map((p: any, idx: number) => (
+                          <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc', borderBottom: '1px solid #f8fafc' }}>
+                            <td className="px-3 py-2 text-xs" style={{ color: '#64748b' }}>{formatDate(p.tanggal)}</td>
+                            <td className="px-3 py-2">
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                {p.tipe.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-xs font-bold text-right" style={{ color: '#059669' }}>{formatRupiah(p.jumlah)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
+                          <td colSpan={2} className="px-3 py-2 text-xs font-bold" style={{ color: '#475569' }}>Total Terbayar</td>
+                          <td className="px-3 py-2 text-right font-black text-xs" style={{ color: '#059669' }}>{formatRupiah(totalBayar)}</td>
+                        </tr>
+                        {sisa > 0 && (
+                          <tr style={{ background: '#fef9f0' }}>
+                            <td colSpan={2} className="px-3 py-2 text-xs font-semibold" style={{ color: '#92400e' }}>Sisa Tagihan</td>
+                            <td className="px-3 py-2 text-right font-black text-xs" style={{ color: '#c2410c' }}>{formatRupiah(sisa)}</td>
+                          </tr>
+                        )}
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-                    {/* SP/INT terkait SJ ini */}
-                    {(() => {
-                      const spList: SuratPengantarInteriorData[] = (data.suratPengantars || []).filter(
-                        (sp: SuratPengantarInteriorData) => sp.surat_jalan_interior_id === sj.id
-                      );
-                      if (!spList.length) return null;
-                      return (
-                        <div className="ml-2 space-y-1.5">
-                          <div className="text-xs font-semibold uppercase tracking-wider px-1" style={{ color: '#0369a1' }}>
-                            Surat Pengantar Interior
+          {/* Surat Jalan & Pengiriman */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <Truck className="h-4 w-4" style={{ color: '#94a3b8' }} />
+              <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Surat Jalan</h2>
+            </div>
+            <div className="p-4 space-y-3">
+              {(!data.suratJalans || data.suratJalans.length === 0) ? (
+                <p className="text-xs text-center py-2" style={{ color: '#94a3b8' }}>Belum ada surat jalan</p>
+              ) : (
+                data.suratJalans.map((sj: any) => {
+                  const spList: SuratPengantarInteriorData[] = (data.suratPengantars || []).filter(
+                    (sp: SuratPengantarInteriorData) => sp.surat_jalan_interior_id === sj.id
+                  );
+                  return (
+                    <div key={sj.id} className="rounded-xl overflow-hidden" style={{ border: '1px solid #e2e8f0' }}>
+                      {/* SJ header */}
+                      <div className="flex items-center justify-between px-3 py-2.5" style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                        <div>
+                          <div className="text-xs font-mono font-semibold" style={{ color: '#334155' }}>{sj.nomor_surat}</div>
+                          <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
+                            {formatDate(sj.tanggal)}{sj.catatan ? ` · ${sj.catatan}` : ''}
                           </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => printDoc('surat-jalan-interior', sj.id)}
+                            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                            style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                            <Printer className="h-3 w-3" />
+                          </button>
+                          <button onClick={() => openReturModal(sj)}
+                            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                            style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff7ed'; (e.currentTarget as HTMLElement).style.color = '#c2410c'; (e.currentTarget as HTMLElement).style.border = '1px solid #fed7aa'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                            <RotateCcw className="h-3 w-3" /> Retur
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Item list */}
+                      <div className="px-3 py-2.5 space-y-1">
+                        {(sj.items || []).map((sjItem: any) => (
+                          <div key={sjItem.id} className="flex items-center justify-between text-xs">
+                            <span style={{ color: '#334155' }}>• {sjItem.item?.nama_barang || '-'}</span>
+                            <span className="font-semibold" style={{ color: '#475569' }}>{sjItem.qty_kirim} unit</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Retur history + SP Retur button */}
+                      {sj.returs?.length > 0 && (
+                        <div className="px-3 py-2.5 space-y-2" style={{ background: '#fffbeb', borderTop: '1px solid #fef3c7' }}>
+                          <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#b45309' }}>Riwayat Retur</div>
+                          <div className="space-y-1">
+                            {sj.returs.map((retur: any) => {
+                              const sjItem = sj.items?.find((i: any) => i.penjualan_interior_item_id === retur.penjualan_interior_item_id);
+                              return (
+                                <div key={retur.id} className="flex items-center justify-between text-xs">
+                                  <span style={{ color: '#92400e' }}>
+                                    {sjItem?.item?.nama_barang || '-'}
+                                    {retur.catatan ? <span className="italic ml-1 opacity-70">– {retur.catatan}</span> : null}
+                                  </span>
+                                  <span className="font-bold ml-4 flex-shrink-0" style={{ color: '#be123c' }}>-{retur.qty_retur} unit</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Tombol Buat SP — selalu tampil selama ada retur */}
+                          <ActionButton
+                            onClick={() => {
+                              setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' });
+                              setSpReturModal({ open: true, sjId: sj.id, sj });
+                            }}
+                            icon={FilePlus}
+                            label="Buat Surat Pengantar Retur"
+                            desc={`Antar kembali barang retur dari ${sj.nomor_surat}`}
+                          />
+                        </div>
+                      )}
+
+                      {/* SP list */}
+                      {spList.length > 0 && (
+                        <div className="px-3 py-2.5 space-y-2" style={{ background: '#f0f9ff', borderTop: '1px solid #bae6fd' }}>
+                          <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#0369a1' }}>Surat Pengantar</div>
                           {spList.map((sp: SuratPengantarInteriorData) => (
-                            <div
-                              key={sp.id}
-                              className="p-2.5 rounded-lg text-xs"
-                              style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono font-semibold" style={{ color: '#0c4a6e' }}>{sp.nomor_surat}</span>
-                                <button
-                                  onClick={() => printDoc('sp-interior', sp.id)}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
-                                  style={{ background: '#fff', color: '#0369a1', border: '1px solid #bae6fd' }}
-                                >
-                                  <Printer className="h-3 w-3" /> Cetak
-                                </button>
+                            <div key={sp.id} className="flex items-start justify-between gap-2 text-xs">
+                              <div>
+                                <div className="font-mono font-semibold" style={{ color: '#0c4a6e' }}>{sp.nomor_surat}</div>
+                                <div className="mt-0.5" style={{ color: '#0369a1' }}>{formatDate(sp.tanggal)}</div>
+                                <div className="mt-1 space-y-0.5">
+                                  {sp.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-2" style={{ color: '#075985' }}>
+                                      <span>{item.nama_barang}</span>
+                                      <span className="font-semibold flex-shrink-0">{item.qty} unit</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="mt-1" style={{ color: '#0369a1' }}>{formatDate(sp.tanggal)}</div>
-                              <div className="mt-1 space-y-0.5">
-                                {sp.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between" style={{ color: '#075985' }}>
-                                    <span className="truncate">{item.nama_barang}</span>
-                                    <span className="ml-2 flex-shrink-0 font-semibold">{item.qty} unit</span>
-                                  </div>
-                                ))}
-                              </div>
+                              <button onClick={() => printDoc('sp-interior', sp.id)}
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
+                                style={{ background: '#fff', color: '#0369a1', border: '1px solid #bae6fd' }}>
+                                <Printer className="h-3 w-3" /> Cetak
+                              </button>
                             </div>
                           ))}
                         </div>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Invoice Interior list */}
-          {data.invoices?.length > 0 && (
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Receipt className="h-3.5 w-3.5" style={{ color: '#94a3b8' }} />
-                <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Invoice</h3>
-              </div>
-              <div className="space-y-2">
-                {data.invoices.map((inv: any) => (
-                  <DocItem key={inv.id} nomor={inv.nomor_invoice} sub={formatDate(inv.tanggal)}
-                    onPrint={() => printDoc('invoice-interior', inv.id)} />
-                ))}
-              </div>
+          {/* Invoice Interior */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <Receipt className="h-4 w-4" style={{ color: '#94a3b8' }} />
+              <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Invoice Interior</h2>
             </div>
-          )}
-        </div>
-      </div>
+            <div className="p-4 space-y-2">
+              {(!data.invoices || data.invoices.length === 0) ? (
+                <p className="text-xs text-center py-2" style={{ color: '#94a3b8' }}>Belum ada invoice</p>
+              ) : (
+                data.invoices.map((inv: any) => (
+                  <div key={inv.id} className="flex items-center justify-between p-3 rounded-xl"
+                    style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                    <div>
+                      <div className="text-xs font-mono font-semibold" style={{ color: '#334155' }}>{inv.nomor_invoice}</div>
+                      <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(inv.tanggal)}</div>
+                    </div>
+                    <button onClick={() => printDoc('invoice-interior', inv.id)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                      <Printer className="h-3 w-3" /> Cetak
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>{/* end right column */}
+      </div>{/* end main grid */}
 
       {/* ── Modal Proforma ── */}
       {modal === 'proforma' && (() => {
@@ -1141,6 +1182,9 @@ export default function PenjualanInteriorDetail() {
               {returForm.items.map((item, idx) => (
                 <div key={item.penjualan_interior_item_id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                   <div className="flex-1 min-w-0">
+                    {item.kode_barang && (
+                      <div className="text-xs font-mono mb-0.5" style={{ color: '#94a3b8' }}>{item.kode_barang}</div>
+                    )}
                     <div className="text-xs font-semibold truncate" style={{ color: '#1e293b' }}>{item.nama_barang}</div>
                     <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Qty kirim: {item.qty_kirim}</div>
                   </div>
@@ -1183,9 +1227,40 @@ export default function PenjualanInteriorDetail() {
       </ModalWrapper>
 
       {/* ── Modal SP dari Retur ── */}
-      <ModalWrapper show={spReturModal.open} onClose={() => setSpReturModal({ open: false, sjId: null })}>
-        <ModalHeader icon={FileText} title="Buat Surat Pengantar" sub="Isi data pengiriman kembali barang retur ke customer" />
+      <ModalWrapper show={spReturModal.open} onClose={() => setSpReturModal({ open: false, sjId: null, sj: null })}>
+        <ModalHeader icon={FilePlus} title="Buat Surat Pengantar Retur" sub="Pengiriman kembali barang retur ke customer" />
         <div className="space-y-4">
+          {/* Daftar barang wajib diantar kembali */}
+          {spReturModal.sj && (() => {
+            const returByItemId: Record<number, number> = {};
+            for (const r of (spReturModal.sj.returs || [])) {
+              returByItemId[r.penjualan_interior_item_id] = (returByItemId[r.penjualan_interior_item_id] || 0) + r.qty_retur;
+            }
+            const returItems = Object.entries(returByItemId)
+              .map(([itemId, qty]) => {
+                const sjItem = spReturModal.sj!.items.find(i => i.penjualan_interior_item_id === Number(itemId));
+                return { nama: sjItem?.item?.nama_barang || `Item #${itemId}`, qty };
+              })
+              .filter(i => i.qty > 0);
+            if (!returItems.length) return null;
+            return (
+              <div>
+                <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
+                  Barang Wajib Diantar Kembali
+                </label>
+                <div className="space-y-1.5 p-3 rounded-xl" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                  {returItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs">
+                      <span className="font-medium" style={{ color: '#0c4a6e' }}>{item.nama}</span>
+                      <span className="font-bold px-2 py-0.5 rounded-full" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                        {item.qty} unit
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <ModalInput
             label="Tanggal Pengiriman *"
             type="date"
@@ -1197,7 +1272,7 @@ export default function PenjualanInteriorDetail() {
             <textarea
               value={spReturForm.keterangan}
               onChange={e => setSpReturForm(prev => ({ ...prev, keterangan: e.target.value }))}
-              rows={3}
+              rows={2}
               placeholder="Keterangan pengiriman kembali..."
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
@@ -1206,7 +1281,7 @@ export default function PenjualanInteriorDetail() {
             />
           </div>
         </div>
-        <ModalFooter onClose={() => setSpReturModal({ open: false, sjId: null })} onSubmit={handleSubmitSpFromRetur} loading={spReturLoading} label="Buat Surat Pengantar" />
+        <ModalFooter onClose={() => setSpReturModal({ open: false, sjId: null, sj: null })} onSubmit={handleSubmitSpFromRetur} loading={spReturLoading} label="Buat Surat Pengantar" />
       </ModalWrapper>
 
       {/* Warning Modal Identitas */}

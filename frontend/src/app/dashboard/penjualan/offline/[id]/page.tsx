@@ -284,6 +284,9 @@ const JualMultipleModal = ({
                       <div className="text-sm font-semibold truncate" style={{ color: '#1e293b' }}>
                         {item.barang?.nama || `Item #${item.id}`}
                       </div>
+                      {item.varian_nama && (
+                        <div className="text-xs font-medium mt-0.5" style={{ color: '#6366f1' }}>{item.varian_nama}</div>
+                      )}
                       <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: '#94a3b8' }}>
                         <span>Sisa: <strong className="text-slate-700">{item.qty}</strong></span>
                         <span>Harga display: <strong className="text-slate-700">{formatRupiah(item.harga_satuan * (1 - (item.diskon || 0) / 100))}</strong></span>
@@ -769,6 +772,11 @@ export default function PenjualanOfflineDetail() {
                         <div className="text-sm font-semibold" style={{ color: '#1e293b' }}>
                           {item.barang?.nama || item.barang_id}
                         </div>
+                        {item.varian_nama && (
+                          <div className="text-xs mt-0.5 font-medium" style={{ color: '#6366f1' }}>
+                            {item.varian_nama}
+                          </div>
+                        )}
                         {item.barang?.kode && (
                           <div className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>
                             {item.barang.kode}
