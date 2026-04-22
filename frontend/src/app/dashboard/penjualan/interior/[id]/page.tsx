@@ -456,7 +456,7 @@ export default function PenjualanInteriorDetail() {
           style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
           <Lock className="h-4 w-4 shrink-0" style={{ color: '#d97706' }} />
           <span>
-            <strong>{others.map(u => u.nama).join(', ')}</strong> sedang membuka halaman ini.
+            <strong>{others.map(u => u.nama).join(', ')}</strong> lain sedang membuka halaman ini.
             Tombol edit dikunci sementara untuk mencegah konflik data.
           </span>
         </div>
