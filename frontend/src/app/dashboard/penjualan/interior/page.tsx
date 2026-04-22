@@ -11,6 +11,7 @@ import {
 import Grid from '@mui/material/Grid';
 import { Search, Eye, Plus, RefreshCw, Home } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useListSync } from '@/hooks/useListSync';
 
 const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
   DRAFT:     { label: 'Draft',   color: 'default' },
@@ -52,6 +53,7 @@ export default function PenjualanInteriorPage() {
   };
 
   useEffect(() => { fetchData(); }, [page, statusFilter, tanggalDari, tanggalSampai]);
+  useListSync('penjualan-interior-list', () => fetchData());
 
   const resetFilters = () => {
     setSearch(''); setStatusFilter(''); setTanggalDari(''); setTanggalSampai('');

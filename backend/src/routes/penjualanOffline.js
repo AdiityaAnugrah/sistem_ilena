@@ -115,6 +115,7 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     await logAction(req.user.id, 'BUAT_PENJUALAN_OFFLINE', `ID: ${penjualan.id}, Tipe: ${tipe}`, req.ip);
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
 
     return res.status(201).json({ id: penjualan.id, message: 'Penjualan berhasil dibuat' });
   } catch (err) {
@@ -220,6 +221,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
     await logAction(req.user.id, 'UPDATE_PENJUALAN_OFFLINE', `ID: ${penjualan.id}`, req.ip);
     emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
     return res.json({ message: 'Data berhasil diupdate' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -536,6 +538,7 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     const { logAction } = require('../middleware/logger');
     await logAction(req.user.id, 'EDIT_IDENTITAS_OFFLINE', `Edit identitas penjualan offline #${penjualan.id}`, req.ip);
     emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
 
     return res.json({ message: 'Identitas berhasil diperbarui' });
   } catch (err) {
@@ -561,6 +564,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     const { logAction } = require('../middleware/logger');
     await logAction(req.user.id, 'UPDATE_STATUS_OFFLINE', `Status penjualan offline #${penjualan.id} → ${status}`, req.ip);
     emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
 
     return res.json({ message: 'Status berhasil diperbarui', status });
   } catch (err) {

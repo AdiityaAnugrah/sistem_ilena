@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import { Plus, Eye, RefreshCw, Store, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useListSync } from '@/hooks/useListSync';
 
 export default function DisplayPage() {
   const [tab, setTab] = useState(0);
@@ -52,6 +53,7 @@ export default function DisplayPage() {
 
   useEffect(() => { fetchDisplay(); }, [page]);
   useEffect(() => { if (tab === 1) fetchLaku(); }, [tab]);
+  useListSync('penjualan-offline-list', () => { fetchDisplay(); if (tab === 1) fetchLaku(); });
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>

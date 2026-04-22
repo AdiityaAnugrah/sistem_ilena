@@ -11,6 +11,7 @@ import {
 import Grid from '@mui/material/Grid';
 import { Search, Eye, Plus, RefreshCw, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useListSync } from '@/hooks/useListSync';
 
 const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
   DRAFT:     { label: 'Draft',   color: 'default' },
@@ -56,6 +57,7 @@ export default function PenjualanOfflinePage() {
   };
 
   useEffect(() => { fetchData(); }, [page, tipeFilter, statusFilter, fakturFilter, tanggalDari, tanggalSampai]);
+  useListSync('penjualan-offline-list', () => fetchData());
 
   const resetFilters = () => {
     setSearch(''); setTipeFilter('PENJUALAN'); setStatusFilter('');

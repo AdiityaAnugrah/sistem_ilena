@@ -4,6 +4,7 @@ import { ShoppingCart, Package, TrendingUp, ArrowRight, BarChart3, Monitor, Arro
 import useAuthStore from '@/store/authStore';
 import api from '@/lib/api';
 import Link from 'next/link';
+import { useListSync } from '@/hooks/useListSync';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -31,6 +32,9 @@ export default function DashboardPage() {
     };
     fetchStats();
   }, []);
+
+  useListSync('penjualan-offline-list', fetchStats);
+  useListSync('penjualan-interior-list', fetchStats);
 
   const now = new Date();
   const greeting =

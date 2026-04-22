@@ -41,7 +41,10 @@ async function recalculateStatusInterior(penjualanId) {
   const fullyPaid = grandTotal > 0 && totalBayar >= grandTotal;
 
   const newStatus = (allDelivered && fullyPaid) ? 'COMPLETED' : 'ACTIVE';
-  if (penjualan.status !== newStatus) await penjualan.update({ status: newStatus });
+  if (penjualan.status !== newStatus) {
+    await penjualan.update({ status: newStatus });
+    emitDataUpdated('penjualan-interior-list', {});
+  }
 }
 
 const fullInclude = [
@@ -105,6 +108,7 @@ router.post('/', authenticate, async (req, res) => {
     await PenjualanInteriorItem.bulkCreate(itemsData);
 
     await logAction(req.user.id, 'BUAT_PENJUALAN_INTERIOR', `ID: ${penjualan.id}, PO: ${no_po}`, req.ip);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     return res.status(201).json({ id: penjualan.id, message: 'Penjualan interior berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -496,6 +500,7 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     await penjualan.update(updates);
     await logAction(req.user.id, 'EDIT_IDENTITAS_INTERIOR', `Edit identitas penjualan interior #${penjualan.id}`, req.ip);
     emitDataUpdated(`penjualan-interior:${penjualan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
 
     return res.json({ message: 'Identitas berhasil diperbarui' });
   } catch (err) {
