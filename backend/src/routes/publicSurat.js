@@ -1,10 +1,12 @@
 const express = require('express');
-const { Op } = require('sequelize');
 const {
   Invoice, InvoiceInterior,
   PenjualanOffline, PenjualanInterior,
+  PenjualanOfflineItem, PenjualanInteriorItem,
+  PembayaranInterior,
   SuratJalan, SuratPengantar, SuratPengantarSub,
   ProformaInvoice, SuratJalanInterior,
+  SuratPengantarInterior,
 } = require('../models');
 
 const router = express.Router();
@@ -76,38 +78,57 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/public/surat/:sumber/:penjualanId — tree dokumen satu penjualan, tanpa auth
+// GET /api/public/surat/:sumber/:penjualanId — tree dokumen + ringkasan, tanpa auth
 router.get('/:sumber/:penjualanId', async (req, res) => {
   try {
     const { sumber, penjualanId } = req.params;
 
     if (sumber === 'OFFLINE') {
       const penjualan = await PenjualanOffline.findByPk(penjualanId, {
-        attributes: ['id', 'nama_penerima', 'tipe', 'faktur', 'tanggal', 'is_test'],
+        attributes: ['id', 'nama_penerima', 'no_hp_penerima', 'tipe', 'faktur', 'tanggal', 'status', 'is_test'],
       });
       if (!penjualan || penjualan.is_test) return res.status(404).json({ message: 'Tidak ditemukan' });
 
-      const [invoices, suratJalans, suratPengantars] = await Promise.all([
+      const [items, invoices, suratJalans, suratPengantars] = await Promise.all([
+        PenjualanOfflineItem.findAll({
+          where: { penjualan_offline_id: penjualanId },
+          attributes: ['qty', 'harga_satuan', 'diskon', 'subtotal'],
+        }),
         Invoice.findAll({
           where: { penjualan_offline_id: penjualanId },
-          attributes: ['id', 'nomor_invoice', 'tanggal'],
+          attributes: ['id', 'nomor_invoice', 'tanggal', 'jatuh_tempo', 'ppn_persen'],
+          order: [['tanggal', 'ASC']],
         }),
         SuratJalan.findAll({
           where: { penjualan_offline_id: penjualanId },
           attributes: ['id', 'nomor_surat', 'tanggal'],
+          order: [['tanggal', 'ASC']],
         }),
         SuratPengantar.findAll({
           where: { penjualan_offline_id: penjualanId },
           attributes: ['id', 'nomor_sp', 'tanggal'],
           include: [{ model: SuratPengantarSub, as: 'subs', attributes: ['id', 'nomor_sp_sub'] }],
+          order: [['tanggal', 'ASC']],
         }),
       ]);
+
+      const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const ppnPersen = invoices[0]?.ppn_persen || 0;
+      const ppn = subtotal * (ppnPersen / 100);
+      const totalNilai = subtotal + ppn;
+      const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
 
       return res.json({
         penjualan: penjualan.toJSON(),
         sumber: 'OFFLINE',
+        ringkasan: {
+          total_nilai: totalNilai,
+          total_qty: totalQty,
+          jumlah_sj: suratJalans.length,
+          jatuh_tempo: invoices[0]?.jatuh_tempo || null,
+        },
         dokumen: {
-          invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, tipe: 'invoice' })),
+          invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, jatuh_tempo: d.jatuh_tempo, tipe: 'invoice' })),
           suratJalans: suratJalans.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'surat-jalan' })),
           suratPengantars: suratPengantars.map(d => ({
             id: d.id, nomor: d.nomor_sp, tanggal: d.tanggal, tipe: 'sp',
@@ -119,31 +140,69 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
 
     if (sumber === 'INTERIOR') {
       const penjualan = await PenjualanInterior.findByPk(penjualanId, {
-        attributes: ['id', 'nama_customer', 'tanggal', 'is_test'],
+        attributes: ['id', 'nama_customer', 'no_hp', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'is_test'],
       });
       if (!penjualan || penjualan.is_test) return res.status(404).json({ message: 'Tidak ditemukan' });
 
-      const [proformas, suratJalans, invoices] = await Promise.all([
+      const [items, proformas, suratJalans, invoices, pembayarans, suratPengantars] = await Promise.all([
+        PenjualanInteriorItem.findAll({
+          where: { penjualan_interior_id: penjualanId },
+          attributes: ['qty', 'harga_satuan', 'subtotal', 'sudah_kirim'],
+        }),
         ProformaInvoice.findAll({
           where: { penjualan_interior_id: penjualanId },
           attributes: ['id', 'nomor_proforma', 'tanggal'],
+          order: [['tanggal', 'ASC']],
         }),
         SuratJalanInterior.findAll({
           where: { penjualan_interior_id: penjualanId },
           attributes: ['id', 'nomor_surat', 'tanggal'],
+          order: [['tanggal', 'ASC']],
         }),
         InvoiceInterior.findAll({
           where: { penjualan_interior_id: penjualanId },
           attributes: ['id', 'nomor_invoice', 'tanggal'],
+          order: [['tanggal', 'ASC']],
+        }),
+        PembayaranInterior.findAll({
+          where: { penjualan_interior_id: penjualanId },
+          attributes: ['id', 'tipe', 'jumlah', 'tanggal'],
+          order: [['tanggal', 'ASC']],
+        }),
+        SuratPengantarInterior.findAll({
+          where: { penjualan_interior_id: penjualanId },
+          attributes: ['id', 'nomor_surat', 'tanggal'],
+          order: [['tanggal', 'ASC']],
         }),
       ]);
+
+      const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
+      const grandTotal = subtotal + ppn;
+      const totalBayar = pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0);
+      const sisaTagihan = Math.max(0, grandTotal - totalBayar);
+      const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
+      const sudahKirim = items.reduce((s, i) => s + (i.sudah_kirim || 0), 0);
 
       return res.json({
         penjualan: penjualan.toJSON(),
         sumber: 'INTERIOR',
+        ringkasan: {
+          grand_total: grandTotal,
+          total_bayar: totalBayar,
+          sisa_tagihan: sisaTagihan,
+          persen_bayar: grandTotal > 0 ? Math.round((totalBayar / grandTotal) * 100) : 0,
+          total_qty: totalQty,
+          sudah_kirim: sudahKirim,
+          persen_kirim: totalQty > 0 ? Math.round((sudahKirim / totalQty) * 100) : 0,
+        },
+        pembayarans: pembayarans.map(p => ({
+          id: p.id, tipe: p.tipe, jumlah: parseFloat(p.jumlah), tanggal: p.tanggal,
+        })),
         dokumen: {
           proformas: proformas.map(d => ({ id: d.id, nomor: d.nomor_proforma, tanggal: d.tanggal, tipe: 'proforma' })),
           suratJalans: suratJalans.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'surat-jalan-interior' })),
+          suratPengantars: suratPengantars.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'sp-interior' })),
           invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, tipe: 'invoice-interior' })),
         },
       });
