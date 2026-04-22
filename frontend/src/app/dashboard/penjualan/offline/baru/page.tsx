@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AlamatForm from '@/components/forms/AlamatForm';
 import BarangSelector from '@/components/forms/BarangSelector';
 import { formatRupiah } from '@/lib/utils';
-import { Trash2, Plus, Minus, PackageOpen, LayoutPanelTop, User, MapPin, Wallet2 } from 'lucide-react';
+import { Trash2, Plus, Minus, PackageOpen, User, MapPin, Wallet2 } from 'lucide-react';
 import TutorialVideoModal from '@/components/TutorialVideoModal';
 
 interface AlamatState {
@@ -95,7 +95,7 @@ export default function PenjualanOfflineBaru() {
       qty: 1,
       harga_asli: Number(barang.harga),
       harga_satuan: Number(barang.harga),
-      harga_custom: Number(barang.harga_ilena ?? barang.harga),
+      harga_custom: Number(barang.harga),
       hargaMode: 'diskon' as 'diskon' | 'harga',
       diskon: barang.diskon_efektif ?? 0,
     }]);
