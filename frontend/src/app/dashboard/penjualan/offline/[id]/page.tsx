@@ -388,6 +388,7 @@ export default function PenjualanOfflineDetail() {
     id ? `penjualan-offline:${id}` : '',
     me?.id,
   );
+  const isLocked = others.length > 0;
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -638,13 +639,13 @@ export default function PenjualanOfflineDetail() {
   return (
     <div className="space-y-6">
       {/* Banner: user lain sedang melihat/mengedit halaman ini */}
-      {others.length > 0 && (
+      {isLocked && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
           style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" style={{ color: '#f59e0b' }} />
+          <Lock className="h-4 w-4 flex-shrink-0" style={{ color: '#f59e0b' }} />
           <span>
-            <strong>{others.map(u => u.nama).join(', ')}</strong> sedang membuka halaman ini secara bersamaan.
-            Koordinasikan sebelum melakukan perubahan untuk menghindari konflik data.
+            <strong>{others.map(u => u.nama).join(', ')}</strong> sedang membuka halaman ini.
+            Tombol edit dikunci sementara untuk mencegah konflik data.
           </span>
         </div>
       )}
@@ -691,13 +692,15 @@ export default function PenjualanOfflineDetail() {
           {canEditIdentitas && (
             <button
               onClick={() => handleUpdateStatus(data.status === 'COMPLETED' ? 'ACTIVE' : 'COMPLETED')}
-              disabled={statusLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              disabled={statusLoading || isLocked}
+              title={isLocked ? 'Dikunci — pengguna lain sedang membuka halaman ini' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={data.status === 'COMPLETED'
                 ? { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }
                 : { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }
               }
             >
+              {isLocked ? <Lock className="h-3 w-3" /> : null}
               {statusLoading ? '...' : data.status === 'COMPLETED' ? 'Tandai Aktif' : 'Tandai Selesai'}
             </button>
           )}
@@ -715,12 +718,15 @@ export default function PenjualanOfflineDetail() {
               {canEditIdentitas && (
                 <button
                   onClick={openIdentitasModal}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  disabled={isLocked}
+                  title={isLocked ? 'Dikunci — pengguna lain sedang membuka halaman ini' : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fee2e2'}
+                  onMouseEnter={e => { if (!isLocked) (e.currentTarget as HTMLElement).style.background = '#fee2e2'; }}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}
                 >
-                  <Pencil className="h-3 w-3" /> Edit Identitas
+                  {isLocked ? <Lock className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                  Edit Identitas
                 </button>
               )}
             </div>

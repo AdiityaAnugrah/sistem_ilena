@@ -138,6 +138,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-size: 13px;
+  }
+  @media (min-width: 1536px) {
+    html {
+      font-size: 14px;
+    }
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

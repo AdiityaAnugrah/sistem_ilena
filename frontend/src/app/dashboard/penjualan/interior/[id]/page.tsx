@@ -6,7 +6,7 @@ import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, CreditCard, Truck,
-  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle,
+  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
@@ -199,6 +199,7 @@ export default function PenjualanInteriorDetail() {
   const { user: me } = useAuthStore();
   const canEditIdentitas = me && ['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(me.role);
   const { others, dataUpdated, clearDataUpdated } = useRoomPresence(`penjualan-interior:${id}`, me?.id);
+  const isLocked = others.length > 0;
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -450,13 +451,13 @@ export default function PenjualanInteriorDetail() {
   return (
     <div className="space-y-6">
       {/* Real-time presence warning */}
-      {others.length > 0 && (
+      {isLocked && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium"
           style={{ background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e' }}>
-          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: '#d97706' }} />
+          <Lock className="h-4 w-4 shrink-0" style={{ color: '#d97706' }} />
           <span>
-            Halaman ini juga sedang dibuka oleh: <strong>{others.map(u => u.nama).join(', ')}</strong>.
-            Hindari mengedit bersamaan untuk mencegah konflik data.
+            <strong>{others.map(u => u.nama).join(', ')}</strong> sedang membuka halaman ini.
+            Tombol edit dikunci sementara untuk mencegah konflik data.
           </span>
         </div>
       )}
@@ -534,11 +535,14 @@ export default function PenjualanInteriorDetail() {
               </div>
               {canEditIdentitas && (
                 <button onClick={openIdentitasModal}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  disabled={isLocked}
+                  title={isLocked ? 'Dikunci — pengguna lain sedang membuka halaman ini' : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: '#fff1f1', color: '#FA2F2F', border: '1px solid #fecaca' }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fee2e2'}
+                  onMouseEnter={e => { if (!isLocked) (e.currentTarget as HTMLElement).style.background = '#fee2e2'; }}
                   onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#fff1f1'}>
-                  <Pencil className="h-3 w-3" /> Edit
+                  {isLocked ? <Lock className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                  Edit
                 </button>
               )}
             </div>

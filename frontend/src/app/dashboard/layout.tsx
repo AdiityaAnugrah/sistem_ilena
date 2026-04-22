@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Main Content */}
-        <main className="flex-1 w-full lg:ml-60 pt-[60px] lg:pt-0 overflow-y-auto">
+        <main className="flex-1 w-full lg:ml-[260px] pt-[60px] lg:pt-0 overflow-y-auto">
           {isTestMode && (
             <div style={{
               background: 'linear-gradient(90deg, #d97706, #f59e0b)',
