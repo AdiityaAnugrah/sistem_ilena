@@ -3,13 +3,10 @@ const { User } = require('../models');
 
 const authenticate = async (req, res, next) => {
   try {
-    // Support token via Authorization header OR ?token= query param (for window.open PDF print)
     let token = null;
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
-    } else if (req.query.token) {
-      token = req.query.token;
     }
 
     if (!token) {
@@ -27,6 +24,32 @@ const authenticate = async (req, res, next) => {
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Token tidak valid atau sudah kadaluarsa' });
+  }
+};
+
+// Khusus untuk route print PDF — hanya menerima short-lived print token via ?token=
+const authenticatePrint = async (req, res, next) => {
+  try {
+    const token = req.query.token;
+    if (!token) {
+      return res.status(401).json({ message: 'Print token tidak ditemukan' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.purpose !== 'print') {
+      return res.status(403).json({ message: 'Token tidak valid untuk akses print' });
+    }
+
+    const user = await User.findOne({ where: { id: decoded.id, active: 1 } });
+    if (!user) {
+      return res.status(401).json({ message: 'User tidak valid' });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Print token tidak valid atau sudah kadaluarsa' });
   }
 };
 
@@ -61,4 +84,4 @@ const blockTestMutation = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, requireDev, requireDevOrSuperAdmin, requireAdminOrAbove, blockTestMutation };
+module.exports = { authenticate, authenticatePrint, requireDev, requireDevOrSuperAdmin, requireAdminOrAbove, blockTestMutation };

@@ -122,10 +122,20 @@ export default function TreeSuratPage() {
       .catch(() => { setNotFound(true); setLoading(false); });
   }, [sumber, id]);
 
-  const handleLihat = (tipe: string, docId: number) => {
+  const handleLihat = async (tipe: string, docId: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) { setLoginModal(true); return; }
-    window.open(`${API}/api/dokumen/${tipe}/${docId}/print?token=${token}`, '_blank');
+    try {
+      const res = await fetch(`${API}/api/auth/print-token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { setLoginModal(true); return; }
+      const { token: printToken } = await res.json();
+      window.open(`${API}/api/dokumen/${tipe}/${docId}/print?token=${printToken}`, '_blank');
+    } catch {
+      setLoginModal(true);
+    }
   };
 
   if (loading) return (

@@ -123,4 +123,14 @@ router.patch('/profile', authenticate, [
   }
 });
 
+// POST /api/auth/print-token — token 5 menit khusus untuk buka URL print PDF
+router.post('/print-token', authenticate, (req, res) => {
+  const token = jwt.sign(
+    { id: req.user.id, role: req.user.role, purpose: 'print' },
+    process.env.JWT_SECRET,
+    { expiresIn: '5m' },
+  );
+  return res.json({ token });
+});
+
 module.exports = router;

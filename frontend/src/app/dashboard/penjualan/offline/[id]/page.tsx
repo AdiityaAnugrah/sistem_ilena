@@ -591,10 +591,14 @@ export default function PenjualanOfflineDetail() {
     }
   };
 
-  const printDoc = (type: string, docId: number) => {
-    const token = localStorage.getItem('token');
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    window.open(`${baseUrl}/dokumen/${type}/${docId}/print?token=${token}`, '_blank');
+  const printDoc = async (type: string, docId: number) => {
+    try {
+      const res = await api.post('/auth/print-token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      window.open(`${baseUrl}/dokumen/${type}/${docId}/print?token=${res.data.token}`, '_blank');
+    } catch {
+      toast.error('Gagal membuka dokumen');
+    }
   };
 
   const handleUpdateStatus = async (newStatus: string) => {

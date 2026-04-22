@@ -14,7 +14,7 @@ const includeAlamat = [
   { model: Kecamatan, as: 'pengirimKecamatan' },
   { model: Kelurahan, as: 'pengirimKelurahan' },
 ];
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authenticatePrint } = require('../middleware/auth');
 const {
   generatePDFSuratJalan,
   generatePDFInvoice,
@@ -39,7 +39,7 @@ router.use((_req, res, next) => {
 });
 
 // GET /api/dokumen/surat-jalan/:id/print
-router.get('/surat-jalan/:id/print', authenticate, async (req, res) => {
+router.get('/surat-jalan/:id/print', authenticatePrint, async (req, res) => {
   try {
     const sj = await SuratJalan.findByPk(req.params.id, {
       include: [{
@@ -61,7 +61,7 @@ router.get('/surat-jalan/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/invoice/:id/print
-router.get('/invoice/:id/print', authenticate, async (req, res) => {
+router.get('/invoice/:id/print', authenticatePrint, async (req, res) => {
   try {
     const inv = await Invoice.findByPk(req.params.id, {
       include: [{
@@ -84,7 +84,7 @@ router.get('/invoice/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/sp/:id/print
-router.get('/sp/:id/print', authenticate, async (req, res) => {
+router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
   try {
     const sp = await SuratPengantar.findByPk(req.params.id, {
       include: [{
@@ -129,7 +129,7 @@ router.get('/sp/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/sp-sub/:id/print
-router.get('/sp-sub/:id/print', authenticate, async (req, res) => {
+router.get('/sp-sub/:id/print', authenticatePrint, async (req, res) => {
   try {
     const sub = await SuratPengantarSub.findByPk(req.params.id, {
       include: [
@@ -165,7 +165,7 @@ router.get('/sp-sub/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/proforma/:id/print
-router.get('/proforma/:id/print', authenticate, async (req, res) => {
+router.get('/proforma/:id/print', authenticatePrint, async (req, res) => {
   try {
     const proforma = await ProformaInvoice.findByPk(req.params.id, {
       include: [{
@@ -209,7 +209,7 @@ router.get('/proforma/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/surat-jalan-interior/:id/print
-router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => {
+router.get('/surat-jalan-interior/:id/print', authenticatePrint, async (req, res) => {
   try {
     const sji = await SuratJalanInterior.findByPk(req.params.id, {
       include: [
@@ -263,7 +263,7 @@ router.get('/surat-jalan-interior/:id/print', authenticate, async (req, res) => 
 });
 
 // GET /api/dokumen/invoice-interior/:id/print
-router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
+router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) => {
   try {
     const inv = await InvoiceInterior.findByPk(req.params.id, {
       include: [{
@@ -366,7 +366,7 @@ router.get('/invoice-interior/:id/print', authenticate, async (req, res) => {
 });
 
 // GET /api/dokumen/sp-interior/:id/print
-router.get('/sp-interior/:id/print', authenticate, async (req, res) => {
+router.get('/sp-interior/:id/print', authenticatePrint, async (req, res) => {
   try {
     const { Provinsi: P, Kabupaten: Kab, Kecamatan: Kec, Kelurahan: Kel } = require('../models');
     const sp = await SuratPengantarInterior.findByPk(req.params.id, {
