@@ -3,7 +3,7 @@ const sequelize = require('../config/database');
 
 const SuratPengantarInterior = sequelize.define('surat_pengantar_interior', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  nomor_surat: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+  nomor_surat: { type: DataTypes.STRING(50), allowNull: false },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   penjualan_interior_id: { type: DataTypes.INTEGER, allowNull: false },
   surat_jalan_interior_id: { type: DataTypes.INTEGER, allowNull: false },

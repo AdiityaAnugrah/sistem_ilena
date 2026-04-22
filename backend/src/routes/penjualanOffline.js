@@ -543,4 +543,29 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
   }
 });
 
+// PATCH /api/penjualan-offline/:id/status — ubah status manual (admin only)
+router.patch('/:id/status', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+  try {
+    const penjualan = await PenjualanOffline.findByPk(req.params.id);
+    if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
+
+    const { status } = req.body;
+    if (!['DRAFT', 'ACTIVE', 'COMPLETED'].includes(status)) {
+      return res.status(400).json({ message: 'Status tidak valid. Gunakan DRAFT, ACTIVE, atau COMPLETED.' });
+    }
+
+    await penjualan.update({ status });
+    const { logAction } = require('../middleware/logger');
+    await logAction(req.user.id, 'UPDATE_STATUS_OFFLINE', `Status penjualan offline #${penjualan.id} → ${status}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
+
+    return res.json({ message: 'Status berhasil diperbarui', status });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

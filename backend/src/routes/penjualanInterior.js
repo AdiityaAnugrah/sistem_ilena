@@ -15,6 +15,35 @@ const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
+// ── Auto-recalculate status interior ──────────────────────────────────────────
+async function recalculateStatusInterior(penjualanId) {
+  const [penjualan, items, pembayarans, proformaCount, sjCount, invoiceCount] = await Promise.all([
+    PenjualanInterior.findByPk(penjualanId, { attributes: ['id', 'status', 'pakai_ppn', 'ppn_persen'] }),
+    PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['qty', 'subtotal', 'sudah_kirim'] }),
+    PembayaranInterior.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['jumlah'] }),
+    ProformaInvoice.count({ where: { penjualan_interior_id: penjualanId } }),
+    SuratJalanInterior.count({ where: { penjualan_interior_id: penjualanId } }),
+    InvoiceInterior.count({ where: { penjualan_interior_id: penjualanId } }),
+  ]);
+  if (!penjualan) return;
+
+  const hasActivity = proformaCount > 0 || sjCount > 0 || invoiceCount > 0 || pembayarans.length > 0;
+  if (!hasActivity) {
+    if (penjualan.status !== 'DRAFT') await penjualan.update({ status: 'DRAFT' });
+    return;
+  }
+
+  const allDelivered = items.length > 0 && items.every(i => (i.sudah_kirim || 0) >= i.qty);
+  const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+  const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
+  const grandTotal = subtotal + ppn;
+  const totalBayar = pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0);
+  const fullyPaid = grandTotal > 0 && totalBayar >= grandTotal;
+
+  const newStatus = (allDelivered && fullyPaid) ? 'COMPLETED' : 'ACTIVE';
+  if (penjualan.status !== newStatus) await penjualan.update({ status: newStatus });
+}
+
 const fullInclude = [
   { model: PenjualanInteriorItem, as: 'items' },
   { model: Provinsi, as: 'alamatProvinsi' },
@@ -159,6 +188,7 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_PROFORMA', `Nomor: ${nomor_proforma}`, req.ip);
+    await recalculateStatusInterior(req.params.id);
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: proforma.id, nomor_proforma, total, message: 'Proforma berhasil dibuat' });
   } catch (err) {
@@ -194,6 +224,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_PEMBAYARAN', `Tipe: ${tipe}, Jumlah: ${jumlah}`, req.ip);
+    await recalculateStatusInterior(req.params.id);
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil ditambahkan' });
   } catch (err) {
@@ -237,6 +268,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
     }
 
     await logAction(req.user.id, 'BUAT_SJ_INTERIOR', `Nomor: ${nomor_surat}`, req.ip);
+    await recalculateStatusInterior(req.params.id);
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: sj.id, nomor_surat, message: 'Surat Jalan interior berhasil dibuat' });
   } catch (err) {
@@ -296,6 +328,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     });
 
     await logAction(req.user.id, 'BUAT_INVOICE_INTERIOR', `Nomor: ${nomor_invoice}`, req.ip);
+    await recalculateStatusInterior(req.params.id);
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice interior berhasil dibuat' });
   } catch (err) {
@@ -362,6 +395,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     }
 
     await t.commit();
+    await recalculateStatusInterior(req.params.id);
 
     await logAction(req.user.id, 'CATAT_RETUR_SJ_INTERIOR',
       `Retur SJ #${surat_jalan_interior_id} untuk Penjualan Interior #${req.params.id}`, req.ip);
@@ -431,6 +465,7 @@ router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
     }
 
     await t.commit();
+    await recalculateStatusInterior(req.params.id);
     await logAction(req.user.id, 'BUAT_SP_INTERIOR_RETUR',
       `SP/INT ${nomorSP} dari retur SJ #${surat_jalan_interior_id}`, req.ip);
     res.status(201).json({ message: 'Surat Pengantar Interior berhasil dibuat', nomor_sp: nomorSP });

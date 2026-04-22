@@ -406,6 +406,7 @@ export default function PenjualanOfflineDetail() {
   const [docTanggal, setDocTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [docCatatan, setDocCatatan] = useState('');
   const [docLoading, setDocLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   // States for Jual Multiple Items Display
   const [jualModal, setJualModal] = useState(false);
@@ -595,6 +596,19 @@ export default function PenjualanOfflineDetail() {
     window.open(`${baseUrl}/dokumen/${type}/${docId}/print?token=${token}`, '_blank');
   };
 
+  const handleUpdateStatus = async (newStatus: string) => {
+    setStatusLoading(true);
+    try {
+      await api.patch(`/penjualan-offline/${id}/status`, { status: newStatus });
+      toast.success(`Status diubah ke ${newStatus === 'COMPLETED' ? 'Selesai' : newStatus === 'ACTIVE' ? 'Aktif' : 'Draft'}`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal mengubah status');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -672,7 +686,22 @@ export default function PenjualanOfflineDetail() {
             {formatDate(data.tanggal)}{isPenjualan ? ` · ${data.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}` : ''}
           </p>
         </div>
-        <StatusBadge status={data.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={data.status} />
+          {canEditIdentitas && (
+            <button
+              onClick={() => handleUpdateStatus(data.status === 'COMPLETED' ? 'ACTIVE' : 'COMPLETED')}
+              disabled={statusLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+              style={data.status === 'COMPLETED'
+                ? { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }
+                : { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }
+              }
+            >
+              {statusLoading ? '...' : data.status === 'COMPLETED' ? 'Tandai Aktif' : 'Tandai Selesai'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content grid */}
