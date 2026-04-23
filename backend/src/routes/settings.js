@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { authenticate, blockTestMutation } = require('../middleware/auth');
+const { authenticate, authenticatePrint, blockTestMutation } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 
 const router = express.Router();
@@ -94,8 +94,8 @@ router.get('/signatures', authenticate, (req, res) => {
   res.json(list);
 });
 
-// GET /api/settings/signatures/:id — serve one signature file
-router.get('/signatures/:id', authenticate, (req, res) => {
+// GET /api/settings/signatures/:id — serve one signature file (accepts print token for PDF rendering)
+router.get('/signatures/:id', authenticatePrint, (req, res) => {
   const filename = decodeURIComponent(req.params.id);
   if (!isValidFilename(filename)) return res.status(400).json({ message: 'Nama file tidak valid' });
   const filepath = path.join(SIGS_DIR, filename);
