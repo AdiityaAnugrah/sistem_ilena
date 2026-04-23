@@ -288,6 +288,8 @@ export default function PenjualanInteriorDetail() {
   };
 
   const createProforma = async () => {
+    const hasZero = proformaTerms.some(t => !t.jumlah || Number(t.jumlah) <= 0);
+    if (hasZero) { toast.error('Jumlah cicilan tidak boleh Rp 0 atau kosong'); return; }
     setDocLoading(true);
     try {
       const terms = proformaTerms
@@ -870,6 +872,7 @@ export default function PenjualanInteriorDetail() {
         const termTotal = proformaTerms.reduce((s, t) => s + (Number(t.jumlah) || 0), 0);
         const termOver = termTotal > sisaTagihan;
         const termUnder = proformaTerms.length > 0 && termTotal < sisaTagihan;
+        const hasZeroTerms = proformaTerms.some(t => !t.jumlah || Number(t.jumlah) <= 0);
         const selisih = sisaTagihan - termTotal;
         const TIPE_OPTS = [
           { value: 'DP', label: 'DP (Uang Muka)' },
@@ -943,17 +946,24 @@ export default function PenjualanInteriorDetail() {
                     ))}
 
                     {/* Validasi total cicilan */}
-                    <div className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between"
-                      style={{
-                        background: termOver ? '#fef2f2' : termUnder ? '#fffbeb' : '#f0fdf4',
-                        border: `1px solid ${termOver ? '#fecaca' : termUnder ? '#fde68a' : '#bbf7d0'}`,
-                        color: termOver ? '#dc2626' : termUnder ? '#92400e' : '#15803d',
-                      }}>
-                      <span>Total cicilan: {formatRupiah(termTotal)}</span>
-                      {termOver && <span>⚠ Melebihi sisa tagihan sebesar {formatRupiah(termTotal - sisaTagihan)}</span>}
-                      {termUnder && <span>Sisa belum dialokasikan: {formatRupiah(selisih)}</span>}
-                      {!termOver && !termUnder && termTotal > 0 && <span>✓ Sesuai sisa tagihan</span>}
-                    </div>
+                    {hasZeroTerms ? (
+                      <div className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2"
+                        style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>
+                        ⚠ Jumlah cicilan tidak boleh Rp 0 atau kosong
+                      </div>
+                    ) : (
+                      <div className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between"
+                        style={{
+                          background: termOver ? '#fef2f2' : termUnder ? '#fffbeb' : '#f0fdf4',
+                          border: `1px solid ${termOver ? '#fecaca' : termUnder ? '#fde68a' : '#bbf7d0'}`,
+                          color: termOver ? '#dc2626' : termUnder ? '#92400e' : '#15803d',
+                        }}>
+                        <span>Total cicilan: {formatRupiah(termTotal)}</span>
+                        {termOver && <span>⚠ Melebihi sisa tagihan sebesar {formatRupiah(termTotal - sisaTagihan)}</span>}
+                        {termUnder && <span>Sisa belum dialokasikan: {formatRupiah(selisih)}</span>}
+                        {!termOver && !termUnder && termTotal > 0 && <span>✓ Sesuai sisa tagihan</span>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -973,7 +983,7 @@ export default function PenjualanInteriorDetail() {
               onSubmit={createProforma}
               loading={docLoading}
               label="Buat Proforma"
-              disabled={termOver || proformaTerms.length === 0}
+              disabled={termOver || proformaTerms.length === 0 || hasZeroTerms}
             />
           </ModalWrapper>
         );
