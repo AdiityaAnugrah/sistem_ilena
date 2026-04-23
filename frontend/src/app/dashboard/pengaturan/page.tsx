@@ -7,7 +7,7 @@ import {
   Switch, FormControlLabel, Divider, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { Video, Save, Trash2 } from 'lucide-react';
+import { Video, Save, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TutorialVideoModal from '@/components/TutorialVideoModal';
 
@@ -160,6 +160,50 @@ export default function PengaturanPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  // Hapus semua produksi — multi-step
+  const [deleteAllStep, setDeleteAllStep] = useState(0); // 0=tutup, 1=warning, 2=ketik konfirmasi, 3=password
+  const [deleteAllTyped, setDeleteAllTyped] = useState('');
+  const [deleteAllPass, setDeleteAllPass] = useState('');
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false);
+
+  // Hapus per penjualan
+  const [deleteSingle, setDeleteSingle] = useState<{ open: boolean; sumber: 'offline'|'interior'; idStr: string; preview: any|null; step: 1|2 }>({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 });
+  const [deleteSinglePass, setDeleteSinglePass] = useState('');
+  const [deleteSingleLoading, setDeleteSingleLoading] = useState(false);
+
+  const handleDeleteAll = async () => {
+    setDeleteAllLoading(true);
+    try {
+      const res = await api.delete('/dev/penjualan-produksi', { data: { password: deleteAllPass } });
+      toast.success(`Berhasil dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior. Counter direset.`);
+      setDeleteAllStep(0); setDeleteAllTyped(''); setDeleteAllPass('');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus');
+    } finally { setDeleteAllLoading(false); }
+  };
+
+  const handleFetchPreview = async () => {
+    if (!deleteSingle.idStr.trim()) return;
+    try {
+      const res = await api.get(`/penjualan-${deleteSingle.sumber}/${deleteSingle.idStr}`);
+      setDeleteSingle(p => ({ ...p, preview: res.data, step: 2 }));
+    } catch {
+      toast.error('Penjualan tidak ditemukan');
+    }
+  };
+
+  const handleDeleteSingle = async () => {
+    setDeleteSingleLoading(true);
+    try {
+      await api.delete(`/dev/penjualan/${deleteSingle.sumber}/${deleteSingle.idStr}`, { data: { password: deleteSinglePass } });
+      toast.success(`Penjualan #${deleteSingle.idStr} berhasil dihapus`);
+      setDeleteSingle({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 });
+      setDeleteSinglePass('');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus');
+    } finally { setDeleteSingleLoading(false); }
+  };
+
   const handleResetTestData = async () => {
     setResetting(true);
     try {
@@ -234,6 +278,189 @@ export default function PengaturanPage() {
           endSecond={previewData.end ?? undefined}
         />
       )}
+
+      {/* ─── DANGER ZONE ─────────────────────────────────────────────────── */}
+      <Divider sx={{ my: 3 }} />
+      <Box sx={{ border: '2px solid #dc2626', borderRadius: '16px', overflow: 'hidden' }}>
+        {/* Header */}
+        <Box sx={{ background: '#dc2626', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <ShieldAlert size={20} color="#fff" />
+          <Typography sx={{ fontWeight: 800, fontSize: 14, color: '#fff', letterSpacing: '0.04em' }}>
+            DANGER ZONE — Operasi Tidak Bisa Dibatalkan
+          </Typography>
+        </Box>
+
+        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          {/* Card 1: Hapus semua produksi */}
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: '12px', borderColor: '#fca5a5', background: '#fff5f5' }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+              <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#dc2626' }}>Hapus Semua Data Penjualan Produksi</Typography>
+                <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5 }}>
+                  Menghapus <strong>seluruh</strong> transaksi offline & interior (is_test=0) beserta semua dokumen terkait
+                  (SJ, Invoice, Proforma, SP, Pembayaran) dan mereset semua counter nomor dokumen ke 0.
+                </Typography>
+              </Box>
+            </Box>
+            <Button variant="contained" size="small" color="error" startIcon={<Trash2 size={13} />}
+              onClick={() => setDeleteAllStep(1)} sx={{ borderRadius: '8px' }}>
+              Hapus Semua Data Produksi
+            </Button>
+          </Paper>
+
+          {/* Card 2: Hapus per penjualan */}
+          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: '12px', borderColor: '#fcd34d', background: '#fffbeb' }}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+              <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#d97706' }}>Hapus Satu Data Penjualan</Typography>
+                <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5 }}>
+                  Hapus satu transaksi beserta dokumennya. <strong>Perhatian:</strong> nomor dokumen tidak akan direset —
+                  akan ada celah urutan (misal 001, 003 tanpa 002). Ini tidak bisa dikembalikan.
+                </Typography>
+              </Box>
+            </Box>
+            <Button variant="outlined" size="small" color="warning" startIcon={<Trash2 size={13} />}
+              onClick={() => setDeleteSingle(p => ({ ...p, open: true }))}
+              sx={{ borderRadius: '8px' }}>
+              Pilih & Hapus Satu Penjualan
+            </Button>
+          </Paper>
+        </Box>
+      </Box>
+
+      {/* ── Dialog: Hapus Semua Produksi (multi-step) ── */}
+      <Dialog open={deleteAllStep > 0} onClose={() => !deleteAllLoading && (setDeleteAllStep(0), setDeleteAllTyped(''), setDeleteAllPass(''))} maxWidth="sm" fullWidth>
+        {deleteAllStep === 1 && <>
+          <DialogTitle sx={{ fontWeight: 800, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <AlertTriangle size={20} /> PERINGATAN KERAS
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ p: 2, borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', mb: 2 }}>
+              <Typography sx={{ fontSize: 13, color: '#dc2626', fontWeight: 700, mb: 1 }}>Tindakan ini akan:</Typography>
+              <Typography component="ul" sx={{ fontSize: 13, color: '#7f1d1d', pl: 2, '& li': { mb: 0.5 } }}>
+                <li>Menghapus SEMUA transaksi penjualan offline & interior (produksi)</li>
+                <li>Menghapus semua Surat Jalan, Invoice, Proforma, SP, dan Pembayaran terkait</li>
+                <li>Mereset semua counter nomor dokumen ke 0</li>
+                <li>Tindakan ini <strong>TIDAK BISA DIBATALKAN</strong></li>
+              </Typography>
+            </Box>
+            <DialogContentText sx={{ fontSize: 13 }}>Data testing (is_test=1) tidak terpengaruh.</DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setDeleteAllStep(0)} size="small">Batal</Button>
+            <Button variant="contained" color="error" size="small" onClick={() => setDeleteAllStep(2)}>
+              Saya Mengerti, Lanjutkan
+            </Button>
+          </DialogActions>
+        </>}
+
+        {deleteAllStep === 2 && <>
+          <DialogTitle sx={{ fontWeight: 800, color: '#dc2626' }}>Konfirmasi Teks</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ fontSize: 13, mb: 2 }}>
+              Ketik <strong style={{ color: '#dc2626' }}>HAPUS SEMUA DATA</strong> untuk melanjutkan:
+            </DialogContentText>
+            <TextField fullWidth size="small" value={deleteAllTyped} onChange={e => setDeleteAllTyped(e.target.value)}
+              placeholder="HAPUS SEMUA DATA" autoFocus
+              sx={{ '& .MuiOutlinedInput-root.Mui-focused fieldset': { borderColor: '#dc2626' } }} />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setDeleteAllStep(1)} size="small">Kembali</Button>
+            <Button variant="contained" color="error" size="small"
+              disabled={deleteAllTyped !== 'HAPUS SEMUA DATA'}
+              onClick={() => setDeleteAllStep(3)}>
+              Lanjutkan
+            </Button>
+          </DialogActions>
+        </>}
+
+        {deleteAllStep === 3 && <>
+          <DialogTitle sx={{ fontWeight: 800, color: '#dc2626' }}>Masukkan Password</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ fontSize: 13, mb: 2 }}>
+              Masukkan password akun DEV kamu untuk mengkonfirmasi penghapusan permanen ini.
+            </DialogContentText>
+            <TextField fullWidth size="small" type="password" value={deleteAllPass}
+              onChange={e => setDeleteAllPass(e.target.value)} placeholder="Password" autoFocus
+              onKeyDown={e => { if (e.key === 'Enter' && deleteAllPass && !deleteAllLoading) handleDeleteAll(); }} />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setDeleteAllStep(2)} disabled={deleteAllLoading} size="small">Kembali</Button>
+            <Button variant="contained" color="error" size="small"
+              disabled={!deleteAllPass || deleteAllLoading}
+              startIcon={deleteAllLoading ? <CircularProgress size={13} color="inherit" /> : <Trash2 size={13} />}
+              onClick={handleDeleteAll}>
+              {deleteAllLoading ? 'Menghapus...' : 'Hapus Sekarang'}
+            </Button>
+          </DialogActions>
+        </>}
+      </Dialog>
+
+      {/* ── Dialog: Hapus Satu Penjualan ── */}
+      <Dialog open={deleteSingle.open} onClose={() => !deleteSingleLoading && (setDeleteSingle({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 }), setDeleteSinglePass(''))} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, color: '#d97706', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <AlertTriangle size={18} /> Hapus Satu Data Penjualan
+        </DialogTitle>
+        <DialogContent>
+          {deleteSingle.step === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ p: 2, borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
+                <Typography sx={{ fontSize: 12, color: '#92400e' }}>
+                  ⚠ Nomor dokumen <strong>tidak akan direset</strong>. Akan ada celah urutan pada nomor SJ/Invoice/dsb.
+                  Ini wajar dan aman untuk keperluan internal, tapi perlu diperhatikan.
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1.5 }}>
+                <TextField select size="small" label="Tipe" value={deleteSingle.sumber}
+                  onChange={e => setDeleteSingle(p => ({ ...p, sumber: e.target.value as 'offline'|'interior' }))}
+                  sx={{ minWidth: 130 }} slotProps={{ select: { native: true } }}>
+                  <option value="offline">Offline / Display</option>
+                  <option value="interior">Interior</option>
+                </TextField>
+                <TextField size="small" label="ID Penjualan" value={deleteSingle.idStr} type="number"
+                  onChange={e => setDeleteSingle(p => ({ ...p, idStr: e.target.value, preview: null, step: 1 }))}
+                  placeholder="contoh: 42" sx={{ flex: 1 }} />
+                <Button variant="outlined" size="small" onClick={handleFetchPreview}
+                  disabled={!deleteSingle.idStr.trim()} sx={{ borderRadius: '8px', whiteSpace: 'nowrap' }}>
+                  Cari
+                </Button>
+              </Box>
+            </Box>
+          )}
+          {deleteSingle.step === 2 && deleteSingle.preview && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ p: 2, borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: '#0f172a' }}>Data yang akan dihapus:</Typography>
+                <Typography sx={{ fontSize: 12, color: '#475569' }}>
+                  <strong>#{deleteSingle.preview.id}</strong> — {deleteSingle.preview.nama_customer || deleteSingle.preview.nama_penerima || '-'}
+                  {deleteSingle.preview.no_po && ` | PO: ${deleteSingle.preview.no_po}`}
+                </Typography>
+                <Typography sx={{ fontSize: 11, color: '#94a3b8', mt: 0.5 }}>
+                  {deleteSingle.preview.items?.length || 0} item •{' '}
+                  {deleteSingle.preview.suratJalans?.length || 0} SJ •{' '}
+                  {deleteSingle.preview.invoices?.length || deleteSingle.preview.suratJalanInteriors?.length || 0} Invoice
+                </Typography>
+              </Box>
+              <TextField fullWidth size="small" type="password" label="Password DEV" value={deleteSinglePass}
+                onChange={e => setDeleteSinglePass(e.target.value)} autoFocus
+                onKeyDown={e => { if (e.key === 'Enter' && deleteSinglePass && !deleteSingleLoading) handleDeleteSingle(); }} />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => { setDeleteSingle({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 }); setDeleteSinglePass(''); }} disabled={deleteSingleLoading} size="small">Batal</Button>
+          {deleteSingle.step === 2 && (
+            <Button variant="contained" color="error" size="small"
+              disabled={!deleteSinglePass || deleteSingleLoading}
+              startIcon={deleteSingleLoading ? <CircularProgress size={13} color="inherit" /> : <Trash2 size={13} />}
+              onClick={handleDeleteSingle}>
+              {deleteSingleLoading ? 'Menghapus...' : 'Hapus Permanen'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={confirmOpen} onClose={() => !resetting && setConfirmOpen(false)}>
         <DialogTitle sx={{ fontWeight: 700 }}>Konfirmasi Hapus Data Testing</DialogTitle>
