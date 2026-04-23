@@ -316,8 +316,8 @@ export default function PengaturanPage() {
               <Box>
                 <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#d97706' }}>Hapus Satu Data Penjualan</Typography>
                 <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5 }}>
-                  Hapus satu transaksi beserta dokumennya. <strong>Perhatian:</strong> nomor dokumen tidak akan direset —
-                  akan ada celah urutan (misal 001, 003 tanpa 002). Ini tidak bisa dikembalikan.
+                  Hapus satu transaksi beserta dokumennya. Nomor dokumen berikutnya akan otomatis disesuaikan
+                  agar tidak ada celah urutan. Ini tidak bisa dikembalikan.
                 </Typography>
               </Box>
             </Box>

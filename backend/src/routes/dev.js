@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const { Op } = require('sequelize');
 const { authenticate, requireDev } = require('../middleware/auth');
 const {
   sequelize,
@@ -11,6 +12,115 @@ const {
 const { logAction } = require('../middleware/logger');
 
 const router = express.Router();
+
+// ── Nomor renumbering helpers ─────────────────────────────────────────────────
+
+function parseNomor(s) {
+  const m = s.match(/^((?:TEST-)?(?:NF)?)(\d+)(.*)$/);
+  if (!m) return null;
+  return { prefix: m[1], num: parseInt(m[2], 10), padLen: m[2].length, suffix: m[3] };
+}
+
+function formatNomor(prefix, num, padLen, suffix) {
+  return `${prefix}${String(num).padStart(padLen, '0')}${suffix}`;
+}
+
+// Renumber documents across multiple tables after nomors have been deleted.
+// Groups deleted nomors by prefix+suffix so multi-month penjualan are handled correctly.
+// counterTipeFn: (prefix) => DocumentCounter.tipe string
+async function renumberType({ tables, deletedNomors, counterTipeFn, t }) {
+  if (!deletedNomors.length) return;
+
+  const groups = {};
+  for (const n of deletedNomors) {
+    const p = parseNomor(n);
+    if (!p) continue;
+    const key = `${p.prefix}||${p.suffix}`;
+    if (!groups[key]) groups[key] = { prefix: p.prefix, padLen: p.padLen, suffix: p.suffix, nums: [] };
+    groups[key].nums.push(p.num);
+  }
+
+  for (const g of Object.values(groups)) {
+    const { prefix, padLen, suffix, nums } = g;
+    const deletedNums = [...nums].sort((a, b) => a - b);
+    const tahun = parseInt(suffix.split('/').pop(), 10);
+    const counterTipe = counterTipeFn(prefix);
+
+    for (const { model, field } of tables) {
+      const docs = await model.findAll({
+        where: { [field]: { [Op.like]: `%${suffix}` } },
+        attributes: ['id', field],
+        order: [[field, 'ASC']],
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      for (const doc of docs) {
+        const p = parseNomor(doc[field]);
+        if (!p || p.prefix !== prefix || p.suffix !== suffix) continue;
+        const decrement = deletedNums.filter(n => n <= p.num).length;
+        if (!decrement) continue;
+        await doc.update({ [field]: formatNomor(prefix, p.num - decrement, padLen, suffix) }, { transaction: t });
+      }
+    }
+
+    const counter = await DocumentCounter.findOne({ where: { tipe: counterTipe, bulan: 0, tahun }, transaction: t });
+    if (counter) {
+      counter.last_number = Math.max(0, counter.last_number - nums.length);
+      await counter.save({ transaction: t });
+    }
+  }
+}
+
+// Renumber SuratPengantar + cascade-update SuratPengantarSub nomors.
+// SP sub format: {seq}/B{nn}/{rest} — when seq changes, subs must change too.
+async function renumberSP({ deletedNomors, t }) {
+  if (!deletedNomors.length) return;
+
+  const groups = {};
+  for (const n of deletedNomors) {
+    const p = parseNomor(n);
+    if (!p) continue;
+    const key = `${p.prefix}||${p.suffix}`;
+    if (!groups[key]) groups[key] = { prefix: p.prefix, padLen: p.padLen, suffix: p.suffix, nums: [] };
+    groups[key].nums.push(p.num);
+  }
+
+  for (const g of Object.values(groups)) {
+    const { prefix, padLen, suffix, nums } = g;
+    const deletedNums = [...nums].sort((a, b) => a - b);
+    const tahun = parseInt(suffix.split('/').pop(), 10);
+    const counterTipe = prefix.startsWith('NF') ? 'SP_NON_FAKTUR' : 'SP_FAKTUR';
+
+    const spDocs = await SuratPengantar.findAll({
+      where: { nomor_sp: { [Op.like]: `%${suffix}` } },
+      attributes: ['id', 'nomor_sp'],
+      order: [['nomor_sp', 'ASC']],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    for (const sp of spDocs) {
+      const p = parseNomor(sp.nomor_sp);
+      if (!p || p.prefix !== prefix || p.suffix !== suffix) continue;
+      const decrement = deletedNums.filter(n => n <= p.num).length;
+      if (!decrement) continue;
+      const oldSeq = String(p.num).padStart(p.padLen, '0');
+      const newSeq = String(p.num - decrement).padStart(p.padLen, '0');
+      await sp.update({ nomor_sp: formatNomor(prefix, p.num - decrement, padLen, suffix) }, { transaction: t });
+      // SP subs format: {seq}/B{nn}/{rest} — replace leading seq
+      await SuratPengantarSub.update(
+        { nomor_sp_sub: sequelize.literal(`REPLACE(\`nomor_sp_sub\`, '${oldSeq}/', '${newSeq}/')`) },
+        { where: { surat_pengantar_id: sp.id }, transaction: t },
+      );
+    }
+
+    const counter = await DocumentCounter.findOne({ where: { tipe: counterTipe, bulan: 0, tahun }, transaction: t });
+    if (counter) {
+      counter.last_number = Math.max(0, counter.last_number - nums.length);
+      await counter.save({ transaction: t });
+    }
+  }
+}
 
 // DELETE /api/dev/reset-test-data — hapus semua data penjualan is_test=1
 router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => {
@@ -152,7 +262,7 @@ router.delete('/penjualan-produksi', authenticate, requireDev, async (req, res) 
   }
 });
 
-// DELETE /api/dev/penjualan/:sumber/:id — hapus satu penjualan produksi
+// DELETE /api/dev/penjualan/:sumber/:id — hapus satu penjualan produksi + renumber dokumen berikutnya
 router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, res) => {
   const { sumber, id } = req.params;
   const { password } = req.body;
@@ -168,18 +278,75 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
     if (sumber === 'offline') {
       const penjualan = await PenjualanOffline.findByPk(id, { transaction: t });
       if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
+
+      // Collect nomors before deletion
+      const sjNomors = (await SuratJalan.findAll({ where: { penjualan_offline_id: id }, attributes: ['nomor_surat'], transaction: t })).map(r => r.nomor_surat);
+      const invNomors = (await Invoice.findAll({ where: { penjualan_offline_id: id }, attributes: ['nomor_invoice'], transaction: t })).map(r => r.nomor_invoice);
+      const spNomors = (await SuratPengantar.findAll({ where: { penjualan_offline_id: id }, attributes: ['nomor_sp'], transaction: t })).map(r => r.nomor_sp);
+
       await deleteOffline(id, t);
+
+      await renumberType({
+        tables: [{ model: SuratJalan, field: 'nomor_surat' }, { model: SuratJalanInterior, field: 'nomor_surat' }],
+        deletedNomors: sjNomors,
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'SJ_NON_FAKTUR' : 'SJ_FAKTUR',
+        t,
+      });
+      await renumberType({
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }],
+        deletedNomors: invNomors,
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
+        t,
+      });
+      await renumberSP({ deletedNomors: spNomors, t });
+
     } else {
       const penjualan = await PenjualanInterior.findByPk(id, { transaction: t });
       if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
+
+      // Collect nomors before deletion
+      const sjIntDocs = await SuratJalanInterior.findAll({ where: { penjualan_interior_id: id }, attributes: ['id', 'nomor_surat'], transaction: t });
+      const sjIntIds = sjIntDocs.map(r => r.id);
+      const sjNomors = sjIntDocs.map(r => r.nomor_surat);
+      const invNomors = sjIntIds.length
+        ? (await InvoiceInterior.findAll({ where: { surat_jalan_interior_id: sjIntIds }, attributes: ['nomor_invoice'], transaction: t })).map(r => r.nomor_invoice)
+        : [];
+      const proformaNomors = (await ProformaInvoice.findAll({ where: { penjualan_interior_id: id }, attributes: ['nomor_proforma'], transaction: t })).map(r => r.nomor_proforma);
+      const spIntNomors = (await SuratPengantarInterior.findAll({ where: { penjualan_interior_id: id }, attributes: ['nomor_surat'], transaction: t })).map(r => r.nomor_surat);
+
       await deleteInterior(id, t);
+
+      await renumberType({
+        tables: [{ model: SuratJalan, field: 'nomor_surat' }, { model: SuratJalanInterior, field: 'nomor_surat' }],
+        deletedNomors: sjNomors,
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'SJ_NON_FAKTUR' : 'SJ_FAKTUR',
+        t,
+      });
+      await renumberType({
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }],
+        deletedNomors: invNomors,
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
+        t,
+      });
+      await renumberType({
+        tables: [{ model: ProformaInvoice, field: 'nomor_proforma' }],
+        deletedNomors: proformaNomors,
+        counterTipeFn: () => 'PROFORMA',
+        t,
+      });
+      await renumberType({
+        tables: [{ model: SuratPengantarInterior, field: 'nomor_surat' }],
+        deletedNomors: spIntNomors,
+        counterTipeFn: () => 'SP_INT',
+        t,
+      });
     }
 
     await t.commit();
     await logAction(req.user.id, 'DEV_HAPUS_SATU_PENJUALAN',
-      `Hapus penjualan ${sumber} #${id}`, req.ip);
+      `Hapus penjualan ${sumber} #${id}, nomor dokumen disesuaikan`, req.ip);
 
-    return res.json({ message: `Penjualan ${sumber} #${id} berhasil dihapus` });
+    return res.json({ message: `Penjualan ${sumber} #${id} berhasil dihapus, nomor dokumen disesuaikan` });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Gagal menghapus data', error: err.message });
