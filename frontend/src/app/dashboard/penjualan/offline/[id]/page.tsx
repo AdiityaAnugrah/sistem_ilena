@@ -6,11 +6,23 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, FilePlus, Printer,
-  User, Phone, MapPin, Hash, Calendar, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X,
+  User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X,
 } from 'lucide-react';
 
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
+
+function parseDimensi(deskripsi: any): string {
+  try {
+    const d = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
+    if (d?.dimensi?.asli) {
+      const { panjang, lebar, tinggi } = d.dimensi.asli;
+      const parts = [panjang, lebar, tinggi].filter(v => v && Number(v) > 0);
+      if (parts.length > 0) return parts.join(' × ') + ' mm';
+    }
+  } catch { /* */ }
+  return '';
+}
 
 const StatusBadge = ({ status }: { status: string }) => {
   const map: Record<string, { label: string; cls: string }> = {
@@ -526,8 +538,6 @@ export default function PenjualanOfflineDetail() {
       const idStr = Number(key);
       const f = jualForm[idStr];
       if (f.qty > 0) {
-        // Cari item asal diskon
-        const baseItem = data.items.find((x: any) => x.id === idStr);
         return {
           item_id: idStr,
           qty_jual: f.qty,
@@ -808,19 +818,26 @@ export default function PenjualanOfflineDetail() {
                       }}
                     >
                       <td className="px-5 py-3.5">
-                        <div className="text-sm font-semibold" style={{ color: '#1e293b' }}>
+                        <div className="text-base font-bold uppercase tracking-wide" style={{ color: '#0f172a' }}>
                           {item.barang?.nama || item.barang_id}
                         </div>
-                        {item.varian_nama && (
-                          <div className="text-xs mt-0.5 font-medium" style={{ color: '#6366f1' }}>
-                            {item.varian_nama}
-                          </div>
-                        )}
-                        {item.barang?.kode && (
-                          <div className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>
-                            {item.barang.kode}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          {item.varian_nama && (
+                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded" style={{ background: '#ede9fe', color: '#6d28d9' }}>
+                              {item.varian_nama}
+                            </span>
+                          )}
+                          {parseDimensi(item.barang?.deskripsi) && (
+                            <span className="text-xs font-semibold font-mono px-1.5 py-0.5 rounded" style={{ background: '#eff6ff', color: '#1d4ed8' }}>
+                              {parseDimensi(item.barang?.deskripsi)}
+                            </span>
+                          )}
+                          {item.barang?.kode && (
+                            <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>
+                              {item.barang.kode}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 text-sm text-center" style={{ color: '#475569' }}>
                         {item.qty}
