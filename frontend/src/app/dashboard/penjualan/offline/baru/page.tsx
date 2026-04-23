@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -54,6 +54,8 @@ export default function PenjualanOfflineBaru() {
   const [tagihanSamaPengirim, setTagihanSamaPengirim] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const pendingData = useRef<any>(null);
   const [tutorial, setTutorial] = useState<{ youtube_url: string; start_second: number; end_second: number | null } | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(false);
 
@@ -113,8 +115,15 @@ export default function PenjualanOfflineBaru() {
     return item.qty * item.harga_asli * (1 - (item.diskon || 0) / 100);
   };
 
-  const onSubmit = async (formData: any) => {
+  const onSubmit = (formData: any) => {
     if (items.length === 0) { toast.error('Minimal 1 produk wajib ditambahkan'); return; }
+    pendingData.current = formData;
+    setConfirmOpen(true);
+  };
+
+  const doSubmit = async () => {
+    const formData = pendingData.current;
+    setConfirmOpen(false);
     setLoading(true);
     try {
       const payload = {
@@ -583,6 +592,33 @@ export default function PenjualanOfflineBaru() {
           </Button>
         </div>
       </form>
+
+      {/* Confirm dialog */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)' }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-base font-bold mb-1" style={{ color: '#0f172a' }}>Konfirmasi Simpan</h3>
+              <p className="text-sm" style={{ color: '#64748b' }}>
+                Apakah data sudah benar? Penjualan akan disimpan dan tidak dapat dihapus.
+              </p>
+              <div className="mt-3 rounded-xl p-3 space-y-1 text-xs" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                <div className="flex justify-between"><span style={{ color: '#94a3b8' }}>Tipe</span><span className="font-semibold" style={{ color: '#334155' }}>{tipe === 'DISPLAY' ? 'Display' : 'Penjualan'} — {tipe === 'DISPLAY' ? 'Non Faktur' : faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}</span></div>
+                <div className="flex justify-between"><span style={{ color: '#94a3b8' }}>Produk</span><span className="font-semibold" style={{ color: '#334155' }}>{items.length} item</span></div>
+                <div className="flex justify-between"><span style={{ color: '#94a3b8' }}>Total</span><span className="font-bold" style={{ color: '#FA2F2F' }}>{formatRupiah(total)}</span></div>
+              </div>
+            </div>
+            <div className="flex gap-2 px-6 pb-5">
+              <button onClick={() => setConfirmOpen(false)} className="flex-1 h-10 rounded-xl text-sm font-semibold transition-all" style={{ background: '#f1f5f9', color: '#475569' }}>
+                Periksa Lagi
+              </button>
+              <button onClick={doSubmit} disabled={loading} className="flex-1 h-10 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50" style={{ background: 'linear-gradient(135deg,#FA2F2F,#d41a1a)' }}>
+                {loading ? 'Menyimpan...' : 'Ya, Simpan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
