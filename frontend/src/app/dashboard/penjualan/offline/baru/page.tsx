@@ -154,9 +154,9 @@ export default function PenjualanOfflineBaru() {
             // Display penjualan: simpan harga_satuan apa adanya, diskon = 0
             diskon = 0;
           } else if (item.hargaMode === 'harga') {
-            // Simpan harga jual persis — diskon dihitung di HTML generator via perbandingan harga katalog
             harga_satuan = Number(item.harga_custom) || item.harga_asli;
-            diskon = 0;
+            // -1 = sentinel: harga diubah dari HPP → tampilkan [SPESIAL PRICE] di dokumen
+            diskon = harga_satuan !== item.harga_asli ? -1 : 0;
           }
           return {
             barang_id: item.barang_id,

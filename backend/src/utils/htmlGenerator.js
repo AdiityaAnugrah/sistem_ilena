@@ -1282,8 +1282,8 @@ const generateHTMLInvoice = (inv) => {
       ? `<p class="m-0" style="font-size:10.5px; color:#6b7280;">${dimensiStr}</p>`
       : '';
 
-    const subtotal = item.subtotal ? Number(item.subtotal) : (item.qty * (item.harga_satuan || 0) * (1 - diskon / 100));
-    const hargaEfektif = diskon !== 0
+    const subtotal = item.subtotal ? Number(item.subtotal) : (item.qty * (item.harga_satuan || 0) * (1 - Math.max(0, diskon) / 100));
+    const hargaEfektif = diskon > 0
       ? Math.round((item.harga_satuan || 0) * (1 - diskon / 100))
       : (item.harga_satuan || 0);
     totalInvoice += subtotal;

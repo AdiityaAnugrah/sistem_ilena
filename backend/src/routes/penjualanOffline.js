@@ -105,7 +105,7 @@ router.post('/', authenticate, async (req, res) => {
       qty: item.qty,
       harga_satuan: item.harga_satuan,
       diskon: item.diskon || 0,
-      subtotal: item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100),
+      subtotal: item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100),
     }));
     await PenjualanOfflineItem.bulkCreate(itemsData);
 
@@ -214,7 +214,7 @@ router.put('/:id', authenticate, async (req, res) => {
         qty: item.qty,
         harga_satuan: item.harga_satuan,
         diskon: item.diskon || 0,
-        subtotal: item.qty * item.harga_satuan * (1 - (item.diskon || 0) / 100),
+        subtotal: item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100),
       }));
       await PenjualanOfflineItem.bulkCreate(itemsData);
     }
