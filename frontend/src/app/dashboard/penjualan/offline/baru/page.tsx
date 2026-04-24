@@ -154,10 +154,9 @@ export default function PenjualanOfflineBaru() {
             // Hitung diskon sintetis agar [SPECIAL PRICE] muncul di invoice
             diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - item.harga_satuan / item.harga_asli) * 100)) : 0;
           } else if (item.hargaMode === 'harga') {
-            const custom = Number(item.harga_custom) || item.harga_asli;
-            // Simpan harga katalog sebagai referensi; diskon negatif = markup
-            harga_satuan = item.harga_asli;
-            diskon = item.harga_asli > 0 ? Math.round((1 - custom / item.harga_asli) * 100) : 0;
+            // Simpan harga jual persis — diskon dihitung di HTML generator via perbandingan harga katalog
+            harga_satuan = Number(item.harga_custom) || item.harga_asli;
+            diskon = 0;
           }
           return {
             barang_id: item.barang_id,
