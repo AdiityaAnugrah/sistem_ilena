@@ -154,9 +154,16 @@ export default function PenjualanOfflineBaru() {
             // Hitung diskon sintetis agar [SPECIAL PRICE] muncul di invoice
             diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - item.harga_satuan / item.harga_asli) * 100)) : 0;
           } else if (item.hargaMode === 'harga') {
-            // Mode harga jual: simpan harga asli sebagai harga_satuan, diskon dihitung
-            harga_satuan = item.harga_asli;
-            diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - (Number(item.harga_custom) || item.harga_asli) / item.harga_asli) * 100)) : 0;
+            const custom = Number(item.harga_custom) || item.harga_asli;
+            if (custom <= item.harga_asli) {
+              // Diskon: simpan harga katalog + diskon%, invoice bisa coret harga asli
+              harga_satuan = item.harga_asli;
+              diskon = item.harga_asli > 0 ? Math.round((1 - custom / item.harga_asli) * 100) : 0;
+            } else {
+              // Markup: simpan harga jual langsung, tanpa diskon
+              harga_satuan = custom;
+              diskon = 0;
+            }
           }
           return {
             barang_id: item.barang_id,
@@ -517,10 +524,10 @@ export default function PenjualanOfflineBaru() {
                                   <div className="relative flex items-center">
                                     <div className="absolute left-2 text-slate-400 text-xs pointer-events-none">Rp</div>
                                     <input
-                                      type="number" min={0} max={item.harga_asli}
+                                      type="number" min={0}
                                       value={item.harga_custom || ''}
                                       onBeforeInput={(e: any) => { if (e.data && !/[\d.]/.test(e.data)) e.preventDefault(); }}
-                                      onChange={e => updateItem(idx, 'harga_custom', Math.min(item.harga_asli, Math.max(0, Number(e.target.value))))}
+                                      onChange={e => updateItem(idx, 'harga_custom', Math.max(0, Number(e.target.value)))}
                                       className="w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white font-semibold text-slate-700"
                                     />
                                   </div>
