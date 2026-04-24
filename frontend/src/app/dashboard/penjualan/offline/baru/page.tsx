@@ -155,15 +155,9 @@ export default function PenjualanOfflineBaru() {
             diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - item.harga_satuan / item.harga_asli) * 100)) : 0;
           } else if (item.hargaMode === 'harga') {
             const custom = Number(item.harga_custom) || item.harga_asli;
-            if (custom <= item.harga_asli) {
-              // Diskon: simpan harga katalog + diskon%, invoice bisa coret harga asli
-              harga_satuan = item.harga_asli;
-              diskon = item.harga_asli > 0 ? Math.round((1 - custom / item.harga_asli) * 100) : 0;
-            } else {
-              // Markup: simpan harga jual langsung, tanpa diskon
-              harga_satuan = custom;
-              diskon = 0;
-            }
+            // Simpan harga katalog sebagai referensi; diskon negatif = markup
+            harga_satuan = item.harga_asli;
+            diskon = item.harga_asli > 0 ? Math.round((1 - custom / item.harga_asli) * 100) : 0;
           }
           return {
             barang_id: item.barang_id,

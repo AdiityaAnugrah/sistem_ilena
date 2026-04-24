@@ -563,7 +563,7 @@ const generateHTMLSuratJalan = (sj) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10px; color:var(--muted); font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const isSpesial = diskon > 0;
+    const isSpesial = diskon !== 0;
     const spesialHtml = isSpesial
       ? `<span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 4px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
@@ -1273,7 +1273,7 @@ const generateHTMLInvoice = (inv) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10.5px; color:#6b7280; font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const isSpesial = diskon > 0;
+    const isSpesial = diskon !== 0;
     const spesialHtml = isSpesial
       ? `<br><span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 5px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
@@ -1283,7 +1283,7 @@ const generateHTMLInvoice = (inv) => {
       : '';
 
     const subtotal = item.subtotal ? Number(item.subtotal) : (item.qty * (item.harga_satuan || 0) * (1 - diskon / 100));
-    const hargaEfektif = diskon > 0
+    const hargaEfektif = diskon !== 0
       ? Math.round((item.harga_satuan || 0) * (1 - diskon / 100))
       : (item.harga_satuan || 0);
     totalInvoice += subtotal;
