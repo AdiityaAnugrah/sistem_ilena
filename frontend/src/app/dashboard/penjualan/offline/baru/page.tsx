@@ -151,8 +151,8 @@ export default function PenjualanOfflineBaru() {
           let harga_satuan = item.harga_satuan;
           let diskon = item.diskon;
           if (tipe === 'DISPLAY') {
-            // Hitung diskon sintetis agar [SPECIAL PRICE] muncul di invoice
-            diskon = item.harga_asli > 0 ? Math.max(0, Math.round((1 - item.harga_satuan / item.harga_asli) * 100)) : 0;
+            // Display penjualan: simpan harga_satuan apa adanya, diskon = 0
+            diskon = 0;
           } else if (item.hargaMode === 'harga') {
             // Simpan harga jual persis — diskon dihitung di HTML generator via perbandingan harga katalog
             harga_satuan = Number(item.harga_custom) || item.harga_asli;

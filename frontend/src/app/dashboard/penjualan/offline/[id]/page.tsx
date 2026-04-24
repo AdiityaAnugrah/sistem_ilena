@@ -193,7 +193,7 @@ const JualMultipleModal = ({
   const totalQty = selectedItems.reduce((s: number, it: any) => s + (form[it.id]?.qty || 0), 0);
   const grandTotal = selectedItems.reduce((s: number, it: any) => {
     const f = form[it.id] || { qty: 0, harga: '' };
-    const effectiveDisplay = it.harga_satuan * (1 - (it.diskon || 0) / 100);
+    const effectiveDisplay = it.harga_satuan;
     const diskonPct = (f.harga !== '' && Number(f.harga) > 0 && effectiveDisplay > 0)
       ? Math.max(0, Math.round((1 - Number(f.harga) / effectiveDisplay) * 100))
       : 0;
@@ -283,7 +283,7 @@ const JualMultipleModal = ({
             {items.map((item: any) => {
               const f = form[item.id] || { qty: 0, harga: '' };
               const isSelected = f.qty > 0;
-              const effectiveDisplay = item.harga_satuan * (1 - (item.diskon || 0) / 100);
+              const effectiveDisplay = item.harga_satuan;
               const diskonPct = (f.harga !== '' && Number(f.harga) > 0 && effectiveDisplay > 0)
                 ? Math.max(0, Math.round((1 - Number(f.harga) / effectiveDisplay) * 100))
                 : 0;
@@ -301,7 +301,7 @@ const JualMultipleModal = ({
                       )}
                       <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: '#94a3b8' }}>
                         <span>Sisa: <strong className="text-slate-700">{item.qty}</strong></span>
-                        <span>Harga display: <strong className="text-slate-700">{formatRupiah(item.harga_satuan * (1 - (item.diskon || 0) / 100))}</strong></span>
+                        <span>Harga display: <strong className="text-slate-700">{formatRupiah(item.harga_satuan)}</strong></span>
                       </div>
                     </div>
                     {isSelected && (

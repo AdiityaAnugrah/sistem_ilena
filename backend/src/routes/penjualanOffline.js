@@ -398,13 +398,12 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
 
       // Proses setiap item
       for (const { itemDisplay, qtyJualInt, harga_jual } of validItemsToProcess) {
-        // Harga referensi = harga efektif display (harga_satuan × (1 - diskon/100))
-        const displayDiskon = parseFloat(itemDisplay.diskon) || 0;
-        const displayEffectivePrice = parseFloat(itemDisplay.harga_satuan) * (1 - displayDiskon / 100);
+        // Untuk DISPLAY, harga_satuan IS the effective selling price (diskon di Display bersifat sintetis)
+        const displayEffectivePrice = parseFloat(itemDisplay.harga_satuan);
 
         let finalHargaSatuan, finalDiskon;
-        if (harga_jual !== undefined && harga_jual !== '') {
-          // User override: simpan harga referensi display sebagai base, hitung diskon ke harga yg diinput
+        if (harga_jual !== undefined && harga_jual !== null && harga_jual !== '') {
+          // User override: simpan harga_satuan display sebagai base, hitung diskon ke harga yg diinput
           const enteredHarga = parseFloat(harga_jual);
           finalHargaSatuan = displayEffectivePrice;
           finalDiskon = displayEffectivePrice > 0
