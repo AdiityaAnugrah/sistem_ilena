@@ -548,7 +548,7 @@ const generateHTMLSuratJalan = (sj) => {
       const parsed = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
       const d = parsed?.dimensi?.asli;
       if (d && d.panjang && d.lebar && d.tinggi) {
-        return `${d.panjang} x ${d.lebar} x ${d.tinggi} cm`;
+        return `${d.panjang} x ${d.lebar} x ${d.tinggi} mm`;
       }
     } catch { /* ignored */ }
     return null;
@@ -896,7 +896,7 @@ const generateHTMLSuratPengantar = (sp) => {
     try {
       const parsed = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
       const d = parsed?.dimensi?.asli;
-      if (d && d.panjang && d.lebar && d.tinggi) return `${d.panjang} x ${d.lebar} x ${d.tinggi} cm`;
+      if (d && d.panjang && d.lebar && d.tinggi) return `${d.panjang} x ${d.lebar} x ${d.tinggi} mm`;
     } catch { /* ignored */ }
     return null;
   };
@@ -1260,7 +1260,7 @@ const generateHTMLInvoice = (inv) => {
     try {
       const parsed = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
       const d = parsed?.dimensi?.asli;
-      if (d && d.panjang && d.lebar && d.tinggi) return `${d.panjang} x ${d.lebar} x ${d.tinggi} cm`;
+      if (d && d.panjang && d.lebar && d.tinggi) return `${d.panjang} x ${d.lebar} x ${d.tinggi} mm`;
     } catch { /* ignored */ }
     return null;
   };
