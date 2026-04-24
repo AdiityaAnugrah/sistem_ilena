@@ -122,6 +122,55 @@ async function renumberSP({ deletedNomors, t }) {
   }
 }
 
+// GET /api/dev/penjualan-by-doc — cari penjualan by nomor dokumen (SJ/Invoice/SP/Proforma)
+router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
+  const { sumber, nomor } = req.query;
+  if (!nomor?.trim() || !['offline', 'interior'].includes(sumber)) {
+    return res.status(400).json({ message: 'Parameter tidak valid' });
+  }
+  const q = nomor.trim();
+  let penjualanId = null;
+
+  if (sumber === 'offline') {
+    const sj = await SuratJalan.findOne({ where: { nomor_surat: q } });
+    if (sj) penjualanId = sj.penjualan_offline_id;
+
+    if (!penjualanId) {
+      const inv = await Invoice.findOne({ where: { nomor_invoice: q } });
+      if (inv) penjualanId = inv.penjualan_offline_id;
+    }
+
+    if (!penjualanId) {
+      const sp = await SuratPengantar.findOne({ where: { nomor_sp: q } });
+      if (sp) penjualanId = sp.penjualan_offline_id;
+    }
+  } else {
+    const sj = await SuratJalanInterior.findOne({ where: { nomor_surat: q } });
+    if (sj) penjualanId = sj.penjualan_interior_id;
+
+    if (!penjualanId) {
+      const inv = await InvoiceInterior.findOne({ where: { nomor_invoice: q } });
+      if (inv) {
+        const sjInt = await SuratJalanInterior.findByPk(inv.surat_jalan_interior_id);
+        if (sjInt) penjualanId = sjInt.penjualan_interior_id;
+      }
+    }
+
+    if (!penjualanId) {
+      const proforma = await ProformaInvoice.findOne({ where: { nomor_proforma: q } });
+      if (proforma) penjualanId = proforma.penjualan_interior_id;
+    }
+
+    if (!penjualanId) {
+      const sp = await SuratPengantarInterior.findOne({ where: { nomor_surat: q } });
+      if (sp) penjualanId = sp.penjualan_interior_id;
+    }
+  }
+
+  if (!penjualanId) return res.status(404).json({ message: 'Dokumen tidak ditemukan' });
+  return res.json({ penjualan_id: penjualanId });
+});
+
 // DELETE /api/dev/reset-test-data — hapus semua data penjualan is_test=1
 router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => {
   const t = await sequelize.transaction();

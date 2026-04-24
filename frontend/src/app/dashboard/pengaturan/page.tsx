@@ -183,12 +183,20 @@ export default function PengaturanPage() {
   };
 
   const handleFetchPreview = async () => {
-    if (!deleteSingle.idStr.trim()) return;
+    const q = deleteSingle.idStr.trim();
+    if (!q) return;
     try {
-      const res = await api.get(`/penjualan-${deleteSingle.sumber}/${deleteSingle.idStr}`);
-      setDeleteSingle(p => ({ ...p, preview: res.data, step: 2 }));
+      let id = q;
+      // Jika input bukan angka murni (mengandung '/'), cari by nomor dokumen dulu
+      if (!/^\d+$/.test(q)) {
+        const lookup = await api.get('/dev/penjualan-by-doc', { params: { sumber: deleteSingle.sumber, nomor: q } });
+        id = String(lookup.data.penjualan_id);
+        setDeleteSingle(p => ({ ...p, idStr: id }));
+      }
+      const res = await api.get(`/penjualan-${deleteSingle.sumber}/${id}`);
+      setDeleteSingle(p => ({ ...p, idStr: id, preview: res.data, step: 2 }));
     } catch {
-      toast.error('Penjualan tidak ditemukan');
+      toast.error('Dokumen tidak ditemukan');
     }
   };
 
@@ -408,8 +416,8 @@ export default function PengaturanPage() {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Box sx={{ p: 2, borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
                 <Typography sx={{ fontSize: 12, color: '#92400e' }}>
-                  ⚠ Nomor dokumen <strong>tidak akan direset</strong>. Akan ada celah urutan pada nomor SJ/Invoice/dsb.
-                  Ini wajar dan aman untuk keperluan internal, tapi perlu diperhatikan.
+                  ⚠ Nomor dokumen berikutnya akan <strong>otomatis disesuaikan</strong> setelah penghapusan.
+                  Tindakan ini tidak bisa dibatalkan.
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -419,9 +427,9 @@ export default function PengaturanPage() {
                   <option value="offline">Offline / Display</option>
                   <option value="interior">Interior</option>
                 </TextField>
-                <TextField size="small" label="ID Penjualan" value={deleteSingle.idStr} type="number"
+                <TextField size="small" label="ID atau Nomor Dokumen" value={deleteSingle.idStr}
                   onChange={e => setDeleteSingle(p => ({ ...p, idStr: e.target.value, preview: null, step: 1 }))}
-                  placeholder="contoh: 42" sx={{ flex: 1 }} />
+                  placeholder="42  atau  0004/SJ/05/2025" sx={{ flex: 1 }} />
                 <Button variant="outlined" size="small" onClick={handleFetchPreview}
                   disabled={!deleteSingle.idStr.trim()} sx={{ borderRadius: '8px', whiteSpace: 'nowrap' }}>
                   Cari
