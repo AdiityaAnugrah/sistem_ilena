@@ -11,53 +11,45 @@ const {
 
 const router = express.Router();
 
-// GET /api/public/surat — list semua invoice (OFFLINE + INTERIOR), tanpa auth
+// GET /api/public/surat — list semua dokumen (SJ, Invoice, SP, Proforma — OFFLINE + INTERIOR)
 router.get('/', async (req, res) => {
   try {
-    const { search, page = 1, limit = 20 } = req.query;
+    const { search, page = 1, limit = 20, tipe } = req.query;
 
-    const [offlineRows, interiorRows] = await Promise.all([
-      Invoice.findAll({
-        include: [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }],
-        order: [['tanggal', 'DESC']],
-      }),
-      InvoiceInterior.findAll({
-        include: [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'is_test'] }],
-        order: [['tanggal', 'DESC']],
-      }),
+    const offlineInclude = [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }];
+    const interiorInclude = [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'is_test'] }];
+
+    const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt] = await Promise.all([
+      SuratJalan.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
+      Invoice.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
+      SuratPengantar.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
+      SuratJalanInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      InvoiceInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      ProformaInvoice.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      SuratPengantarInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
     ]);
 
+    const row = (r, nomor, tipeDoc, sumber, penjualanId, nama) => ({
+      nomor, tipe: tipeDoc, sumber,
+      penjualan_id: penjualanId,
+      nama_penerima: nama || '-',
+      tanggal: r.tanggal,
+    });
+
     const combined = [
-      ...offlineRows
-        .filter(r => !r.penjualan?.is_test)
-        .map(r => ({
-          id: r.id,
-          penjualan_id: r.penjualan_offline_id,
-          nomor: r.nomor_invoice,
-          tanggal: r.tanggal,
-          jatuh_tempo: r.jatuh_tempo,
-          nama_penerima: r.penjualan?.nama_penerima || '-',
-          sumber: 'OFFLINE',
-        })),
-      ...interiorRows
-        .filter(r => !r.penjualan?.is_test)
-        .map(r => ({
-          id: r.id,
-          penjualan_id: r.penjualan_interior_id,
-          nomor: r.nomor_invoice,
-          tanggal: r.tanggal,
-          jatuh_tempo: r.jatuh_tempo,
-          nama_penerima: r.penjualan?.nama_customer || '-',
-          sumber: 'INTERIOR',
-        })),
+      ...sjOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
+      ...invOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
+      ...spOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sp, 'Surat Pengantar', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
+      ...sjInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
+      ...invInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
+      ...proforma.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_proforma, 'Proforma', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
+      ...spInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Pengantar', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
     ]
       .filter(r => {
+        if (tipe && r.tipe !== tipe) return false;
         if (!search) return true;
         const q = search.toLowerCase();
-        return (
-          r.nomor?.toLowerCase().includes(q) ||
-          r.nama_penerima?.toLowerCase().includes(q)
-        );
+        return r.nomor?.toLowerCase().includes(q) || r.nama_penerima?.toLowerCase().includes(q);
       })
       .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
 
@@ -65,13 +57,7 @@ router.get('/', async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const data = combined.slice(offset, offset + parseInt(limit));
 
-    return res.json({
-      data,
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / parseInt(limit)) || 1,
-    });
+    return res.json({ data, total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / parseInt(limit)) || 1 });
   } catch (err) {
     console.error('[GET /api/public/surat]', err.message);
     return res.status(500).json({ message: 'Server error', error: err.message });
