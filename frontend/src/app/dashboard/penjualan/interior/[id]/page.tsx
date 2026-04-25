@@ -145,6 +145,7 @@ const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any)
     <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>{label}</label>
     <input
       type={type} value={value} onChange={onChange} placeholder={placeholder}
+      lang={type === 'date' ? 'id-ID' : undefined}
       className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
       style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
       onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}

@@ -109,6 +109,7 @@ const DocModal = ({
             </label>
             <input
               type="date"
+              lang="id-ID"
               value={tanggal}
               onChange={e => setTanggal(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
@@ -225,7 +226,7 @@ const JualMultipleModal = ({
             <div className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <p className="text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tanggal Penjualan</p>
               <input
-                type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
+                type="date" lang="id-ID" value={tanggal} onChange={e => setTanggal(e.target.value)}
                 className="w-full px-2.5 py-1.5 text-sm rounded-lg outline-none"
                 style={{ border: '1px solid #cbd5e1', background: '#fff' }}
               />

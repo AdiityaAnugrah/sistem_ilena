@@ -160,11 +160,11 @@ export default function SemuaPenjualanPage() {
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Dari</Typography>
-                <TextField type="date" fullWidth size="small" value={tanggalDari} onChange={e => setTanggalDari(e.target.value)} slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
+                <TextField type="date" fullWidth size="small" value={tanggalDari} onChange={e => setTanggalDari(e.target.value)} inputProps={{ lang: 'id-ID' }} slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Ke</Typography>
-                <TextField type="date" fullWidth size="small" value={tanggalSampai} onChange={e => setTanggalSampai(e.target.value)} slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
+                <TextField type="date" fullWidth size="small" value={tanggalSampai} onChange={e => setTanggalSampai(e.target.value)} inputProps={{ lang: 'id-ID' }} slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <FormControl fullWidth size="small">

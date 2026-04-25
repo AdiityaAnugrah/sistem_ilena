@@ -93,22 +93,24 @@ export default function LogActivityPage() {
             <Box sx={{ minWidth: 200 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Dari Tanggal</Typography>
               <TextField 
-                type="date" 
-                size="small" 
-                fullWidth 
-                value={from} 
+                type="date"
+                size="small"
+                fullWidth
+                value={from}
                 onChange={e => setFrom(e.target.value)}
+                inputProps={{ lang: 'id-ID' }}
                 slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
               />
             </Box>
             <Box sx={{ minWidth: 200 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Sampai Tanggal</Typography>
-              <TextField 
-                type="date" 
-                size="small" 
-                fullWidth 
-                value={to} 
+              <TextField
+                type="date"
+                size="small"
+                fullWidth
+                value={to}
                 onChange={e => setTo(e.target.value)}
+                inputProps={{ lang: 'id-ID' }}
                 slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
               />
             </Box>
