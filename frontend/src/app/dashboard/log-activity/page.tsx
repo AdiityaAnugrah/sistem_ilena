@@ -98,8 +98,7 @@ export default function LogActivityPage() {
                 fullWidth
                 value={from}
                 onChange={e => setFrom(e.target.value)}
-                inputProps={{ lang: 'id-ID' }}
-                slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
+                slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
               />
             </Box>
             <Box sx={{ minWidth: 200 }}>
@@ -110,8 +109,7 @@ export default function LogActivityPage() {
                 fullWidth
                 value={to}
                 onChange={e => setTo(e.target.value)}
-                inputProps={{ lang: 'id-ID' }}
-                slotProps={{ input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
+                slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
               />
             </Box>
             <Box sx={{ flex: 1, minWidth: 250 }}>
