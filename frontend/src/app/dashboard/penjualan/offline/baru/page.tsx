@@ -315,6 +315,7 @@ export default function PenjualanOfflineBaru() {
               <Label className="text-xs font-bold text-slate-500 ml-1">Tanggal Transaksi *</Label>
               <DateInput
                 {...register('tanggal', { required: 'Tanggal wajib diisi' })}
+                value={watch('tanggal')}
                 className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
               {errors.tanggal && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.tanggal.message as string}</p>}
