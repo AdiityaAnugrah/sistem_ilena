@@ -431,6 +431,11 @@ export default function PenjualanOfflineDetail() {
   const [jualForm, setJualForm] = useState<Record<number, { qty: number; harga: string }>>({});
   const [jualLoading, setJualLoading] = useState(false);
 
+  // States for Edit Produk (varian koreksi)
+  const [editProdukModal, setEditProdukModal] = useState(false);
+  const [editProdukForm, setEditProdukForm] = useState<Record<number, { varian_nama: string; varian_id: string }>>({});
+  const [editProdukLoading, setEditProdukLoading] = useState(false);
+
   // States for Invoice PPN
   const [invPpn, setInvPpn] = useState<0 | 10 | 11>(0);
 
@@ -485,6 +490,36 @@ export default function PenjualanOfflineDetail() {
       no_npwp: data.no_npwp || '',
     });
     setIdentitasWarn(true);
+  };
+
+  const openEditProdukModal = () => {
+    const init: Record<number, { varian_nama: string; varian_id: string }> = {};
+    data.items?.forEach((item: any) => {
+      init[item.id] = { varian_nama: item.varian_nama || '', varian_id: item.varian_id || '' };
+    });
+    setEditProdukForm(init);
+    setEditProdukModal(true);
+  };
+
+  const saveEditProduk = async () => {
+    setEditProdukLoading(true);
+    try {
+      const changes = data.items?.filter((item: any) => {
+        const f = editProdukForm[item.id];
+        return f && (f.varian_nama !== (item.varian_nama || '') || f.varian_id !== (item.varian_id || ''));
+      });
+      if (!changes || changes.length === 0) { setEditProdukModal(false); return; }
+      await Promise.all(changes.map((item: any) =>
+        api.patch(`/penjualan-offline/items/${item.id}/varian`, editProdukForm[item.id])
+      ));
+      toast.success('Varian produk berhasil diperbarui');
+      setEditProdukModal(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menyimpan');
+    } finally {
+      setEditProdukLoading(false);
+    }
   };
 
   const saveIdentitas = async () => {
@@ -776,6 +811,21 @@ export default function PenjualanOfflineDetail() {
                 <Package className="h-4 w-4" style={{ color: '#94a3b8' }} />
                 <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Daftar Produk</h2>
               </div>
+              <div className="flex items-center gap-2">
+                {canEditIdentitas && (
+                  <button
+                    onClick={openEditProdukModal}
+                    disabled={isLocked}
+                    title={isLocked ? 'Dikunci — pengguna lain sedang membuka halaman ini' : undefined}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: '#ede9fe', color: '#6d28d9', border: '1px solid #ddd6fe' }}
+                    onMouseEnter={e => { if (!isLocked) (e.currentTarget as HTMLElement).style.background = '#ddd6fe'; }}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#ede9fe'}
+                  >
+                    {isLocked ? <Lock className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+                    Edit Varian
+                  </button>
+                )}
               {!isPenjualan && (
                 (data.suratPengantars?.length ?? 0) > 0 ? (
                   data.items?.some((it: any) => it.qty > 0) && (
@@ -796,6 +846,7 @@ export default function PenjualanOfflineDetail() {
                   </div>
                 )
               )}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -1193,6 +1244,84 @@ export default function PenjualanOfflineDetail() {
           </div>
         );
       })()}
+
+      {/* Modal Edit Varian Produk */}
+      {editProdukModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe' }}>
+                <Pencil className="h-5 w-5" style={{ color: '#6d28d9' }} />
+              </div>
+              <div>
+                <h3 className="font-bold" style={{ color: '#0f172a' }}>Edit Varian Produk</h3>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>Koreksi varian yang salah input. Nomor SJ/Invoice tetap sama.</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {data.items?.map((item: any) => {
+                const f = editProdukForm[item.id] || { varian_nama: '', varian_id: '' };
+                let varianOptions: { id: string; nama: string }[] = [];
+                try {
+                  const parsed = JSON.parse(item.barang?.varian || '[]');
+                  if (Array.isArray(parsed)) varianOptions = parsed.map((v: any) => ({ id: String(v.id), nama: v.nama || v.kode || String(v.id) }));
+                } catch { /* */ }
+                return (
+                  <div key={item.id} className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <div className="text-xs font-bold uppercase mb-2" style={{ color: '#334155' }}>{item.barang?.nama || '-'}</div>
+                    <div className="flex gap-2">
+                      {varianOptions.length > 0 ? (
+                        <select
+                          value={f.varian_id}
+                          onChange={e => {
+                            const selected = varianOptions.find(v => v.id === e.target.value);
+                            setEditProdukForm(prev => ({
+                              ...prev,
+                              [item.id]: { varian_id: e.target.value, varian_nama: selected?.nama || '' }
+                            }));
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                        >
+                          <option value="">— Tidak ada varian —</option>
+                          {varianOptions.map(v => (
+                            <option key={v.id} value={v.id}>{v.nama}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={f.varian_nama}
+                          onChange={e => setEditProdukForm(prev => ({ ...prev, [item.id]: { ...prev[item.id], varian_nama: e.target.value } }))}
+                          placeholder="Nama varian (opsional)"
+                          className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                        />
+                      )}
+                    </div>
+                    {item.varian_nama && (
+                      <div className="text-xs mt-1.5" style={{ color: '#94a3b8' }}>Sebelumnya: <span style={{ color: '#6d28d9', fontWeight: 600 }}>{item.varian_nama}</span></div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setEditProdukModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
+                Batal
+              </button>
+              <button
+                onClick={saveEditProduk}
+                disabled={editProdukLoading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
+              >
+                {editProdukLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Warning Modal Identitas */}
       {identitasWarn && (

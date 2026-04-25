@@ -571,4 +571,29 @@ router.patch('/:id/status', authenticate, async (req, res) => {
   }
 });
 
+// PATCH /api/penjualan-offline/items/:item_id/varian — edit varian item (koreksi salah input)
+router.patch('/items/:item_id/varian', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+  try {
+    const item = await PenjualanOfflineItem.findByPk(req.params.item_id);
+    if (!item) return res.status(404).json({ message: 'Item tidak ditemukan' });
+
+    const { varian_nama, varian_id } = req.body;
+    await item.update({
+      varian_nama: varian_nama || null,
+      varian_id: varian_id || null,
+    });
+
+    const { logAction } = require('../middleware/logger');
+    await logAction(req.user.id, 'EDIT_VARIAN_ITEM', `Item #${item.id} varian → ${varian_nama || '-'}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${item.penjualan_offline_id}`, { updatedBy: req.user.id });
+
+    return res.json({ message: 'Varian berhasil diperbarui' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;
