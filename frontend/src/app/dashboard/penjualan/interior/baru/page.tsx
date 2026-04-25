@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { Input } from '@/components/ui/input';
+import DateInput from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -204,9 +205,7 @@ export default function PenjualanInteriorBaru() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-500 ml-1">Tanggal Transaksi *</Label>
-              <Input
-                type="date"
-                lang="id-ID"
+              <DateInput
                 {...register('tanggal', { required: 'Tanggal wajib diisi' })}
                 className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />

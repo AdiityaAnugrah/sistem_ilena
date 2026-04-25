@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -140,17 +141,23 @@ const ModalHeader = ({ icon: Icon, title, sub }: { icon: any; title: string; sub
   </div>
 );
 
+const modalInputStyle = { background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' };
+const modalInputClass = 'w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all';
+const modalFocus = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.border = '1px solid #FA2F2F');
+const modalBlur = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.border = '1px solid #e2e8f0');
+
 const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any) => (
   <div>
     <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>{label}</label>
-    <input
-      type={type} value={value} onChange={onChange} placeholder={placeholder}
-      lang={type === 'date' ? 'id-ID' : undefined}
-      className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
-      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
-      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
-      onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
-    />
+    {type === 'date' ? (
+      <DateInput value={value} onChange={onChange} className={modalInputClass} style={modalInputStyle} />
+    ) : (
+      <input
+        type={type} value={value} onChange={onChange} placeholder={placeholder}
+        className={modalInputClass} style={modalInputStyle}
+        onFocus={modalFocus} onBlur={modalBlur}
+      />
+    )}
   </div>
 );
 

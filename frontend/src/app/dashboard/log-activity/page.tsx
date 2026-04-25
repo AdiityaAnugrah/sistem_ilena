@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import DateInput from '@/components/ui/DateInput';
 import { formatDateTime } from '@/lib/utils';
 import useAuthStore from '@/store/authStore';
 import {
@@ -92,25 +93,11 @@ export default function LogActivityPage() {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
             <Box sx={{ minWidth: 200 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Dari Tanggal</Typography>
-              <TextField 
-                type="date"
-                size="small"
-                fullWidth
-                value={from}
-                onChange={e => setFrom(e.target.value)}
-                slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
-              />
+              <DateInput value={from} onChange={e => setFrom(e.target.value)} style={{ width: '100%', padding: '7px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #e0e0e0', fontSize: 14 }} />
             </Box>
             <Box sx={{ minWidth: 200 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Sampai Tanggal</Typography>
-              <TextField
-                type="date"
-                size="small"
-                fullWidth
-                value={to}
-                onChange={e => setTo(e.target.value)}
-                slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }}
-              />
+              <DateInput value={to} onChange={e => setTo(e.target.value)} style={{ width: '100%', padding: '7px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #e0e0e0', fontSize: 14 }} />
             </Box>
             <Box sx={{ flex: 1, minWidth: 250 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Pencarian Aksi</Typography>

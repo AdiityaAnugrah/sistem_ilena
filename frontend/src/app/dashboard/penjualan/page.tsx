@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import DateInput from '@/components/ui/DateInput';
 import { formatDate } from '@/lib/utils';
 import { 
   Box, 
@@ -160,11 +161,11 @@ export default function SemuaPenjualanPage() {
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Dari</Typography>
-                <TextField type="date" fullWidth size="small" value={tanggalDari} onChange={e => setTanggalDari(e.target.value)} slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
+                <DateInput value={tanggalDari} onChange={e => setTanggalDari(e.target.value)} style={{ width: '100%', padding: '7px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #e0e0e0', fontSize: 14 }} />
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', mb: 1, display: 'block' }}>Ke</Typography>
-                <TextField type="date" fullWidth size="small" value={tanggalSampai} onChange={e => setTanggalSampai(e.target.value)} slotProps={{ htmlInput: { lang: 'id-ID' }, input: { sx: { borderRadius: '10px', bgcolor: '#fff' } } }} />
+                <DateInput value={tanggalSampai} onChange={e => setTanggalSampai(e.target.value)} style={{ width: '100%', padding: '7px 12px', borderRadius: '10px', background: '#fff', border: '1px solid #e0e0e0', fontSize: 14 }} />
               </Grid>
               <Grid size={{ xs: 6, md: 2 }}>
                 <FormControl fullWidth size="small">
