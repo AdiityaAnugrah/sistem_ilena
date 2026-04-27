@@ -20,6 +20,7 @@ const SuratJalanInteriorItem = require('./SuratJalanInteriorItem');
 const InvoiceInterior = require('./InvoiceInterior');
 const DocumentCounter = require('./DocumentCounter');
 const ReturSJInterior = require('./ReturSJInterior');
+const ReturOffline = require('./ReturOffline');
 const SuratPengantarSub = require('./SuratPengantarSub');
 const TutorialVideo = require('./TutorialVideo');
 const HargaKhusus = require('./HargaKhusus');
@@ -101,6 +102,12 @@ InvoiceInterior.belongsTo(PenjualanInterior, { foreignKey: 'penjualan_interior_i
 InvoiceInterior.belongsTo(SuratJalanInterior, { foreignKey: 'surat_jalan_interior_id', as: 'suratJalan' });
 SuratJalanInterior.hasMany(InvoiceInterior, { foreignKey: 'surat_jalan_interior_id', as: 'invoicesInterior' });
 
+// ReturOffline associations
+PenjualanOffline.hasMany(ReturOffline, { foreignKey: 'penjualan_offline_id', as: 'returs' });
+ReturOffline.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'penjualan' });
+ReturOffline.belongsTo(SuratJalan, { foreignKey: 'surat_jalan_id', as: 'suratJalan' });
+ReturOffline.belongsTo(PenjualanOfflineItem, { foreignKey: 'penjualan_offline_item_id', as: 'item' });
+
 // ReturSJInterior associations
 SuratJalanInterior.hasMany(ReturSJInterior, { foreignKey: 'surat_jalan_interior_id', as: 'returs' });
 ReturSJInterior.belongsTo(SuratJalanInterior, { foreignKey: 'surat_jalan_interior_id', as: 'suratJalan' });
@@ -141,6 +148,7 @@ module.exports = {
   InvoiceInterior,
   DocumentCounter,
   ReturSJInterior,
+  ReturOffline,
   SuratPengantarSub,
   TutorialVideo,
   HargaKhusus,

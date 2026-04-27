@@ -2,9 +2,40 @@ const express = require('express');
 const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
-  Provinsi, Kabupaten, Kecamatan, Kelurahan,
+  Provinsi, Kabupaten, Kecamatan, Kelurahan, ReturOffline, sequelize,
 } = require('../models');
 const BarangTest = require('../models/BarangTest');
+
+// Kembalikan stok varian ke barang saat retur
+async function restoreStok(items, isTest) {
+  const BarangModel = isTest ? BarangTest : Barang;
+  for (const item of items) {
+    if (!item.barang_id) continue;
+    try {
+      const barang = await BarangModel.findByPk(item.barang_id);
+      if (!barang || !barang.varian) continue;
+      let varians = [];
+      try { varians = JSON.parse(barang.varian); } catch { continue; }
+      if (!Array.isArray(varians) || varians.length === 0) continue;
+
+      let updated = false;
+      if (item.varian_id) {
+        varians = varians.map(v => {
+          if (String(v.id) === String(item.varian_id)) {
+            const stokBaru = Number(v.stok || 0) + item.qty_retur;
+            updated = true;
+            return { ...v, stok: String(stokBaru) };
+          }
+          return v;
+        });
+      } else {
+        varians[0] = { ...varians[0], stok: String(Number(varians[0].stok || 0) + item.qty_retur) };
+        updated = true;
+      }
+      if (updated) await barang.update({ varian: JSON.stringify(varians) });
+    } catch { /* skip item jika error */ }
+  }
+}
 
 // Kurangi stok varian pada barang setelah penjualan dibuat
 async function deductStok(items, isTest) {
@@ -62,6 +93,7 @@ const fullInclude = [
   { model: SuratJalan, as: 'suratJalans' },
   { model: Invoice, as: 'invoices' },
   { model: SuratPengantar, as: 'suratPengantars', include: [{ model: SuratPengantarSub, as: 'subs', include: [{ model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] }] }] },
+  { model: ReturOffline, as: 'returs', include: [{ model: PenjualanOfflineItem, as: 'item' }] },
   ...includeAlamat,
 ];
 
@@ -592,6 +624,105 @@ router.patch('/items/:item_id/varian', authenticate, async (req, res) => {
 
     return res.json({ message: 'Varian berhasil diperbarui' });
   } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/penjualan-offline/:id/retur
+router.post('/:id/retur', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+  const t = await sequelize.transaction();
+  try {
+    const penjualan = await PenjualanOffline.findByPk(req.params.id, {
+      include: [
+        { model: SuratJalan, as: 'suratJalans' },
+        { model: SuratPengantar, as: 'suratPengantars' },
+      ],
+      transaction: t,
+    });
+    if (!penjualan) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Penjualan tidak ditemukan' });
+    }
+
+    // Validasi: PENJUALAN harus ada SJ, DISPLAY harus ada SP
+    if (penjualan.tipe === 'PENJUALAN' && (!penjualan.suratJalans || penjualan.suratJalans.length === 0)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Retur hanya bisa dilakukan setelah Surat Jalan dibuat' });
+    }
+    if (penjualan.tipe === 'DISPLAY' && (!penjualan.suratPengantars || penjualan.suratPengantars.length === 0)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Retur hanya bisa dilakukan setelah Surat Pengantar dibuat' });
+    }
+
+    const { surat_jalan_id, tanggal, catatan, items } = req.body;
+
+    if (!items || items.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Minimal 1 item retur wajib diisi' });
+    }
+    if (!tanggal) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Tanggal retur wajib diisi' });
+    }
+
+    // Validasi surat_jalan_id jika PENJUALAN
+    if (penjualan.tipe === 'PENJUALAN' && surat_jalan_id) {
+      const sjValid = penjualan.suratJalans.some(sj => sj.id === surat_jalan_id);
+      if (!sjValid) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Surat Jalan tidak ditemukan atau bukan milik penjualan ini' });
+      }
+    }
+
+    const returItems = [];
+    for (const item of items) {
+      const { penjualan_offline_item_id, qty_retur } = item;
+      if (!qty_retur || qty_retur <= 0) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Qty retur harus lebih dari 0' });
+      }
+
+      const offlineItem = await PenjualanOfflineItem.findOne({
+        where: { id: penjualan_offline_item_id, penjualan_offline_id: req.params.id },
+        transaction: t,
+      });
+      if (!offlineItem) {
+        await t.rollback();
+        return res.status(400).json({ message: `Item #${penjualan_offline_item_id} tidak ditemukan pada penjualan ini` });
+      }
+      if (qty_retur > offlineItem.qty) {
+        await t.rollback();
+        return res.status(400).json({ message: `Qty retur melebihi qty pembelian (${offlineItem.qty})` });
+      }
+
+      await ReturOffline.create({
+        penjualan_offline_id: req.params.id,
+        surat_jalan_id: surat_jalan_id || null,
+        penjualan_offline_item_id,
+        qty_retur,
+        tanggal,
+        catatan: catatan || null,
+        created_by: req.user.id,
+      }, { transaction: t });
+
+      returItems.push({ ...offlineItem.dataValues, qty_retur });
+    }
+
+    await t.commit();
+
+    // Kembalikan stok setelah commit berhasil
+    await restoreStok(returItems, req.user.role === 'TEST');
+
+    await logAction(req.user.id, 'CATAT_RETUR_OFFLINE',
+      `Retur Penjualan Offline #${req.params.id}, ${items.length} item`, req.ip);
+    emitDataUpdated(`penjualan-offline:${req.params.id}`, { updatedBy: req.user.id });
+
+    return res.status(201).json({ message: 'Retur berhasil dicatat' });
+  } catch (err) {
+    await t.rollback();
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

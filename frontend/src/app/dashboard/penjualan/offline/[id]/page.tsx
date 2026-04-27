@@ -7,7 +7,7 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, FilePlus, Printer,
-  User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X,
+  User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X, RotateCcw,
 } from 'lucide-react';
 
 import useAuthStore from '@/store/authStore';
@@ -439,6 +439,15 @@ export default function PenjualanOfflineDetail() {
   // States for Invoice PPN
   const [invPpn, setInvPpn] = useState<0 | 10 | 11>(0);
 
+  // States for Retur
+  const [returModal, setReturModal] = useState(false);
+  const [returForm, setReturForm] = useState<{ tanggal: string; catatan: string; items: Record<number, number | ''> }>({
+    tanggal: new Date().toISOString().split('T')[0],
+    catatan: '',
+    items: {},
+  });
+  const [returLoading, setReturLoading] = useState(false);
+
   // States for Sub-SP
   const [subSpModal, setSubSpModal] = useState<{ sp: any } | null>(null);
   const [subSpSelected, setSubSpSelected] = useState<number[]>([]);
@@ -519,6 +528,39 @@ export default function PenjualanOfflineDetail() {
       toast.error(err.response?.data?.message || 'Gagal menyimpan');
     } finally {
       setEditProdukLoading(false);
+    }
+  };
+
+  const openReturModal = () => {
+    const initItems: Record<number, number | ''> = {};
+    data.items?.forEach((item: any) => { initItems[item.id] = ''; });
+    setReturForm({ tanggal: new Date().toISOString().split('T')[0], catatan: '', items: initItems });
+    setReturModal(true);
+  };
+
+  const handleSubmitRetur = async () => {
+    const hasAny = Object.values(returForm.items).some(v => Number(v) > 0);
+    if (!hasAny) { toast.error('Pilih minimal 1 item dengan qty > 0'); return; }
+    const items = Object.entries(returForm.items)
+      .filter(([, v]) => Number(v) > 0)
+      .map(([item_id, qty_retur]) => ({ penjualan_offline_item_id: Number(item_id), qty_retur: Number(qty_retur) }));
+
+    const sjId = data.suratJalans?.[0]?.id || null;
+    setReturLoading(true);
+    try {
+      await api.post(`/penjualan-offline/${id}/retur`, {
+        surat_jalan_id: sjId,
+        tanggal: returForm.tanggal,
+        catatan: returForm.catatan || null,
+        items,
+      });
+      toast.success('Retur berhasil dicatat! Stok sudah dikembalikan.');
+      setReturModal(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal mencatat retur');
+    } finally {
+      setReturLoading(false);
     }
   };
 
@@ -997,6 +1039,53 @@ export default function PenjualanOfflineDetail() {
             </div>
           </div>
 
+          {/* Retur */}
+          {canEditIdentitas && (
+            (isPenjualan ? (data.suratJalans?.length ?? 0) > 0 : (data.suratPengantars?.length ?? 0) > 0) ? (
+              <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+                <h2 className="text-sm font-bold mb-3" style={{ color: '#1e293b' }}>Retur Barang</h2>
+                <button
+                  onClick={openReturModal}
+                  disabled={isLocked}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+                  style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', textAlign: 'left' }}
+                  onMouseEnter={e => { if (!isLocked) { (e.currentTarget as HTMLElement).style.background = '#ffedd5'; (e.currentTarget as HTMLElement).style.border = '1px solid #fb923c'; } }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff7ed'; (e.currentTarget as HTMLElement).style.border = '1px solid #fed7aa'; }}
+                >
+                  <RotateCcw className="h-4 w-4 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold">Catat Retur</div>
+                    <div className="text-xs opacity-60 mt-0.5">Kembalikan barang & stok</div>
+                  </div>
+                </button>
+                {/* Riwayat retur */}
+                {data.returs?.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Riwayat Retur</p>
+                    {data.returs.map((r: any) => (
+                      <div key={r.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                        <div>
+                          <div className="text-xs font-medium" style={{ color: '#c2410c' }}>
+                            {r.item?.barang_id || `Item #${r.penjualan_offline_item_id}`}
+                          </div>
+                          <div className="text-xs" style={{ color: '#9a3412' }}>{formatDate(r.tanggal)}</div>
+                        </div>
+                        <span className="text-xs font-bold" style={{ color: '#c2410c' }}>-{r.qty_retur} pcs</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl p-4" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                <div className="flex items-center gap-2 text-xs font-medium" style={{ color: '#c2410c' }}>
+                  <RotateCcw className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>Retur tersedia setelah {isPenjualan ? 'Surat Jalan' : 'Surat Pengantar'} dibuat</span>
+                </div>
+              </div>
+            )
+          )}
+
           {/* Surat Jalan list */}
           {data.suratJalans?.length > 0 && (
             <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
@@ -1317,6 +1406,93 @@ export default function PenjualanOfflineDetail() {
                 style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
               >
                 {editProdukLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Retur */}
+      {returModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#fff7ed' }}>
+                <RotateCcw className="h-5 w-5" style={{ color: '#c2410c' }} />
+              </div>
+              <div>
+                <h3 className="font-bold" style={{ color: '#0f172a' }}>Catat Retur Barang</h3>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>Masukkan qty barang yang dikembalikan. Stok akan otomatis dipulihkan.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              {data.items?.map((item: any) => (
+                <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate" style={{ color: '#1e293b' }}>{item.barang?.nama || item.barang_id}</div>
+                    {item.varian_nama && <div className="text-xs" style={{ color: '#6d28d9' }}>{item.varian_nama}</div>}
+                    <div className="text-xs" style={{ color: '#94a3b8' }}>Qty beli: {item.qty}</div>
+                  </div>
+                  <div className="flex-shrink-0 w-24">
+                    <input
+                      type="number"
+                      min={0}
+                      max={item.qty}
+                      placeholder="0"
+                      value={returForm.items[item.id] === '' ? '' : returForm.items[item.id] ?? ''}
+                      onChange={e => setReturForm(prev => ({
+                        ...prev,
+                        items: { ...prev.items, [item.id]: e.target.value === '' ? '' : Math.min(item.qty, Math.max(0, Number(e.target.value))) }
+                      }))}
+                      className="w-full px-3 py-2 rounded-lg text-sm text-center outline-none"
+                      style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #f97316'}
+                      onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tanggal Retur</label>
+                <DateInput
+                  value={returForm.tanggal}
+                  onChange={e => setReturForm(prev => ({ ...prev, tanggal: e.target.value }))}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                  onFocus={e => (e.target as HTMLElement).style.border = '1px solid #f97316'}
+                  onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opsional)</span></label>
+                <textarea
+                  value={returForm.catatan}
+                  onChange={e => setReturForm(prev => ({ ...prev, catatan: e.target.value }))}
+                  rows={2}
+                  placeholder="Alasan retur..."
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                  onFocus={e => (e.target as HTMLElement).style.border = '1px solid #f97316'}
+                  onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setReturModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
+                Batal
+              </button>
+              <button
+                onClick={handleSubmitRetur}
+                disabled={returLoading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+              >
+                {returLoading ? 'Menyimpan...' : 'Catat Retur'}
               </button>
             </div>
           </div>

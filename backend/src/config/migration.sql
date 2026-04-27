@@ -219,6 +219,23 @@ CREATE TABLE IF NOT EXISTS retur_sj_interior (
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
+-- Retur Penjualan Offline
+CREATE TABLE IF NOT EXISTS retur_offline (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_offline_id INT NOT NULL,
+  surat_jalan_id INT NULL,
+  penjualan_offline_item_id INT NOT NULL,
+  qty_retur INT NOT NULL,
+  tanggal DATE NOT NULL,
+  catatan TEXT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (penjualan_offline_id) REFERENCES penjualan_offline(id),
+  FOREIGN KEY (surat_jalan_id) REFERENCES surat_jalan(id),
+  FOREIGN KEY (penjualan_offline_item_id) REFERENCES penjualan_offline_items(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
 -- Counter Nomor Dokumen
 CREATE TABLE IF NOT EXISTS document_counter (
   id INT AUTO_INCREMENT PRIMARY KEY,
