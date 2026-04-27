@@ -141,10 +141,7 @@ router.post('/', authenticate, async (req, res) => {
     }));
     await PenjualanOfflineItem.bulkCreate(itemsData);
 
-    // Kurangi stok hanya untuk PENJUALAN (bukan DISPLAY — stok dikurangi saat yang laku dibuat)
-    if (tipe === 'PENJUALAN') {
-      await deductStok(itemsData, req.user.role === 'TEST');
-    }
+    await deductStok(itemsData, req.user.role === 'TEST');
 
     await logAction(req.user.id, 'BUAT_PENJUALAN_OFFLINE', `ID: ${penjualan.id}, Tipe: ${tipe}`, req.ip);
     emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
