@@ -98,6 +98,12 @@ const TOOLBAR_CSS = `
         font-weight: 700;
     }
     body { padding-top: 46px; }
+    @media (max-width: 600px) {
+        .doc-toolbar { padding: 6px 10px; gap: 5px; }
+        .tb-btn { padding: 5px 9px; font-size: 11px; }
+        .tb-label-btn { padding: 5px 9px; font-size: 11px; }
+        body { padding-top: 42px; }
+    }
     @media print {
         .doc-toolbar { display: none !important; }
         .sig-picker-modal { display: none !important; }
@@ -501,6 +507,30 @@ const buildSimpleToolbarJS = (pdfFilename) => `
 `;
 // ───────────────────────────────────────────────────────────────────────────
 
+const MOBILE_SCALE_JS = `
+<script>
+(function() {
+    function scalePage() {
+        var page = document.querySelector('.page');
+        if (!page) return;
+        var vw = window.innerWidth;
+        var pageW = 794; // A4 ~794px at 96dpi
+        if (vw < pageW) {
+            var scale = (vw - 8) / pageW;
+            page.style.transform = 'scale(' + scale + ')';
+            page.style.transformOrigin = 'top center';
+            page.style.marginBottom = '-' + Math.round(pageW * (1 - scale)) + 'px';
+        } else {
+            page.style.transform = '';
+            page.style.marginBottom = '';
+        }
+    }
+    scalePage();
+    window.addEventListener('resize', scalePage);
+})();
+</script>
+`;
+
 const formatRupiah = (num) =>
   'Rp ' + Number(num || 0).toLocaleString('id-ID', { minimumFractionDigits: 0 });
 
@@ -601,7 +631,7 @@ const generateHTMLSuratJalan = (sj) => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>Surat Jalan - ${sj.nomor_surat} | Ilena Furniture</title>
 
     <!-- Bootstrap -->
@@ -881,6 +911,7 @@ const generateHTMLSuratJalan = (sj) => {
         </div>
     </div>
     ${buildFullToolbarJS(`surat-jalan-${sj.nomor_surat || 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
 </body>
 </html>
   `;
@@ -942,7 +973,7 @@ const generateHTMLSuratPengantar = (sp) => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>Surat Pengantar - ${sp.nomor_sp} | Ilena Furniture</title>
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -1090,6 +1121,7 @@ const generateHTMLSuratPengantar = (sp) => {
         </div>
     </div>
     ${buildFullToolbarJS(`surat-pengantar-${sp.nomor_sp || 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
 </body>
 </html>
   `;
@@ -1121,7 +1153,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>Surat Pengantar Interior - ${sp.nomor_surat} | Ilena Furniture</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -1241,6 +1273,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
         </div>
     </div>
     ${buildFullToolbarJS(`sp-interior-${sp.nomor_surat ? sp.nomor_surat.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
 </body>
 </html>
   `;
@@ -1327,7 +1360,7 @@ const generateHTMLInvoice = (inv) => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
     <title>Surat Invoice - ${inv.nomor_invoice} | Ilena Furniture</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
@@ -1516,6 +1549,7 @@ const generateHTMLInvoice = (inv) => {
         </div>
     </div>
     ${buildSimpleToolbarJS(`invoice-${inv.nomor_invoice || 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
 </body>
 </html>
   `;
@@ -1800,6 +1834,7 @@ const generateHTMLProforma = (inv) => {
         </div>
     </div>
     ${buildFullToolbarJS(`proforma-${inv.nomor_proforma ? inv.nomor_proforma.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
 </body>
 </html>
   `;
