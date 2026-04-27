@@ -187,82 +187,121 @@ export default function TreeSuratPage() {
   ];
 
   const DokCard = ({ doc, indent = false }: { doc: DokumenCard; indent?: boolean }) => (
-    <div style={{
+    <div className={indent ? 'detail-dok-card' : ''} style={{
       background: '#fff', border: '1px solid #e2e8f0',
       borderLeft: indent ? '3px solid #fca5a5' : '1px solid #e2e8f0',
-      borderRadius: 10, padding: '11px 14px',
-      display: 'flex', alignItems: 'center', gap: 10,
-      marginLeft: indent ? 16 : 0,
+      borderRadius: 10, padding: indent ? undefined : '9px 11px',
+      display: 'flex', alignItems: 'center', gap: 8,
+      marginLeft: indent ? undefined : 0,
     }}>
-      <FileText size={14} color="#FA2F2F" style={{ flexShrink: 0 }} />
+      <FileText size={13} color="#FA2F2F" style={{ flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, color: '#0f172a', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div className="detail-dok-nomor" style={{ fontWeight: 700, color: '#0f172a', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {doc.nomor}
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+        <div className="detail-dok-sub" style={{ color: '#94a3b8', marginTop: 2 }}>
           {TIPE_LABEL[doc.tipe] || doc.tipe}
           {doc.tanggal ? ` · ${formatTgl(doc.tanggal)}` : ''}
           {doc.jatuh_tempo ? ` · JT: ${formatTgl(doc.jatuh_tempo)}` : ''}
         </div>
       </div>
-      <button onClick={() => handleLihat(doc.tipe, doc.id)} style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '6px 10px', borderRadius: 8,
-        border: '1px solid #FA2F2F', background: 'transparent',
-        color: '#FA2F2F', fontWeight: 600, fontSize: 11,
-        cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+      <button onClick={() => handleLihat(doc.tipe, doc.id)} className="detail-dok-btn" style={{
+        display: 'flex', alignItems: 'center', gap: 3,
+        borderRadius: 7, border: '1px solid #FA2F2F', background: 'transparent',
+        color: '#FA2F2F', fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
       }}>
-        <ExternalLink size={10} /> Lihat
+        <ExternalLink size={9} /> Lihat
       </button>
     </div>
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <style>{`
+        .detail-header-card { padding: 14px 16px; }
+        .detail-nama { font-size: 16px; }
+        .detail-meta { font-size: 11px; }
+        .detail-step-circle { width: 26px; height: 26px; }
+        .detail-step-label { font-size: 9px; }
+        .detail-step-line { margin-bottom: 14px; min-width: 10px; }
+        .detail-stat-grid { grid-template-columns: repeat(2, 1fr); }
+        .detail-stat-card { padding: 12px 13px; }
+        .detail-stat-title { font-size: 10px; }
+        .detail-stat-val { font-size: 13px; }
+        .detail-stat-sub { font-size: 10px; }
+        .detail-dok-card { padding: 9px 11px; margin-left: 10px; }
+        .detail-dok-nomor { font-size: 11px; }
+        .detail-dok-sub { font-size: 10px; }
+        .detail-dok-btn { padding: 5px 8px; font-size: 10px; }
+        .detail-bayar-row { padding: 8px 14px; }
+        .detail-bayar-label { font-size: 11px; }
+        .detail-bayar-sub { font-size: 10px; }
+        .detail-bayar-val { font-size: 12px; }
+        @media (min-width: 480px) {
+          .detail-header-card { padding: 18px 20px; }
+          .detail-nama { font-size: 18px; }
+          .detail-meta { font-size: 12px; }
+          .detail-step-circle { width: 32px; height: 32px; }
+          .detail-step-label { font-size: 10px; }
+          .detail-step-line { margin-bottom: 18px; min-width: 16px; }
+          .detail-stat-card { padding: 14px 16px; }
+          .detail-stat-title { font-size: 11px; }
+          .detail-stat-val { font-size: 15px; }
+          .detail-stat-sub { font-size: 11px; }
+          .detail-dok-card { padding: 11px 14px; margin-left: 16px; }
+          .detail-dok-nomor { font-size: 12px; }
+          .detail-dok-sub { font-size: 11px; }
+          .detail-dok-btn { padding: 6px 10px; font-size: 11px; }
+          .detail-bayar-row { padding: 10px 16px; }
+          .detail-bayar-label { font-size: 12px; }
+          .detail-bayar-sub { font-size: 11px; }
+          .detail-bayar-val { font-size: 13px; }
+        }
+      `}</style>
+
       {/* Back */}
       <button onClick={() => router.push('/surat')} style={{
         display: 'flex', alignItems: 'center', gap: 6,
         background: 'none', border: 'none', cursor: 'pointer',
-        color: '#64748b', fontSize: 13, padding: 0, width: 'fit-content',
+        color: '#64748b', fontSize: 12, padding: 0, width: 'fit-content',
       }}>
-        <ArrowLeft size={14} /> Kembali ke daftar
+        <ArrowLeft size={13} /> Kembali ke daftar
       </button>
 
       {/* Header */}
-      <div style={{
+      <div className="detail-header-card" style={{
         background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16,
-        padding: '18px 20px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
               Penjualan {src}
             </div>
-            <div style={{ fontWeight: 800, fontSize: 18, color: '#0f172a', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div className="detail-nama" style={{ fontWeight: 800, color: '#0f172a', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {nama}
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
+            <div className="detail-meta" style={{ color: '#64748b', marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: '3px 10px' }}>
               <span>📅 {formatTgl(penjualan.tanggal)}</span>
               {noHp && <span>📱 {noHp}</span>}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-            <Chip label={status.label} size="small" sx={{ fontWeight: 700, fontSize: 10, backgroundColor: status.bg, color: status.color }} />
-            <Chip label={src} size="small" sx={{ fontWeight: 700, fontSize: 10, backgroundColor: src === 'OFFLINE' ? '#eff6ff' : '#f0fdf4', color: src === 'OFFLINE' ? '#3b82f6' : '#16a34a' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+            <Chip label={status.label} size="small" sx={{ fontWeight: 700, fontSize: 9, height: 20, backgroundColor: status.bg, color: status.color }} />
+            <Chip label={src} size="small" sx={{ fontWeight: 700, fontSize: 9, height: 20, backgroundColor: src === 'OFFLINE' ? '#eff6ff' : '#f0fdf4', color: src === 'OFFLINE' ? '#3b82f6' : '#16a34a' }} />
           </div>
         </div>
 
         {/* Stepper */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 16, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 14, overflowX: 'auto', paddingBottom: 4 }}>
           {steps.map((step, i) => {
             const Icon = step.icon;
             const isActive = i === lastDoneIdx + 1;
             const isDone = step.done;
             return (
               <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 'none', minWidth: 'fit-content' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div className="detail-step-circle" style={{
+                    borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isDone ? '#FA2F2F' : isActive ? '#fff7ed' : '#f1f5f9',
                     border: `2px solid ${isDone ? '#FA2F2F' : isActive ? '#fdba74' : '#e2e8f0'}`,
@@ -273,12 +312,12 @@ export default function TreeSuratPage() {
                       : <Icon size={14} color={isActive ? '#f97316' : '#94a3b8'} />
                     }
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: isDone || isActive ? 700 : 500, color: isDone ? '#FA2F2F' : isActive ? '#f97316' : '#94a3b8', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <div className="detail-step-label" style={{ fontWeight: isDone || isActive ? 700 : 500, color: isDone ? '#FA2F2F' : isActive ? '#f97316' : '#94a3b8', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {step.label}
                   </div>
                 </div>
                 {i < steps.length - 1 && (
-                  <div style={{ flex: 1, height: 2, background: step.done ? '#FA2F2F' : '#e2e8f0', margin: '0 6px', marginBottom: 18, minWidth: 16 }} />
+                  <div className="detail-step-line" style={{ flex: 1, height: 2, background: step.done ? '#FA2F2F' : '#e2e8f0', margin: '0 4px' }} />
                 )}
               </div>
             );
@@ -288,41 +327,39 @@ export default function TreeSuratPage() {
 
       {/* Stats — INTERIOR */}
       {src === 'INTERIOR' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-          {/* Tagihan */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff1f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CreditCard size={14} color="#FA2F2F" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          <div className="detail-stat-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: '#fff1f1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CreditCard size={13} color="#FA2F2F" />
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pembayaran</span>
+              <span className="detail-stat-title" style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pembayaran</span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{formatRp(ringkasan.total_bayar || 0)}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>dari {formatRp(ringkasan.grand_total || 0)}</div>
-            <div style={{ marginTop: 8 }}>
+            <div className="detail-stat-val" style={{ fontWeight: 800, color: '#0f172a' }}>{formatRp(ringkasan.total_bayar || 0)}</div>
+            <div className="detail-stat-sub" style={{ color: '#94a3b8', marginTop: 2 }}>dari {formatRp(ringkasan.grand_total || 0)}</div>
+            <div style={{ marginTop: 7 }}>
               <ProgressBar persen={ringkasan.persen_bayar || 0} color="#FA2F2F" />
-              <div style={{ fontSize: 10, color: '#FA2F2F', fontWeight: 700, marginTop: 4 }}>{ringkasan.persen_bayar || 0}% terbayar</div>
+              <div style={{ fontSize: 10, color: '#FA2F2F', fontWeight: 700, marginTop: 3 }}>{ringkasan.persen_bayar || 0}% terbayar</div>
             </div>
             {(ringkasan.sisa_tagihan || 0) > 0 && (
-              <div style={{ marginTop: 6, fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+              <div className="detail-stat-sub" style={{ marginTop: 5, color: '#dc2626', fontWeight: 600 }}>
                 Sisa: {formatRp(ringkasan.sisa_tagihan || 0)}
               </div>
             )}
           </div>
 
-          {/* Pengiriman */}
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={14} color="#16a34a" />
+          <div className="detail-stat-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Truck size={13} color="#16a34a" />
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pengiriman</span>
+              <span className="detail-stat-title" style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pengiriman</span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{ringkasan.sudah_kirim || 0} unit</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>dari {ringkasan.total_qty || 0} unit</div>
-            <div style={{ marginTop: 8 }}>
+            <div className="detail-stat-val" style={{ fontWeight: 800, color: '#0f172a' }}>{ringkasan.sudah_kirim || 0} unit</div>
+            <div className="detail-stat-sub" style={{ color: '#94a3b8', marginTop: 2 }}>dari {ringkasan.total_qty || 0} unit</div>
+            <div style={{ marginTop: 7 }}>
               <ProgressBar persen={ringkasan.persen_kirim || 0} color="#16a34a" />
-              <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, marginTop: 4 }}>{ringkasan.persen_kirim || 0}% terkirim</div>
+              <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, marginTop: 3 }}>{ringkasan.persen_kirim || 0}% terkirim</div>
             </div>
           </div>
         </div>
@@ -330,27 +367,27 @@ export default function TreeSuratPage() {
 
       {/* Stats — OFFLINE */}
       {src === 'OFFLINE' && (ringkasan.total_nilai || 0) > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff1f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileText size={14} color="#FA2F2F" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          <div className="detail-stat-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: '#fff1f1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <FileText size={13} color="#FA2F2F" />
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Pesanan</span>
+              <span className="detail-stat-title" style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Pesanan</span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{formatRp(ringkasan.total_nilai || 0)}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{ringkasan.total_qty || 0} item</div>
+            <div className="detail-stat-val" style={{ fontWeight: 800, color: '#0f172a' }}>{formatRp(ringkasan.total_nilai || 0)}</div>
+            <div className="detail-stat-sub" style={{ color: '#94a3b8', marginTop: 2 }}>{ringkasan.total_qty || 0} item</div>
           </div>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Truck size={14} color="#16a34a" />
+          <div className="detail-stat-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 7, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Truck size={13} color="#16a34a" />
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pengiriman</span>
+              <span className="detail-stat-title" style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pengiriman</span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{ringkasan.jumlah_sj || 0} Surat Jalan</div>
+            <div className="detail-stat-val" style={{ fontWeight: 800, color: '#0f172a' }}>{ringkasan.jumlah_sj || 0} Surat Jalan</div>
             {ringkasan.jatuh_tempo && (
-              <div style={{ fontSize: 11, color: '#f97316', fontWeight: 600, marginTop: 2 }}>JT: {formatTgl(ringkasan.jatuh_tempo)}</div>
+              <div className="detail-stat-sub" style={{ color: '#f97316', fontWeight: 600, marginTop: 2 }}>JT: {formatTgl(ringkasan.jatuh_tempo)}</div>
             )}
           </div>
         </div>
@@ -365,19 +402,18 @@ export default function TreeSuratPage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {pembayarans.map((p, i) => (
-              <div key={p.id} style={{
+              <div key={p.id} className="detail-bayar-row" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 16px', gap: 10,
-                borderBottom: i < pembayarans.length - 1 ? '1px solid #f8fafc' : 'none',
+                gap: 8, borderBottom: i < pembayarans.length - 1 ? '1px solid #f8fafc' : 'none',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#FA2F2F', flexShrink: 0 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FA2F2F', flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>{TIPE_BAYAR[p.tipe] || p.tipe}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatTgl(p.tanggal)}</div>
+                    <div className="detail-bayar-label" style={{ fontWeight: 700, color: '#0f172a' }}>{TIPE_BAYAR[p.tipe] || p.tipe}</div>
+                    <div className="detail-bayar-sub" style={{ color: '#94a3b8' }}>{formatTgl(p.tanggal)}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#16a34a', flexShrink: 0 }}>{formatRp(p.jumlah)}</div>
+                <div className="detail-bayar-val" style={{ fontWeight: 800, color: '#16a34a', flexShrink: 0 }}>{formatRp(p.jumlah)}</div>
               </div>
             ))}
           </div>
