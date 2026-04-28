@@ -6,14 +6,7 @@ import api from '@/lib/api';
 import Link from 'next/link';
 import { useListSync } from '@/hooks/useListSync';
 
-function firstOfMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+
 function fmtRp(n: number) {
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1).replace('.', ',')} M`;
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.', ',')} jt`;
@@ -48,11 +41,9 @@ export default function DashboardPage() {
 
   const fetchFinance = async () => {
     try {
-      const from = firstOfMonth();
-      const to = today();
       const [offRes, intRes] = await Promise.all([
-        api.get(`/keuangan/offline?from=${from}&to=${to}&limit=1`),
-        api.get(`/keuangan/interior?from=${from}&to=${to}&limit=1`),
+        api.get(`/keuangan/offline?limit=1`),
+        api.get(`/keuangan/interior?limit=1`),
       ]);
       setFinance({
         omzet: offRes.data.summary?.totalOmzet || 0,
@@ -259,7 +250,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-red-500" /> Keuangan Bulan Ini
+            <Wallet className="h-4 w-4 text-red-500" /> Ringkasan Keuangan
           </h2>
           <Link href="/dashboard/keuangan" className="text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1">
             Lihat Detail <ArrowUpRight className="h-3.5 w-3.5" />
