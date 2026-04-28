@@ -43,9 +43,9 @@ export default function KeuanganPage() {
   const [activeTab, setActiveTab] = useState<'offline' | 'interior'>('offline');
   const [offlineSubTab, setOfflineSubTab] = useState<'penjualan' | 'display'>('penjualan');
 
-  // Filter — default bulan berjalan
-  const [from, setFrom] = useState(firstOfMonth);
-  const [to, setTo] = useState(today);
+  // Filter — default semua data
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   // Offline state
   const [offlineData, setOfflineData] = useState<any>(null);
