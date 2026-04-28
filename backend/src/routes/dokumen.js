@@ -1,12 +1,30 @@
 const express = require('express');
 const {
   SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, ProformaInvoice,
-  PenjualanOffline, PenjualanOfflineItem, Barang,
+  PenjualanOffline, PenjualanOfflineItem, ReturOffline, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem,
   InvoiceInterior, SuratPengantarInterior, SuratPengantarInteriorItem,
 } = require('../models');
+
+// Kurangi qty item berdasarkan total retur; hapus item yang sudah diretur penuh
+function applyReturs(items, returs) {
+  const returMap = {};
+  for (const r of (returs || [])) {
+    returMap[r.penjualan_offline_item_id] = (returMap[r.penjualan_offline_item_id] || 0) + r.qty_retur;
+  }
+  return items
+    .map(item => {
+      const totalRetur = returMap[item.id] || 0;
+      if (totalRetur === 0) return item;
+      const netQty = item.qty - totalRetur;
+      if (netQty <= 0) return null;
+      const hargaSatuan = item.qty > 0 ? parseFloat(item.subtotal) / item.qty : 0;
+      return { ...item, qty: netQty, subtotal: netQty * hargaSatuan };
+    })
+    .filter(Boolean);
+}
 
 const includeAlamat = [
   { model: Provinsi, as: 'pengirimProvinsi' },
@@ -46,13 +64,19 @@ router.get('/surat-jalan/:id/print', authenticatePrint, async (req, res) => {
         model: PenjualanOffline, as: 'penjualan',
         include: [
           { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+          { model: ReturOffline, as: 'returs' },
           ...includeAlamat,
         ],
       }],
     });
     if (!sj) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
-    
-    const html = generateHTMLSuratJalan(sj.toJSON());
+
+    const data = sj.toJSON();
+    if (data.penjualan) {
+      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
+    }
+
+    const html = generateHTMLSuratJalan(data);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -69,13 +93,19 @@ router.get('/invoice/:id/print', authenticatePrint, async (req, res) => {
         include: [
           { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
           { model: SuratJalan, as: 'suratJalans' },
+          { model: ReturOffline, as: 'returs' },
           ...includeAlamat,
         ],
       }],
     });
     if (!inv) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
-    
-    const html = generateHTMLInvoice(inv.toJSON());
+
+    const data = inv.toJSON();
+    if (data.penjualan) {
+      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
+    }
+
+    const html = generateHTMLInvoice(data);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -91,6 +121,7 @@ router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
         model: PenjualanOffline, as: 'penjualan',
         include: [
           { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+          { model: ReturOffline, as: 'returs' },
           ...includeAlamat,
         ],
       }],
@@ -105,7 +136,6 @@ router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
         where: { display_source_id: data.penjualan.id },
         include: [{ model: PenjualanOfflineItem, as: 'items' }],
       });
-      // Map: "barang_id-varian_id" -> total qty terjual
       const soldMap = {};
       for (const laku of lakuPenjualans) {
         for (const item of (laku.items || [])) {
@@ -113,11 +143,15 @@ router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
           soldMap[key] = (soldMap[key] || 0) + item.qty;
         }
       }
-      // Restore qty asli pada setiap item display
       data.penjualan.items = (data.penjualan.items || []).map(item => {
         const key = `${item.barang_id}-${item.varian_id || ''}`;
         return { ...item, qty: item.qty + (soldMap[key] || 0) };
       });
+    }
+
+    // Kurangi item yang sudah diretur
+    if (data.penjualan) {
+      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
     }
 
     const html = generateHTMLSuratPengantar(data);
