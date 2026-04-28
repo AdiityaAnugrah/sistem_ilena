@@ -1,10 +1,17 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import { CircularProgress, Pagination } from '@mui/material';
-import { TrendingUp, Store, Wallet, ArrowRight, CheckCircle, Clock } from 'lucide-react';
+import { TrendingUp, Store, Wallet, ArrowRight, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { getSocket } from '@/lib/socket';
+
+const today = () => new Date().toISOString().split('T')[0];
+const firstOfMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,9 +43,9 @@ export default function KeuanganPage() {
   const [activeTab, setActiveTab] = useState<'offline' | 'interior'>('offline');
   const [offlineSubTab, setOfflineSubTab] = useState<'penjualan' | 'display'>('penjualan');
 
-  // Filter
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Filter — default bulan berjalan
+  const [from, setFrom] = useState(firstOfMonth);
+  const [to, setTo] = useState(today);
 
   // Offline state
   const [offlineData, setOfflineData] = useState<any>(null);
@@ -49,6 +56,10 @@ export default function KeuanganPage() {
   const [interiorData, setInteriorData] = useState<any>(null);
   const [interiorPage, setInteriorPage] = useState(1);
   const [interiorLoading, setInteriorLoading] = useState(true);
+
+  // Realtime: simpan filter & tab terbaru di ref agar bisa dipakai di socket handler
+  const stateRef = useRef({ offlinePage, offlineSubTab, interiorPage, from, to });
+  useEffect(() => { stateRef.current = { offlinePage, offlineSubTab, interiorPage, from, to }; });
 
   const fetchOffline = useCallback(async (page: number, tab: string, f: string, t: string) => {
     setOfflineLoading(true);
@@ -73,6 +84,26 @@ export default function KeuanganPage() {
   useEffect(() => { fetchOffline(offlinePage, offlineSubTab, from, to); }, [offlinePage, offlineSubTab, fetchOffline]);
   useEffect(() => { fetchInterior(interiorPage, from, to); }, [interiorPage, fetchInterior]);
 
+  // Realtime — listen ke room penjualan offline & interior
+  useEffect(() => {
+    const socket = getSocket();
+    socket.emit('room:join', { room: 'penjualan-offline-list' });
+    socket.emit('room:join', { room: 'penjualan-interior-list' });
+
+    const refresh = () => {
+      const s = stateRef.current;
+      fetchOffline(s.offlinePage, s.offlineSubTab, s.from, s.to);
+      fetchInterior(s.interiorPage, s.from, s.to);
+    };
+
+    socket.on('data:updated', refresh);
+    return () => {
+      socket.emit('room:leave', { room: 'penjualan-offline-list' });
+      socket.emit('room:leave', { room: 'penjualan-interior-list' });
+      socket.off('data:updated', refresh);
+    };
+  }, [fetchOffline, fetchInterior]);
+
   const handleFilter = () => {
     setOfflinePage(1);
     setInteriorPage(1);
@@ -81,21 +112,36 @@ export default function KeuanganPage() {
   };
 
   const handleReset = () => {
-    setFrom(''); setTo('');
+    const f = firstOfMonth(), t = today();
+    setFrom(f); setTo(t);
     setOfflinePage(1); setInteriorPage(1);
-    fetchOffline(1, offlineSubTab, '', '');
-    fetchInterior(1, '', '');
+    fetchOffline(1, offlineSubTab, f, t);
+    fetchInterior(1, f, t);
   };
 
   const summary = offlineData?.summary;
   const intSummary = interiorData?.summary;
 
+  const bulanLabel = (() => {
+    if (!from && !to) return 'Semua Waktu';
+    const f = from ? new Date(from).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '...';
+    const t = to ? new Date(to).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '...';
+    return `${f} – ${t}`;
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>Keuangan</h1>
-        <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Rekap omzet penjualan offline & interior</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>Keuangan</h1>
+          <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{bulanLabel}</p>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+          style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+          <RefreshCw className="h-3 w-3" />
+          Realtime
+        </div>
       </div>
 
       {/* Filter tanggal */}
@@ -117,13 +163,11 @@ export default function KeuanganPage() {
           style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)' }}>
           Terapkan
         </button>
-        {(from || to) && (
-          <button onClick={handleReset}
-            className="px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ background: '#f1f5f9', color: '#475569' }}>
-            Reset
-          </button>
-        )}
+        <button onClick={handleReset}
+          className="px-4 py-2 rounded-lg text-sm font-medium"
+          style={{ background: '#f1f5f9', color: '#475569' }}>
+          Bulan Ini
+        </button>
       </div>
 
       {/* Tab utama */}
