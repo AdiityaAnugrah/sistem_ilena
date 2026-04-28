@@ -1,15 +1,31 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ShoppingCart, Package, TrendingUp, ArrowRight, BarChart3, Monitor, ArrowUpRight, Activity } from 'lucide-react';
+import { ShoppingCart, Package, TrendingUp, BarChart3, Monitor, ArrowUpRight, Activity, Wallet, AlertCircle, Banknote } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import api from '@/lib/api';
 import Link from 'next/link';
 import { useListSync } from '@/hooks/useListSync';
 
+function firstOfMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fmtRp(n: number) {
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1).replace('.', ',')} M`;
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.', ',')} jt`;
+  return `Rp ${n.toLocaleString('id-ID')}`;
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState({ offline: 0, interior: 0, display: 0 });
   const [loading, setLoading] = useState(true);
+  const [finance, setFinance] = useState({ omzet: 0, piutang: 0, outstanding: 0 });
+  const [financeLoading, setFinanceLoading] = useState(true);
 
   const fetchStats = async () => {
     try {
@@ -30,9 +46,29 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchStats(); }, []);
-  useListSync('penjualan-offline-list', fetchStats);
-  useListSync('penjualan-interior-list', fetchStats);
+  const fetchFinance = async () => {
+    try {
+      const from = firstOfMonth();
+      const to = today();
+      const [offRes, intRes] = await Promise.all([
+        api.get(`/keuangan/offline?from=${from}&to=${to}&limit=1`),
+        api.get(`/keuangan/interior?from=${from}&to=${to}&limit=1`),
+      ]);
+      setFinance({
+        omzet: offRes.data.summary?.totalOmzet || 0,
+        piutang: offRes.data.summary?.totalPiutang || 0,
+        outstanding: intRes.data.summary?.totalOutstanding || 0,
+      });
+    } catch {
+      // ignore
+    } finally {
+      setFinanceLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStats(); fetchFinance(); }, []);
+  useListSync('penjualan-offline-list', () => { fetchStats(); fetchFinance(); });
+  useListSync('penjualan-interior-list', () => { fetchStats(); fetchFinance(); });
 
   const now = new Date();
   const greeting =
@@ -217,6 +253,67 @@ export default function DashboardPage() {
             <div className="absolute bottom-0 left-0 h-1 w-full translate-y-full group-hover:translate-y-0 transition-transform duration-300" style={{ background: card.color }}></div>
           </Link>
         ))}
+      </div>
+
+      {/* ─── Keuangan Bulan Ini ─── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-red-500" /> Keuangan Bulan Ini
+          </h2>
+          <Link href="/dashboard/keuangan" className="text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1">
+            Lihat Detail <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Omzet Offline */}
+          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
+                <Banknote className="h-4 w-4" style={{ color: '#FA2F2F' }} />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Omzet Offline</span>
+            </div>
+            {financeLoading ? (
+              <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
+            ) : (
+              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.omzet)}</div>
+            )}
+            <div className="text-xs text-slate-400 mt-1">Total penjualan offline</div>
+          </div>
+
+          {/* Piutang Display */}
+          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fefce8' }}>
+                <AlertCircle className="h-4 w-4" style={{ color: '#ca8a04' }} />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Piutang Display</span>
+            </div>
+            {financeLoading ? (
+              <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
+            ) : (
+              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.piutang)}</div>
+            )}
+            <div className="text-xs text-slate-400 mt-1">Barang display belum terjual</div>
+          </div>
+
+          {/* Outstanding Interior */}
+          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0f9ff' }}>
+                <TrendingUp className="h-4 w-4" style={{ color: '#0369a1' }} />
+              </div>
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Outstanding Interior</span>
+            </div>
+            {financeLoading ? (
+              <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
+            ) : (
+              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.outstanding)}</div>
+            )}
+            <div className="text-xs text-slate-400 mt-1">Sisa tagihan proyek interior</div>
+          </div>
+        </div>
       </div>
 
       {/* ─── Quick Actions ─── */}
