@@ -246,6 +246,33 @@ router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => 
 
 // ── Helper: hapus satu penjualan offline beserta semua dokumennya ─────────────
 async function deleteOffline(id, t) {
+  const penjualan = await PenjualanOffline.findByPk(id, {
+    include: [{ model: PenjualanOfflineItem, as: 'items' }],
+    transaction: t,
+  });
+
+  // Jika ini PENJUALAN dari display, kembalikan qty ke item display asal
+  if (penjualan && penjualan.display_source_id && penjualan.tipe === 'PENJUALAN') {
+    for (const item of (penjualan.items || [])) {
+      const displayItem = await PenjualanOfflineItem.findOne({
+        where: {
+          penjualan_offline_id: penjualan.display_source_id,
+          barang_id: item.barang_id,
+          varian_id: item.varian_id || null,
+        },
+        transaction: t,
+      });
+      if (displayItem) {
+        const restoredQty = displayItem.qty + item.qty;
+        const hargaSatuan = parseFloat(displayItem.harga_satuan) || 0;
+        await displayItem.update({
+          qty: restoredQty,
+          subtotal: restoredQty * hargaSatuan,
+        }, { transaction: t });
+      }
+    }
+  }
+
   const spIds = (await SuratPengantar.findAll({ where: { penjualan_offline_id: id }, attributes: ['id'], transaction: t })).map(r => r.id);
   if (spIds.length > 0) {
     await SuratPengantarSub.destroy({ where: { surat_pengantar_id: spIds }, transaction: t });
