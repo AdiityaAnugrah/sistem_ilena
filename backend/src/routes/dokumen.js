@@ -71,12 +71,7 @@ router.get('/surat-jalan/:id/print', authenticatePrint, async (req, res) => {
     });
     if (!sj) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
 
-    const data = sj.toJSON();
-    if (data.penjualan) {
-      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
-    }
-
-    const html = generateHTMLSuratJalan(data);
+    const html = generateHTMLSuratJalan(sj.toJSON());
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -147,11 +142,6 @@ router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
         const key = `${item.barang_id}-${item.varian_id || ''}`;
         return { ...item, qty: item.qty + (soldMap[key] || 0) };
       });
-    }
-
-    // Kurangi item yang sudah diretur
-    if (data.penjualan) {
-      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
     }
 
     const html = generateHTMLSuratPengantar(data);
