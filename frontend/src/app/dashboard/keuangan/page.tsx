@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import { CircularProgress, Pagination } from '@mui/material';
-import { TrendingUp, Store, Wallet, ArrowRight, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { TrendingUp, Store, Wallet, ArrowRight, CheckCircle, Clock, RefreshCw, Info, ChevronDown } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -42,6 +42,7 @@ export default function KeuanganPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'offline' | 'interior'>('offline');
   const [offlineSubTab, setOfflineSubTab] = useState<'penjualan' | 'display'>('penjualan');
+  const [showInfo, setShowInfo] = useState(false);
 
   // Filter — default semua data
   const [from, setFrom] = useState('');
@@ -194,6 +195,88 @@ export default function KeuanganPage() {
             <SummaryCard label="Total Omzet Penjualan" value={summary ? formatRupiah(summary.totalOmzet) : '-'} color="#0f172a" />
             <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Nilai barang masih di toko" color="#f97316" />
             <SummaryCard label="Sudah Terjual dari Display" value={summary ? formatRupiah(summary.totalTerjualDisplay) : '-'} color="#16a34a" />
+          </div>
+
+          {/* Info cara kerja */}
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #e0f2fe', background: '#f0f9ff' }}>
+            <button
+              onClick={() => setShowInfo(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4" style={{ color: '#0369a1' }} />
+                <span className="text-sm font-semibold" style={{ color: '#0369a1' }}>Cara Kerja Keuangan Offline</span>
+              </div>
+              <ChevronDown
+                className="h-4 w-4 transition-transform duration-200"
+                style={{ color: '#0369a1', transform: showInfo ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+
+            {showInfo && (
+              <div className="px-4 pb-4 space-y-4">
+                {/* Flow diagram */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
+                  {/* Step 1 */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fff', border: '1px solid #bae6fd' }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#0369a1' }}>1</div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: '#0c4a6e' }}>Buat Display</p>
+                      <p className="text-xs" style={{ color: '#64748b' }}>Barang dititipkan ke toko</p>
+                    </div>
+                  </div>
+
+                  <ArrowRight className="h-4 w-4 flex-shrink-0 hidden sm:block" style={{ color: '#94a3b8' }} />
+                  <div className="w-px h-4 sm:hidden" style={{ background: '#cbd5e1', marginLeft: 20 }} />
+
+                  {/* Step 2 */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#f97316' }}>2</div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: '#7c2d12' }}>Masuk Piutang Display</p>
+                      <p className="text-xs" style={{ color: '#64748b' }}>Uang belum diterima</p>
+                    </div>
+                  </div>
+
+                  <ArrowRight className="h-4 w-4 flex-shrink-0 hidden sm:block" style={{ color: '#94a3b8' }} />
+                  <div className="w-px h-4 sm:hidden" style={{ background: '#cbd5e1', marginLeft: 20 }} />
+
+                  {/* Step 3 */}
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fff', border: '1px solid #bbf7d0' }}>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#16a34a' }}>3</div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: '#14532d' }}>Ada yang Beli</p>
+                      <p className="text-xs" style={{ color: '#64748b' }}>Terjual → masuk Omzet</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div style={{ borderTop: '1px solid #bae6fd' }} />
+
+                {/* Penjelasan tiap kartu */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Total Omzet Penjualan</p>
+                    <p className="text-xs" style={{ color: '#64748b' }}>
+                      Uang yang sudah masuk — dari penjualan langsung <em>dan</em> penjualan item display yang sudah terbeli pelanggan.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Piutang Display</p>
+                    <p className="text-xs" style={{ color: '#64748b' }}>
+                      Nilai barang yang masih ada di toko (display) dan belum terjual. Ini belum dihitung sebagai omzet.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Sudah Terjual dari Display</p>
+                    <p className="text-xs" style={{ color: '#64748b' }}>
+                      Bagian dari omzet yang asalnya dari item display. Ini sub-bagian dari Total Omzet, bukan angka terpisah.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Sub-tab */}
