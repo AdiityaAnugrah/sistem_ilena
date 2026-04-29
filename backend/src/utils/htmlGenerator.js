@@ -1647,9 +1647,8 @@ const generateHTMLProforma = (inv) => {
 
       termRows += `
         <tr style="background:#f0fdf4;">
-            <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(p.tanggal).format('DD/MM/YYYY')}</span></td>
+            <td colspan="5" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(p.tanggal).format('DD/MM/YYYY')}</span></td>
             <td class="num" style="font-size:11.5px;">${formatRupiah(Number(p.jumlah || 0))}</td>
-            <td></td>
         </tr>`;
     });
 
@@ -1678,9 +1677,8 @@ const generateHTMLProforma = (inv) => {
 
         termRows += `
           <tr style="background:#fafafa;">
-              <td colspan="4" style="font-size:11.5px;font-weight:600;">${label}${persenLabel} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
+              <td colspan="5" style="font-size:11.5px;font-weight:600;">${label}${persenLabel} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
               <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
-              <td></td>
           </tr>`;
 
       }
@@ -1689,9 +1687,8 @@ const generateHTMLProforma = (inv) => {
     const sisa = grandTotal - totalPaid;
     termRows += `
       <tr style="background:#fef2f2;">
-          <td colspan="4" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
+          <td colspan="5" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
           <td class="num fw-bold" style="font-size:11.5px;color:#dc2626;">${formatRupiah(Math.max(0, sisa))}</td>
-          <td></td>
       </tr>`;
   }
 
