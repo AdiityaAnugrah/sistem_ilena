@@ -1918,7 +1918,7 @@ const generateHTMLSubInvoice = (inv) => {
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1" name="viewport">
-    <title>Sub Invoice - ${inv.nomor_proforma} | Ilena Furniture</title>
+    <title>Sub Invoice - ${inv.nomor_sub_invoice || inv.nomor_proforma} | Ilena Furniture</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1975,7 +1975,7 @@ const generateHTMLSubInvoice = (inv) => {
                     <p class="nt">Surat Jalan :</p>
                 </div>
                 <div class="d-flex flex-column align-items-start">
-                    <p class="isint" style="font-weight:600;">${inv.nomor_proforma}</p>
+                    <p class="isint" style="font-weight:600;">${inv.nomor_sub_invoice || inv.nomor_proforma}</p>
                     <p class="isint">${tanggalFormat}</p>
                     <p class="isint">-</p>
                 </div>
@@ -2048,7 +2048,7 @@ const generateHTMLSubInvoice = (inv) => {
             </div>
         </div>
     </div>
-    ${buildFullToolbarJS(`sub-invoice-${inv.nomor_proforma ? inv.nomor_proforma.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+    ${buildFullToolbarJS(`sub-invoice-${(inv.nomor_sub_invoice || inv.nomor_proforma || 'dokumen').replace(/\//g, '-')}.pdf`)}
     ${MOBILE_SCALE_JS}
 </body>
 </html>

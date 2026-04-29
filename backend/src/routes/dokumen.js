@@ -33,6 +33,7 @@ const includeAlamat = [
   { model: Kelurahan, as: 'pengirimKelurahan' },
 ];
 const { authenticate, authenticatePrint } = require('../middleware/auth');
+const { generateNomorInvoice } = require('../utils/generateNomor');
 const {
   generatePDFSuratJalan,
   generatePDFInvoice,
@@ -249,6 +250,13 @@ router.get('/proforma/:id/sub-invoice/print', authenticatePrint, async (req, res
       }],
     });
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+
+    // Generate nomor sub invoice sekali, simpan permanen
+    if (!proforma.nomor_sub_invoice) {
+      const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
+      const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
+      await proforma.update({ nomor_sub_invoice: nomor });
+    }
 
     const html = generateHTMLSubInvoice(proforma.toJSON());
     res.setHeader('Content-Type', 'text/html; charset=utf-8');

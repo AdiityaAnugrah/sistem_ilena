@@ -9,6 +9,7 @@ const ProformaInvoice = sequelize.define('proforma_invoice', {
   total: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
   catatan: { type: DataTypes.TEXT },
   terms: { type: DataTypes.TEXT, allowNull: true },
+  nomor_sub_invoice: { type: DataTypes.STRING(50), allowNull: true, unique: true },
   created_by: { type: DataTypes.INTEGER },
 }, {
   timestamps: true,
