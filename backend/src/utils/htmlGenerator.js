@@ -1683,20 +1683,6 @@ const generateHTMLProforma = (inv) => {
               <td></td>
           </tr>`;
 
-        // Per-product breakdown jika ada persen
-        if (persen && items.length > 0) {
-          items.forEach(item => {
-            const itemSubtotal = Number(item.subtotal) || (item.qty * (item.harga_satuan || 0));
-            const itemAmount = Math.round(itemSubtotal * persen / 100);
-            termRows += `
-              <tr style="background:#eff6ff;">
-                  <td style="font-size:10px;padding-left:24px;color:#475569;">↳ ${(item.nama_barang || '-').toUpperCase()} (${item.qty} unit)</td>
-                  <td colspan="3" style="font-size:10px;color:#475569;"></td>
-                  <td class="num" style="font-size:10px;color:#1d4ed8;font-weight:600;">${formatRupiah(itemAmount)}</td>
-                  <td></td>
-              </tr>`;
-          });
-        }
       }
     });
 
