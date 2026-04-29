@@ -200,6 +200,30 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
   }
 });
 
+// PATCH /api/penjualan-interior/:id/proforma/:proformaId — update terms & catatan
+router.patch('/:id/proforma/:proformaId', authenticate, async (req, res) => {
+  try {
+    const proforma = await ProformaInvoice.findOne({
+      where: { id: req.params.proformaId, penjualan_interior_id: req.params.id },
+    });
+    if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+
+    const terms = req.body.terms && req.body.terms.length > 0
+      ? JSON.stringify(req.body.terms)
+      : proforma.terms;
+
+    await proforma.update({
+      terms,
+      catatan: req.body.catatan !== undefined ? req.body.catatan : proforma.catatan,
+    });
+
+    emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
+    return res.json({ message: 'Proforma berhasil diupdate' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // POST /api/penjualan-interior/:id/pembayaran
 router.post('/:id/pembayaran', authenticate, async (req, res) => {
   try {

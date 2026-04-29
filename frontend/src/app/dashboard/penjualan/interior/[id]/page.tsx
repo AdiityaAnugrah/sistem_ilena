@@ -224,6 +224,9 @@ export default function PenjualanInteriorDetail() {
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [proformaCatatan, setProformaCatatan] = useState('');
   const [proformaTerms, setProformaTerms] = useState<{ tipe: string; jumlah: string; persen: string }[]>([]);
+  const [editProforma, setEditProforma] = useState<any>(null);
+  const [editTerms, setEditTerms] = useState<{ tipe: string; jumlah: string; persen: string }[]>([]);
+  const [editLoading, setEditLoading] = useState(false);
   const [bayarProforma, setBayarProforma] = useState<any>(null);
   const [bayarTipe, setBayarTipe] = useState('DP');
   const [bayarJumlah, setBayarJumlah] = useState('');
@@ -302,7 +305,7 @@ export default function PenjualanInteriorDetail() {
     try {
       const terms = proformaTerms
         .filter(t => t.tipe && Number(t.jumlah) > 0)
-        .map(t => ({ tipe: t.tipe, jumlah: Number(t.jumlah) }));
+        .map(t => ({ tipe: t.tipe, jumlah: Number(t.jumlah), persen: t.persen || '' }));
       await api.post(`/penjualan-interior/${id}/proforma`, {
         tanggal: proformaTanggal,
         catatan: proformaCatatan,
@@ -313,6 +316,28 @@ export default function PenjualanInteriorDetail() {
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal');
     } finally { setDocLoading(false); }
+  };
+
+  const openEditProforma = (p: any) => {
+    let terms: { tipe: string; jumlah: string; persen: string }[] = [];
+    try { terms = p.terms ? JSON.parse(p.terms).map((t: any) => ({ tipe: t.tipe || 'DP', jumlah: String(t.jumlah || ''), persen: String(t.persen || '') })) : []; } catch { terms = []; }
+    setEditProforma(p);
+    setEditTerms(terms);
+    setModal('editProforma');
+  };
+
+  const handleEditProforma = async () => {
+    setEditLoading(true);
+    try {
+      const terms = editTerms
+        .filter(t => t.tipe && Number(t.jumlah) > 0)
+        .map(t => ({ tipe: t.tipe, jumlah: Number(t.jumlah), persen: t.persen || '' }));
+      await api.patch(`/penjualan-interior/${id}/proforma/${editProforma.id}`, { terms });
+      toast.success('Proforma berhasil diupdate!');
+      setModal(null); setEditProforma(null); setEditTerms([]); fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal update proforma');
+    } finally { setEditLoading(false); }
   };
 
   const createPembayaran = async () => {
@@ -660,6 +685,14 @@ export default function PenjualanInteriorDetail() {
                         <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(p.tanggal)} · {formatRupiah(p.total)}</div>
                       </div>
                       <div className="flex items-center gap-1.5">
+                        <button onClick={() => openEditProforma(p)}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                          title="Edit Terms"
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fefce8'; (e.currentTarget as HTMLElement).style.color = '#92400e'; (e.currentTarget as HTMLElement).style.border = '1px solid #fde68a'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                          <Pencil className="h-3 w-3" />
+                        </button>
                         <button onClick={() => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setModal('pembayaran'); }}
                           className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
                           style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
@@ -674,29 +707,21 @@ export default function PenjualanInteriorDetail() {
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
                           <Printer className="h-3 w-3" />
                         </button>
-                        {(() => {
-                          let terms: any[] = [];
-                          try { terms = p.terms ? JSON.parse(p.terms) : []; } catch { terms = []; }
-                          const hasPersen = terms.some((t: any) => t.persen && parseFloat(t.persen) > 0);
-                          if (!hasPersen) return null;
-                          return (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const res = await api.post('/auth/print-token');
-                                  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-                                  window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
-                                } catch { toast.error('Gagal membuka dokumen'); }
-                              }}
-                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
-                              style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                              title="Cetak Sub Invoice"
-                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eff6ff'; (e.currentTarget as HTMLElement).style.color = '#2563eb'; (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
-                              <FileText className="h-3 w-3" /> Sub
-                            </button>
-                          );
-                        })()}
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await api.post('/auth/print-token');
+                              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                              window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+                            } catch { toast.error('Gagal membuka dokumen'); }
+                          }}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                          title="Cetak Sub Invoice"
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eff6ff'; (e.currentTarget as HTMLElement).style.color = '#2563eb'; (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                          <FileText className="h-3 w-3" /> Sub
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1059,6 +1084,99 @@ export default function PenjualanInteriorDetail() {
               loading={docLoading}
               label="Buat Proforma"
               disabled={termOver || proformaTerms.length === 0 || hasZeroTerms}
+            />
+          </ModalWrapper>
+        );
+      })()}
+
+      {/* ── Modal Edit Terms Proforma ── */}
+      {modal === 'editProforma' && editProforma && (() => {
+        const TIPE_OPTS = [
+          { value: 'DP', label: 'DP (Uang Muka)' },
+          { value: 'TERMIN_1', label: 'Termin 1' },
+          { value: 'TERMIN_2', label: 'Termin 2' },
+          { value: 'TERMIN_3', label: 'Termin 3' },
+          { value: 'PELUNASAN_AKHIR', label: 'Pelunasan Akhir' },
+        ];
+        return (
+          <ModalWrapper show onClose={() => { setModal(null); setEditProforma(null); setEditTerms([]); }}>
+            <ModalHeader icon={Pencil} title="Edit Terms Proforma" sub={editProforma.nomor_proforma} />
+            <div className="space-y-3">
+              <div className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between"
+                style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
+                ⚠ Hanya terms & persen yang bisa diubah. Jumlah total proforma tidak berubah.
+              </div>
+              <div className="space-y-2">
+                {editTerms.map((term, idx) => {
+                  const persNum = parseFloat(term.persen) || 0;
+                  const itemsBreakdown: { nama: string; qty: number; amount: number }[] = persNum > 0
+                    ? (data.items || []).map((item: any) => ({
+                        nama: item.nama_barang || '-',
+                        qty: item.qty,
+                        amount: Math.round(parseFloat(item.subtotal) * persNum / 100),
+                      }))
+                    : [];
+                  return (
+                    <div key={idx} className="rounded-lg p-2.5" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <div className="flex gap-2 items-center">
+                        <select value={term.tipe}
+                          onChange={e => setEditTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
+                          className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
+                          style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
+                          {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <div className="relative" style={{ width: 72 }}>
+                          <input type="number" min={0} max={100} step={1} value={term.persen}
+                            onChange={e => {
+                              const persen = e.target.value;
+                              const jumlah = persen ? String(Math.round(parseFloat(persen) * grandTotal / 100)) : term.jumlah;
+                              setEditTerms(prev => prev.map((t, i) => i === idx ? { ...t, persen, jumlah } : t));
+                            }}
+                            className="w-full pl-2 pr-5 py-1.5 rounded-lg text-xs outline-none font-bold"
+                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#0369a1' }}
+                            placeholder="%" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: '#94a3b8' }}>%</span>
+                        </div>
+                        <div className="relative flex-1">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
+                          <input type="number" min={0} value={term.jumlah}
+                            onChange={e => {
+                              const jumlah = e.target.value;
+                              const persen = grandTotal > 0 && jumlah
+                                ? String(Math.round(parseFloat(jumlah) / grandTotal * 1000) / 10)
+                                : '';
+                              setEditTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah, persen } : t));
+                            }}
+                            className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
+                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
+                            placeholder="0" />
+                        </div>
+                      </div>
+                      {itemsBreakdown.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {itemsBreakdown.map((item, iIdx) => (
+                            <div key={iIdx} className="flex justify-between items-center px-2 py-1 rounded-lg text-xs"
+                              style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                              <span style={{ color: '#1e40af' }}>{item.nama} <span style={{ color: '#94a3b8' }}>({item.qty} unit)</span></span>
+                              <span className="font-bold" style={{ color: '#1d4ed8' }}>{formatRupiah(item.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {editTerms.length === 0 && (
+                  <p className="text-xs text-center py-3" style={{ color: '#94a3b8' }}>Tidak ada terms di proforma ini</p>
+                )}
+              </div>
+            </div>
+            <ModalFooter
+              onClose={() => { setModal(null); setEditProforma(null); setEditTerms([]); }}
+              onSubmit={handleEditProforma}
+              loading={editLoading}
+              label="Simpan"
+              disabled={editTerms.length === 0}
             />
           </ModalWrapper>
         );
