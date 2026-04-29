@@ -956,7 +956,7 @@ export default function PenjualanInteriorDetail() {
                   <div className="space-y-2">
                     {proformaTerms.map((term, idx) => {
                       const persNum = parseFloat(term.persen) || 0;
-                      const itemsWithAmount = persNum > 0
+                      const itemsWithAmount: { nama: string; qty: number; amount: number }[] = persNum > 0
                         ? (data.items || []).map((item: any) => ({
                             nama: item.nama_barang || '-',
                             qty: item.qty,
