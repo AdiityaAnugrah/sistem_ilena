@@ -1958,19 +1958,17 @@ const generateHTMLSubInvoice = (inv) => {
                 <div class="d-flex flex-column align-items-end">
                     <p class="nt">Nomor :</p>
                     <p class="nt">Tanggal :</p>
-                    <p class="nt">Surat Jalan :</p>
                 </div>
                 <div class="d-flex flex-column align-items-start">
                     <p class="isint" style="font-weight:600;">${inv.nomor_sub_invoice || inv.nomor_proforma}</p>
                     <p class="isint">${tanggalFormat}</p>
-                    <p class="isint">-</p>
                 </div>
             </div>
         </div>
 
         <!-- Judul -->
         <div class="my-2 title">
-            <h3 class="text-center">SUB INVOICE</h3>
+            <h3 class="text-center">INVOICE</h3>
         </div>
 
         <!-- Tujuan -->
@@ -2013,6 +2011,10 @@ const generateHTMLSubInvoice = (inv) => {
                     <tr>
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
                         <td style="font-size:11.5px;">: <i>${terbilang(grandTotalSub)}</i></td>
+                    </tr>
+                    <tr>
+                        <td class="pe-3" style="font-size:11.5px;">Surat Jalan</td>
+                        <td style="font-size:11.5px;">: -</td>
                     </tr>
                     ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
                         <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
