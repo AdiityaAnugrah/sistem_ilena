@@ -1666,6 +1666,7 @@ const generateHTMLProforma = (inv) => {
 
       if (!matchedPayment) {
         const jumlah = Number(term.jumlah) || 0;
+        const persen = term.persen ? parseFloat(term.persen) : null;
         let label;
         if (tipe === 'DP') {
           dpUnpaidCounter++;
@@ -1673,13 +1674,29 @@ const generateHTMLProforma = (inv) => {
         } else {
           label = TIPE_LABEL[tipe] || tipe;
         }
+        const persenLabel = persen ? ` <span style="font-size:10px;color:#2563eb;font-weight:600;">(${persen}%)</span>` : '';
 
         termRows += `
           <tr style="background:#fafafa;">
-              <td colspan="4" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
+              <td colspan="4" style="font-size:11.5px;font-weight:600;">${label}${persenLabel} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
               <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
               <td></td>
           </tr>`;
+
+        // Per-product breakdown jika ada persen
+        if (persen && items.length > 0) {
+          items.forEach(item => {
+            const itemSubtotal = Number(item.subtotal) || (item.qty * (item.harga_satuan || 0));
+            const itemAmount = Math.round(itemSubtotal * persen / 100);
+            termRows += `
+              <tr style="background:#eff6ff;">
+                  <td style="font-size:10px;padding-left:24px;color:#475569;">↳ ${(item.nama_barang || '-').toUpperCase()} (${item.qty} unit)</td>
+                  <td colspan="3" style="font-size:10px;color:#475569;"></td>
+                  <td class="num" style="font-size:10px;color:#1d4ed8;font-weight:600;">${formatRupiah(itemAmount)}</td>
+                  <td></td>
+              </tr>`;
+          });
+        }
       }
     });
 

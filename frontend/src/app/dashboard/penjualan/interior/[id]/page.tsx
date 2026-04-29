@@ -223,7 +223,7 @@ export default function PenjualanInteriorDetail() {
   // Form states
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [proformaCatatan, setProformaCatatan] = useState('');
-  const [proformaTerms, setProformaTerms] = useState<{ tipe: string; jumlah: string }[]>([]);
+  const [proformaTerms, setProformaTerms] = useState<{ tipe: string; jumlah: string; persen: string }[]>([]);
   const [bayarProforma, setBayarProforma] = useState<any>(null);
   const [bayarTipe, setBayarTipe] = useState('DP');
   const [bayarJumlah, setBayarJumlah] = useState('');
@@ -922,7 +922,7 @@ export default function PenjualanInteriorDetail() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold" style={{ color: '#475569' }}>Cicilan Pembayaran <span className="font-normal text-slate-400">(opsional)</span></label>
-                  <button type="button" onClick={() => setProformaTerms(prev => [...prev, { tipe: nextTipe, jumlah: '' }])}
+                  <button type="button" onClick={() => setProformaTerms(prev => [...prev, { tipe: nextTipe, jumlah: '', persen: '' }])}
                     className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors"
                     style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
                     + Tambah
@@ -931,27 +931,71 @@ export default function PenjualanInteriorDetail() {
 
                 {proformaTerms.length > 0 && (
                   <div className="space-y-2">
-                    {proformaTerms.map((term, idx) => (
-                      <div key={idx} className="flex gap-2 items-center p-2.5 rounded-lg"
+                    {proformaTerms.map((term, idx) => {
+                      const persNum = parseFloat(term.persen) || 0;
+                      const itemsWithAmount = persNum > 0
+                        ? (data.items || []).map((item: any) => ({
+                            nama: item.nama_barang || '-',
+                            qty: item.qty,
+                            amount: Math.round(parseFloat(item.subtotal) * persNum / 100),
+                          }))
+                        : [];
+                      return (
+                      <div key={idx} className="rounded-lg p-2.5"
                         style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                        <select value={term.tipe}
-                          onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
-                          className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
-                          style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
-                          {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                        <div className="relative flex-1">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
-                          <input type="number" min={0} value={term.jumlah}
-                            onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah: e.target.value } : t))}
-                            className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
-                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
-                            placeholder="0" />
+                        <div className="flex gap-2 items-center">
+                          <select value={term.tipe}
+                            onChange={e => setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, tipe: e.target.value } : t))}
+                            className="flex-1 px-2 py-1.5 rounded-lg text-xs outline-none font-semibold"
+                            style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
+                            {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                          {/* Persen input */}
+                          <div className="relative" style={{ width: 72 }}>
+                            <input type="number" min={0} max={100} step={1} value={term.persen}
+                              onChange={e => {
+                                const persen = e.target.value;
+                                const jumlah = persen ? String(Math.round(parseFloat(persen) * grandTotal / 100)) : '';
+                                setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, persen, jumlah } : t));
+                              }}
+                              className="w-full pl-2 pr-5 py-1.5 rounded-lg text-xs outline-none font-bold"
+                              style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#0369a1' }}
+                              placeholder="%" />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none" style={{ color: '#94a3b8' }}>%</span>
+                          </div>
+                          {/* Rp input */}
+                          <div className="relative flex-1">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold pointer-events-none">Rp</span>
+                            <input type="number" min={0} value={term.jumlah}
+                              onChange={e => {
+                                const jumlah = e.target.value;
+                                const persen = grandTotal > 0 && jumlah
+                                  ? String(Math.round(parseFloat(jumlah) / grandTotal * 1000) / 10)
+                                  : '';
+                                setProformaTerms(prev => prev.map((t, i) => i === idx ? { ...t, jumlah, persen } : t));
+                              }}
+                              className="w-full pl-7 pr-2 py-1.5 rounded-lg text-xs outline-none font-bold"
+                              style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}
+                              placeholder="0" />
+                          </div>
+                          <button type="button" onClick={() => setProformaTerms(prev => prev.filter((_, i) => i !== idx))}
+                            className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">×</button>
                         </div>
-                        <button type="button" onClick={() => setProformaTerms(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">×</button>
+                        {/* Per-product breakdown */}
+                        {itemsWithAmount.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {itemsWithAmount.map((item, iIdx) => (
+                              <div key={iIdx} className="flex justify-between items-center px-2 py-1 rounded-lg text-xs"
+                                style={{ background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                                <span style={{ color: '#1e40af' }}>{item.nama} <span style={{ color: '#94a3b8' }}>({item.qty} unit)</span></span>
+                                <span className="font-bold" style={{ color: '#1d4ed8' }}>{formatRupiah(item.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Validasi total cicilan */}
                     {hasZeroTerms ? (
