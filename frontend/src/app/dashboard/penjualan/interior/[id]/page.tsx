@@ -999,7 +999,7 @@ export default function PenjualanInteriorDetail() {
                             {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
                           {/* Persen input */}
-                          <div className="relative" style={{ width: 72 }}>
+                          <div className="relative" style={{ width: 88 }}>
                             <input type="number" min={0} max={100} step={1} value={term.persen}
                               onChange={e => {
                                 const persen = e.target.value;
@@ -1125,7 +1125,7 @@ export default function PenjualanInteriorDetail() {
                           style={{ background: '#fff', border: '1px solid #cbd5e1', color: '#1e293b' }}>
                           {TIPE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
-                        <div className="relative" style={{ width: 72 }}>
+                        <div className="relative" style={{ width: 88 }}>
                           <input type="number" min={0} max={100} step={1} value={term.persen}
                             onChange={e => {
                               const persen = e.target.value;
