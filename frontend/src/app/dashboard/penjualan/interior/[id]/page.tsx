@@ -674,6 +674,29 @@ export default function PenjualanInteriorDetail() {
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
                           <Printer className="h-3 w-3" />
                         </button>
+                        {(() => {
+                          let terms: any[] = [];
+                          try { terms = p.terms ? JSON.parse(p.terms) : []; } catch { terms = []; }
+                          const hasPersen = terms.some((t: any) => t.persen && parseFloat(t.persen) > 0);
+                          if (!hasPersen) return null;
+                          return (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await api.post('/auth/print-token');
+                                  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                                  window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+                                } catch { toast.error('Gagal membuka dokumen'); }
+                              }}
+                              className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                              style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                              title="Cetak Sub Invoice"
+                              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eff6ff'; (e.currentTarget as HTMLElement).style.color = '#2563eb'; (e.currentTarget as HTMLElement).style.border = '1px solid #bfdbfe'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}>
+                              <FileText className="h-3 w-3" /> Sub
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}

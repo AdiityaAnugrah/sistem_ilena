@@ -1857,10 +1857,209 @@ const generateHTMLProforma = (inv) => {
   `;
 };
 
+const generateHTMLSubInvoice = (inv) => {
+  const penjualan = inv.penjualan || {};
+  const items = penjualan.items || [];
+
+  let terms = [];
+  try { terms = inv.terms ? JSON.parse(inv.terms) : []; } catch { terms = []; }
+
+  const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
+  const isFaktur = penjualan.faktur === 'FAKTUR';
+  const bankInfo = isFaktur
+    ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
+    : 'BCA 8715883488 a.n. EL LIE PURNAMA';
+
+  const TIPE_LABEL = {
+    DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2',
+    TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir',
+  };
+
+  let rowNo = 0;
+  let grandTotalSub = 0;
+  let itemRows = '';
+
+  terms.forEach(term => {
+    const persen = term.persen ? parseFloat(term.persen) : null;
+    if (!persen || persen <= 0) return;
+    const tipeLabel = TIPE_LABEL[term.tipe || 'DP'] || (term.tipe || 'DP');
+    const persenLabel = `${tipeLabel} ${persen}%`;
+
+    items.forEach(item => {
+      const itemSubtotal = Number(item.subtotal) || (item.qty * (item.harga_satuan || 0));
+      const amount = Math.round(itemSubtotal * persen / 100);
+      grandTotalSub += amount;
+      rowNo++;
+      itemRows += `
+        <tr>
+            <td class="text-center">${rowNo}</td>
+            <td class="text-center" style="font-size:11px;">${item.kode_barang || '-'}</td>
+            <td style="font-size:11px;">${(item.nama_barang || '-').toUpperCase()} <span style="font-size:10px;color:#2563eb;font-style:italic;">(${persenLabel})</span></td>
+            <td class="text-center">1</td>
+            <td class="num" style="color:#94a3b8;">-</td>
+            <td class="num">${formatRupiah(amount)}</td>
+        </tr>`;
+    });
+  });
+
+  const summaryRow = `
+    <tr style="background:#fff8f8;">
+        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalSub)}</td>
+    </tr>`;
+
+  const npwpRow = penjualan.no_npwp
+    ? `<p style="font-size:12px;margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>`
+    : '';
+
+  return `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Sub Invoice - ${inv.nomor_proforma} | Ilena Furniture</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+    :root { --merah: #b31217; --ink: #0f172a; --line: #e5e7eb; --line2: #f1f5f9; }
+    html, body { font-family: Inter, system-ui, sans-serif; color: var(--ink); background: #fff; -webkit-font-smoothing: antialiased; }
+    * { font-size: 13px; line-height: 1.35; }
+    h5 { font-size: 16px; font-weight: 600; letter-spacing: -.2px; margin: 0; }
+    .nt { font-weight: 500; color: #111; font-style: italic; margin: 0; }
+    .isint { font-weight: 500; font-style: italic; margin: 0; }
+    .tw-bold-italic { font-weight: 600; font-style: italic; }
+    .table { border-color: var(--line); margin-bottom: 0.5rem; }
+    .table thead th { background: #f8fafc !important; border-bottom: 1px solid var(--line); font-weight: 600; color: #0f172a; font-size: 11px; vertical-align: middle; }
+    .table tbody td { border-color: var(--line2); vertical-align: middle; }
+    .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: #fcfdff; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .kotak-pembayaran { border: 1px dashed #ef4444; padding: 10px 20px; text-align: center; font-weight: 500; font-style: italic; border-radius: 10px; background: #fff; }
+    .title h3 { letter-spacing: -.25px; font-weight: 600; font-size: 18px; margin: 0; }
+    body { background: #e8eaed; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 1px 8px rgba(0,0,0,0.12); position: relative; }
+    @page { size: A4 portrait; margin: 0; }
+    @media print {
+        html, body { background: #fff !important; }
+        .page { width: 100% !important; min-height: 0 !important; padding: 14mm !important; box-shadow: none !important; margin: 0 !important; }
+        a[href]:after { content: ""; }
+        tr, .kotak-pembayaran { break-inside: avoid; }
+        .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: transparent; }
+        .kotak-pembayaran { border: 1px dashed #ef4444 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    ${TOOLBAR_CSS}
+    </style>
+</head>
+<body>
+    ${TOOLBAR_HTML_FULL}
+    <div class="page">
+        ${SIG_OVERLAY_HTML}
+
+        <!-- Header perusahaan -->
+        <div class="d-flex gap-4 justify-content-start mb-4">
+            <div><img src="${LOGO_CBM}" alt="Logo" width="70" height="40"></div>
+            <div class="d-flex flex-column justify-content-center gap-1">
+                <h5>CV.CATUR BHAKTI MANDIRI</h5>
+                <h6 class="m-0" style="font-size:12px;font-weight:500;">Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang</h6>
+            </div>
+        </div>
+
+        <!-- Nomor & tanggal -->
+        <div class="d-flex">
+            <div style="flex:1;"></div>
+            <div class="d-flex gap-2 justify-content-end">
+                <div class="d-flex flex-column align-items-end">
+                    <p class="nt">Nomor :</p>
+                    <p class="nt">Tanggal :</p>
+                    <p class="nt">Surat Jalan :</p>
+                </div>
+                <div class="d-flex flex-column align-items-start">
+                    <p class="isint" style="font-weight:600;">${inv.nomor_proforma}</p>
+                    <p class="isint">${tanggalFormat}</p>
+                    <p class="isint">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Judul -->
+        <div class="my-2 title">
+            <h3 class="text-center">SUB INVOICE</h3>
+        </div>
+
+        <!-- Tujuan -->
+        <div class="d-flex justify-content-start mt-3 mb-4 flex-column">
+            <p class="m-0 nt" style="font-size:12px;">Kepada Yth.</p>
+            <p class="m-0 tw-bold-italic" style="font-size:12px;">${penjualan.nama_customer || '-'}</p>
+            ${penjualan.nama_pt_npwp ? `<p class="m-0" style="font-size:12px;color:#475569;">${penjualan.nama_pt_npwp}</p>` : ''}
+            ${(() => {
+              const parts = [penjualan.alamat_detail, penjualan.alamatKelurahan?.label, penjualan.alamatKecamatan?.label, penjualan.alamatKabupaten?.label, penjualan.alamatProvinsi?.label].filter(Boolean);
+              const kodePos = penjualan.alamat_kode_pos ? ` ${penjualan.alamat_kode_pos}` : '';
+              return parts.length ? `<p class="m-0" style="font-size:11px;color:#64748b;">${parts.join(', ')}${kodePos}</p>` : '';
+            })()}
+            ${npwpRow}
+        </div>
+
+        <!-- Tabel items -->
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width:10px;">NO</th>
+                        <th class="text-center">KODE BARANG</th>
+                        <th class="text-center">KETERANGAN</th>
+                        <th class="text-center">KUANTITAS</th>
+                        <th class="text-center">HARGA</th>
+                        <th class="text-center">JUMLAH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemRows || '<tr><td colspan="6" class="text-center" style="color:#94a3b8;padding:16px;">Tidak ada rincian per produk (persen tidak diisi)</td></tr>'}
+                    ${summaryRow}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Terbilang -->
+        <div class="mt-1 mb-3">
+            <table>
+                <tbody>
+                    <tr>
+                        <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
+                        <td style="font-size:11.5px;">: <i>${terbilang(grandTotalSub)}</i></td>
+                    </tr>
+                    ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
+                        <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
+                    ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
+                        <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="d-flex justify-content-between align-items-start mt-4 mb-3 gap-4">
+            <div class="kotak-pembayaran" style="flex:1;max-width:340px;">
+                <p class="m-0" style="font-size:12px;">Pembayaran mohon dapat ditransfer ke rekening:</p>
+                <p class="m-0 mt-1" style="font-size:12px;font-weight:700;color:#ef4444;">${bankInfo}</p>
+            </div>
+            <div class="d-flex flex-column align-items-center" style="width:180px;font-size:12px;flex-shrink:0;">
+                Bagian Keuangan <br><br><br><br><br>
+                <p class="tw-bold-italic" style="font-size:12px;">Amaroh U'un Setiawan</p>
+            </div>
+        </div>
+    </div>
+    ${buildFullToolbarJS(`sub-invoice-${inv.nomor_proforma ? inv.nomor_proforma.replace(/\//g, '-') : 'dokumen'}.pdf`)}
+    ${MOBILE_SCALE_JS}
+</body>
+</html>
+  `;
+};
+
 module.exports = {
   generateHTMLSuratJalan,
   generateHTMLSuratPengantar,
   generateHTMLSuratPengantarInterior,
   generateHTMLInvoice,
   generateHTMLProforma,
+  generateHTMLSubInvoice,
 };

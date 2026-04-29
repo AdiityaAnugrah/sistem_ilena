@@ -45,6 +45,7 @@ const {
   generateHTMLSuratPengantarInterior,
   generateHTMLInvoice,
   generateHTMLProforma,
+  generateHTMLSubInvoice,
 } = require('../utils/htmlGenerator');
 
 const router = express.Router();
@@ -225,6 +226,31 @@ router.get('/proforma/:id/print', authenticatePrint, async (req, res) => {
     data.priorTermsByTipe = priorTermsByTipe;
 
     const html = generateHTMLProforma(data);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/dokumen/proforma/:id/sub-invoice/print
+router.get('/proforma/:id/sub-invoice/print', authenticatePrint, async (req, res) => {
+  try {
+    const proforma = await ProformaInvoice.findByPk(req.params.id, {
+      include: [{
+        model: PenjualanInterior, as: 'penjualan',
+        include: [
+          { model: PenjualanInteriorItem, as: 'items' },
+          { model: Provinsi, as: 'alamatProvinsi' },
+          { model: Kabupaten, as: 'alamatKabupaten' },
+          { model: Kecamatan, as: 'alamatKecamatan' },
+          { model: Kelurahan, as: 'alamatKelurahan' },
+        ],
+      }],
+    });
+    if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+
+    const html = generateHTMLSubInvoice(proforma.toJSON());
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
