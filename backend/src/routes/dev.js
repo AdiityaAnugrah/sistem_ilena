@@ -369,7 +369,7 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
         t,
       });
       await renumberType({
-        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }],
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }, { model: ProformaInvoice, field: 'nomor_sub_invoice' }],
         deletedNomors: invNomors,
         counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
         t,
@@ -387,7 +387,9 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
       const invNomors = sjIntIds.length
         ? (await InvoiceInterior.findAll({ where: { surat_jalan_interior_id: sjIntIds }, attributes: ['nomor_invoice'], transaction: t })).map(r => r.nomor_invoice)
         : [];
-      const proformaNomors = (await ProformaInvoice.findAll({ where: { penjualan_interior_id: id }, attributes: ['nomor_proforma'], transaction: t })).map(r => r.nomor_proforma);
+      const proformaRows = await ProformaInvoice.findAll({ where: { penjualan_interior_id: id }, attributes: ['nomor_proforma', 'nomor_sub_invoice'], transaction: t });
+      const proformaNomors = proformaRows.map(r => r.nomor_proforma);
+      const subInvNomors = proformaRows.map(r => r.nomor_sub_invoice).filter(Boolean);
       const spIntNomors = (await SuratPengantarInterior.findAll({ where: { penjualan_interior_id: id }, attributes: ['nomor_surat'], transaction: t })).map(r => r.nomor_surat);
 
       await deleteInterior(id, t);
@@ -399,8 +401,8 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
         t,
       });
       await renumberType({
-        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }],
-        deletedNomors: invNomors,
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }, { model: ProformaInvoice, field: 'nomor_sub_invoice' }],
+        deletedNomors: [...invNomors, ...subInvNomors],
         counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
         t,
       });
