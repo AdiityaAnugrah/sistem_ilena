@@ -1692,6 +1692,18 @@ const generateHTMLProforma = (inv) => {
       </tr>`;
   }
 
+  // Hitung total term yang belum dibayar di proforma ini → untuk terbilang
+  const tipeCountForDue = { ...priorTermsByTipe };
+  let proformaDue = 0;
+  terms.forEach(term => {
+    const tipe = term.tipe || 'DP';
+    if (!tipeCountForDue[tipe]) tipeCountForDue[tipe] = 0;
+    const matched = (paymentsByTipe[tipe] || [])[tipeCountForDue[tipe]] || null;
+    tipeCountForDue[tipe]++;
+    if (!matched) proformaDue += Number(term.jumlah) || 0;
+  });
+  const terbilangAmount = proformaDue > 0 ? proformaDue : Math.max(0, sisa);
+
   const npwpRow = penjualan.no_npwp
     ? `<p style="font-size:12px;margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>`
     : '';
@@ -1809,7 +1821,7 @@ const generateHTMLProforma = (inv) => {
                 <tbody>
                     <tr>
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
-                        <td style="font-size:11.5px;">: <i>${terbilang(grandTotal)}</i></td>
+                        <td style="font-size:11.5px;">: <i>${terbilang(terbilangAmount)}</i></td>
                     </tr>
                     ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
                         <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
