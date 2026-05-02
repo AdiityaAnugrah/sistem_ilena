@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Sidebar from '@/components/layout/Sidebar';
+import GlobalSearch from '@/components/GlobalSearch';
 import { Menu, X } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 
@@ -22,12 +23,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="font-semibold text-[15px] text-slate-800 tracking-tight">ILENA</div>
           </div>
-          <button 
-            onClick={() => setSidebarOpen(!isSidebarOpen)} 
-            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
-          >
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          <div className="flex items-center gap-2">
+            <GlobalSearch />
+            <button
+              onClick={() => setSidebarOpen(!isSidebarOpen)}
+              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+            >
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
 
         {/* Sidebar overlay for mobile (z-30 overlays main content) */}

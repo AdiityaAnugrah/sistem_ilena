@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import useAuthStore from '@/store/authStore';
+import GlobalSearch from '@/components/GlobalSearch';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -93,6 +94,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/img/logoilena.svg" alt="ILENA" style={{ height: 24, width: 'auto' }} />
           </div>
+        </div>
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <GlobalSearch dark />
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 10px' }}>
           <div style={{
