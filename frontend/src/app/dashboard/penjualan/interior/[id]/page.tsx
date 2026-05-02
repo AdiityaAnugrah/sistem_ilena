@@ -656,6 +656,19 @@ export default function PenjualanInteriorDetail() {
             })),
           },
           {
+            key: 'sp',
+            label: 'Surat Pengantar',
+            icon: FilePlus,
+            color: '#0369a1',
+            bg: '#f0f9ff',
+            border: '#bae6fd',
+            items: (data.suratPengantars || []).map((sp: any) => ({
+              nomor: sp.nomor_surat,
+              sub: formatDate(sp.tanggal),
+              onPrint: () => printDoc('sp-interior', sp.id),
+            })),
+          },
+          {
             key: 'invoice',
             label: 'Invoice',
             icon: Receipt,
@@ -670,7 +683,7 @@ export default function PenjualanInteriorDetail() {
           },
         ];
         return (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             {docCards.map(card => {
               const isOpen = !!openCards[card.key];
               const Icon = card.icon;
