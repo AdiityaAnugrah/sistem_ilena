@@ -361,8 +361,8 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
     const ppnPersen = data.penjualan.pakai_ppn && data.penjualan.ppn_persen
       ? parseInt(data.penjualan.ppn_persen) : 0;
 
-    // Merge items dari semua SJ — qty_kirim penuh (retur tidak dikurangi di invoice)
-    let invoiceItems = suratJalans.flatMap(sj =>
+    // Kumpulkan semua item dari semua SJ, lalu merge nama barang yang sama
+    const rawItems = suratJalans.flatMap(sj =>
       (sj.items || []).map(i => {
         const hargaBase = parseFloat(i.item?.harga_satuan || 0);
         const hargaInc = ppnPersen > 0 ? Math.round(hargaBase * (1 + ppnPersen / 100)) : hargaBase;
@@ -374,6 +374,20 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
         };
       })
     );
+
+    // Merge item dengan nama & harga sama (beda SJ, PO sama karena satu penjualan)
+    const mergeMap = new Map();
+    rawItems.forEach(item => {
+      const key = `${item.barang.nama}||${item.harga_satuan}`;
+      if (mergeMap.has(key)) {
+        const ex = mergeMap.get(key);
+        ex.qty += item.qty;
+        ex.subtotal += item.subtotal;
+      } else {
+        mergeMap.set(key, { ...item });
+      }
+    });
+    let invoiceItems = Array.from(mergeMap.values());
 
     // Fallback: jika tidak ada item dari SJ (misal SJ belum punya item), ambil langsung dari penjualan
     if (invoiceItems.length === 0) {
