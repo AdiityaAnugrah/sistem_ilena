@@ -1885,7 +1885,19 @@ const generateHTMLSubInvoice = (inv) => {
     });
   });
 
-  const summaryRow = `
+  const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
+  const ppnAmount = Math.round(grandTotalSub * ppnPersen / 100);
+  const grandTotalWithPPN = grandTotalSub + ppnAmount;
+
+  const summaryRow = isFaktur ? `
+    <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">DASAR PENGENAAN PAJAK</td>
+        <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(grandTotalSub)}</td></tr>
+    ${ppnPersen > 0 ? `<tr><td colspan="5" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
+        <td class="num" style="font-size:11.5px;">${formatRupiah(ppnAmount)}</td></tr>` : ''}
+    <tr style="background:#fff8f8;">
+        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalWithPPN)}</td>
+    </tr>` : `
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalSub)}</td>
@@ -2007,7 +2019,7 @@ const generateHTMLSubInvoice = (inv) => {
                 <tbody>
                     <tr>
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
-                        <td style="font-size:11.5px;">: <i>${terbilang(grandTotalSub)}</i></td>
+                        <td style="font-size:11.5px;">: <i>${terbilang(grandTotalWithPPN)}</i></td>
                     </tr>
                     <tr>
                         <td class="pe-3" style="font-size:11.5px;">Surat Jalan</td>
