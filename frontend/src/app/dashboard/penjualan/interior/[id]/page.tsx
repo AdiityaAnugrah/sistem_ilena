@@ -629,8 +629,30 @@ export default function PenjualanInteriorDetail() {
             border: '#a7f3d0',
             items: (data.suratJalans || []).map((sj: any) => ({
               nomor: sj.nomor_surat,
-              sub: formatDate(sj.tanggal),
+              sub: formatDate(sj.tanggal) + (sj.returs?.length > 0 ? ` · ${sj.returs.length} retur` : ''),
               onPrint: () => printDoc('surat-jalan-interior', sj.id),
+              extraButtons: [
+                {
+                  label: <><RotateCcw className="h-3 w-3" /><span>Retur</span></>,
+                  title: 'Input Retur',
+                  hoverBg: '#fff7ed', hoverColor: '#c2410c', hoverBorder: '#fed7aa',
+                  onClick: () => openReturModal(sj),
+                },
+              ],
+              extraContent: sj.returs?.length > 0 ? (
+                <div className="px-3 pb-2.5">
+                  <button
+                    onClick={() => { setSpReturForm({ tanggal: new Date().toISOString().split('T')[0], keterangan: '' }); setSpReturModal({ open: true, sjId: sj.id, sj }); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                    style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#dcfce7'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; }}
+                  >
+                    <FilePlus className="h-3.5 w-3.5 flex-shrink-0" />
+                    Buat Surat Pengantar Retur ({sj.returs.length} item)
+                  </button>
+                </div>
+              ) : null,
             })),
           },
           {
@@ -679,30 +701,33 @@ export default function PenjualanInteriorDetail() {
                       ) : (
                         <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
                           {card.items.map((item: any, idx: number) => (
-                            <div key={idx} className="flex items-center justify-between px-3 py-2.5 gap-2" style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                              <div className="min-w-0">
-                                <div className="text-xs font-mono font-semibold truncate" style={{ color: '#334155' }}>{item.nomor}</div>
-                                <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{item.sub}</div>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {(item.extraButtons || []).map((btn: any, bi: number) => (
-                                  <button key={bi} onClick={btn.onClick} title={btn.title}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                            <div key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                              <div className="flex items-center justify-between px-3 py-2.5 gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-mono font-semibold truncate" style={{ color: '#334155' }}>{item.nomor}</div>
+                                  <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{item.sub}</div>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {(item.extraButtons || []).map((btn: any, bi: number) => (
+                                    <button key={bi} onClick={btn.onClick} title={btn.title}
+                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                                      style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = btn.hoverBg; (e.currentTarget as HTMLElement).style.color = btn.hoverColor; (e.currentTarget as HTMLElement).style.border = `1px solid ${btn.hoverBorder}`; }}
+                                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+                                    >{btn.label}</button>
+                                  ))}
+                                  <button
+                                    onClick={item.onPrint}
+                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
                                     style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = btn.hoverBg; (e.currentTarget as HTMLElement).style.color = btn.hoverColor; (e.currentTarget as HTMLElement).style.border = `1px solid ${btn.hoverBorder}`; }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
                                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
-                                  >{btn.label}</button>
-                                ))}
-                                <button
-                                  onClick={item.onPrint}
-                                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
-                                  style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
-                                >
-                                  <Printer className="h-3 w-3" />
-                                </button>
+                                  >
+                                    <Printer className="h-3 w-3" />
+                                  </button>
+                                </div>
                               </div>
+                              {item.extraContent}
                             </div>
                           ))}
                         </div>
