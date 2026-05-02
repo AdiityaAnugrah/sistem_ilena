@@ -7,7 +7,7 @@ import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, CreditCard, Truck,
-  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock,
+  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
@@ -219,6 +219,8 @@ export default function PenjualanInteriorDetail() {
   const [identitasLoading, setIdentitasLoading] = useState(false);
   const [modal, setModal] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState(false);
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
+  const toggleCard = (key: string) => setOpenCards(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Form states
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -560,6 +562,128 @@ export default function PenjualanInteriorDetail() {
           <div className="text-base font-black" style={{ color: sisa > 0 ? '#c2410c' : '#059669' }}>{formatRupiah(sisa)}</div>
         </div>
       </div>
+
+      {/* ── Ringkasan Dokumen ── */}
+      {(() => {
+        const subInvoices = (data.proformas || []).filter((p: any) => p.nomor_sub_invoice);
+        const docCards = [
+          {
+            key: 'proforma',
+            label: 'Proforma Invoice',
+            icon: FileText,
+            color: '#7c3aed',
+            bg: '#f5f3ff',
+            border: '#ddd6fe',
+            items: (data.proformas || []).map((p: any) => ({
+              nomor: p.nomor_proforma,
+              sub: formatDate(p.tanggal) + ' · ' + formatRupiah(p.total),
+              onPrint: () => printDoc('proforma', p.id),
+            })),
+          },
+          {
+            key: 'sub-invoice',
+            label: 'Invoice (Sub)',
+            icon: Receipt,
+            color: '#2563eb',
+            bg: '#eff6ff',
+            border: '#bfdbfe',
+            items: subInvoices.map((p: any) => ({
+              nomor: p.nomor_sub_invoice,
+              sub: formatDate(p.tanggal),
+              onPrint: async () => {
+                try {
+                  const res = await api.post('/auth/print-token');
+                  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                  window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+                } catch { toast.error('Gagal membuka dokumen'); }
+              },
+            })),
+          },
+          {
+            key: 'sj',
+            label: 'Surat Jalan',
+            icon: Truck,
+            color: '#059669',
+            bg: '#ecfdf5',
+            border: '#a7f3d0',
+            items: (data.suratJalans || []).map((sj: any) => ({
+              nomor: sj.nomor_surat,
+              sub: formatDate(sj.tanggal),
+              onPrint: () => printDoc('surat-jalan-interior', sj.id),
+            })),
+          },
+          {
+            key: 'invoice',
+            label: 'Invoice',
+            icon: Receipt,
+            color: '#dc2626',
+            bg: '#fff1f1',
+            border: '#fecaca',
+            items: (data.invoices || []).map((inv: any) => ({
+              nomor: inv.nomor_invoice,
+              sub: formatDate(inv.tanggal),
+              onPrint: () => printDoc('invoice-interior', inv.id),
+            })),
+          },
+        ];
+        return (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {docCards.map(card => {
+              const isOpen = !!openCards[card.key];
+              const Icon = card.icon;
+              return (
+                <div key={card.key} className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 transition-all"
+                    style={{ background: isOpen ? card.bg : '#fff' }}
+                    onClick={() => toggleCard(card.key)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: card.bg }}>
+                        <Icon className="h-3.5 w-3.5" style={{ color: card.color }} />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-xs font-semibold" style={{ color: '#334155' }}>{card.label}</div>
+                        <div className="text-xs" style={{ color: card.items.length > 0 ? card.color : '#94a3b8' }}>
+                          {card.items.length} dokumen
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 transition-transform" style={{ color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  </button>
+                  {isOpen && (
+                    <div className="border-t" style={{ borderColor: card.border }}>
+                      {card.items.length === 0 ? (
+                        <p className="text-xs text-center py-3" style={{ color: '#94a3b8' }}>Belum ada dokumen</p>
+                      ) : (
+                        <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
+                          {card.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between px-4 py-2.5" style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                              <div>
+                                <div className="text-xs font-mono font-semibold" style={{ color: '#334155' }}>{item.nomor}</div>
+                                <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{item.sub}</div>
+                              </div>
+                              <button
+                                onClick={item.onPrint}
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+                                style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+                              >
+                                <Printer className="h-3 w-3" /> Cetak
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* 2-column desktop layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
