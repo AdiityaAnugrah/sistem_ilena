@@ -1619,6 +1619,7 @@ const generateHTMLProforma = (inv) => {
   const totalPaid = pembayarans.reduce((s, p) => s + Number(p.jumlah || 0), 0);
   const priorTermsByTipe = inv.priorTermsByTipe || {};
 
+  let terbilangAmount = grandTotal;
   if (terms.length > 0 || pembayarans.length > 0) {
     // Group payments by tipe in order
     const paymentsByTipe = {};
@@ -1690,19 +1691,19 @@ const generateHTMLProforma = (inv) => {
           <td colspan="5" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
           <td class="num fw-bold" style="font-size:11.5px;color:#dc2626;">${formatRupiah(Math.max(0, sisa))}</td>
       </tr>`;
-  }
 
-  // Hitung total term yang belum dibayar di proforma ini → untuk terbilang
-  const tipeCountForDue = { ...priorTermsByTipe };
-  let proformaDue = 0;
-  terms.forEach(term => {
-    const tipe = term.tipe || 'DP';
-    if (!tipeCountForDue[tipe]) tipeCountForDue[tipe] = 0;
-    const matched = (paymentsByTipe[tipe] || [])[tipeCountForDue[tipe]] || null;
-    tipeCountForDue[tipe]++;
-    if (!matched) proformaDue += Number(term.jumlah) || 0;
-  });
-  const terbilangAmount = proformaDue > 0 ? proformaDue : Math.max(0, sisa);
+    // Hitung total term yang belum dibayar di proforma ini → untuk terbilang
+    const tipeCountForDue = { ...priorTermsByTipe };
+    let proformaDue = 0;
+    terms.forEach(term => {
+      const tipe = term.tipe || 'DP';
+      if (!tipeCountForDue[tipe]) tipeCountForDue[tipe] = 0;
+      const matched = (paymentsByTipe[tipe] || [])[tipeCountForDue[tipe]] || null;
+      tipeCountForDue[tipe]++;
+      if (!matched) proformaDue += Number(term.jumlah) || 0;
+    });
+    terbilangAmount = proformaDue > 0 ? proformaDue : Math.max(0, sisa);
+  }
 
   const npwpRow = penjualan.no_npwp
     ? `<p style="font-size:12px;margin-top:4px;" class="isint">NPWP/NIK : ${penjualan.no_npwp}</p>`
