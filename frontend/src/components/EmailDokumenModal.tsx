@@ -42,6 +42,7 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [signatures, setSignatures] = useState<SigItem[]>([]);
+  const [sigBlobUrls, setSigBlobUrls] = useState<Record<string, string>>({});
   const [selectedSig, setSelectedSig] = useState<string | null>(null);
   const [sigsLoading, setSigsLoading] = useState(false);
 
@@ -51,10 +52,32 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
     if (!open || !needsSignature) return;
     setSigsLoading(true);
     api.get('/settings/signatures')
-      .then(r => setSignatures(r.data || []))
+      .then(async r => {
+        const list: SigItem[] = r.data || [];
+        setSignatures(list);
+        // Fetch setiap gambar via axios agar JWT header ikut terkirim
+        const blobMap: Record<string, string> = {};
+        await Promise.all(list.map(sig =>
+          api.get(sig.url, { responseType: 'blob' })
+            .then(res => { blobMap[sig.id] = URL.createObjectURL(res.data); })
+            .catch(() => {})
+        ));
+        setSigBlobUrls(blobMap);
+      })
       .catch(() => setSignatures([]))
       .finally(() => setSigsLoading(false));
   }, [open, needsSignature]);
+
+  // Bebaskan blob URLs saat modal ditutup
+  useEffect(() => {
+    if (!open) {
+      setSigBlobUrls(prev => {
+        Object.values(prev).forEach(u => URL.revokeObjectURL(u));
+        return {};
+      });
+      setSignatures([]);
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -85,8 +108,6 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
   };
 
   const label = TIPE_LABEL[tipe] || tipe;
-  // sig.url sudah mengandung /api/... jadi pakai origin saja (tanpa /api di akhir)
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
 
   return (
     <div
@@ -191,11 +212,13 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
                             position: 'relative', overflow: 'hidden',
                           }}
                         >
-                          <img
-                            src={`${apiBase}${sig.url}`}
-                            alt="TTD"
-                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
-                          />
+                          {sigBlobUrls[sig.id] && (
+                            <img
+                              src={sigBlobUrls[sig.id]}
+                              alt="TTD"
+                              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', mixBlendMode: 'multiply' }}
+                            />
+                          )}
                           {selectedSig === sig.id && (
                             <div style={{ position: 'absolute', top: 2, right: 2, width: 14, height: 14, borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4L3 6L7 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
