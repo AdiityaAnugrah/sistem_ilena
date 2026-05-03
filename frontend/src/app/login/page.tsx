@@ -147,6 +147,7 @@ export default function LoginPage() {
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
                 <Input
                   id="username"
+                  autoComplete="username"
                   placeholder="Masukkan username"
                   className="pl-9 h-10 text-[13.5px] border-slate-200 bg-white placeholder:text-slate-300 focus:border-red-400 focus:ring-2 focus:ring-red-500/15 transition-all"
                   style={{ borderRadius: '0.5rem' }}
