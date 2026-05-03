@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const {
   Invoice, InvoiceInterior,
   PenjualanOffline, PenjualanInterior,
@@ -14,19 +15,23 @@ const router = express.Router();
 // GET /api/public/surat — list semua dokumen (SJ, Invoice, SP, Proforma — OFFLINE + INTERIOR)
 router.get('/', async (req, res) => {
   try {
-    const { search, page = 1, limit = 20, tipe } = req.query;
+    const { search, page = 1, limit = 20, tipe, sumber } = req.query;
 
     const offlineInclude = [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }];
     const interiorInclude = [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'is_test'] }];
 
-    const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt] = await Promise.all([
+    const spSubOffInclude = [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['id', 'tanggal', 'penjualan_offline_id'], include: [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }] }];
+
+    const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt, spSubOff, subInv] = await Promise.all([
       SuratJalan.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
       Invoice.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
       SuratPengantar.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
       SuratJalanInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
       InvoiceInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
-      ProformaInvoice.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      ProformaInvoice.findAll({ where: { nomor_sub_invoice: null }, include: interiorInclude, order: [['tanggal', 'DESC']] }),
       SuratPengantarInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      SuratPengantarSub.findAll({ include: spSubOffInclude, order: [['created_at', 'DESC']] }),
+      ProformaInvoice.findAll({ where: { nomor_sub_invoice: { [Op.ne]: null } }, include: interiorInclude, order: [['tanggal', 'DESC']] }),
     ]);
 
     const row = (r, nomor, tipeDoc, sumber, penjualanId, nama) => ({
@@ -40,13 +45,21 @@ router.get('/', async (req, res) => {
       ...sjOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
       ...invOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
       ...spOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sp, 'Surat Pengantar', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
+      ...spSubOff.filter(r => !r.suratPengantar?.penjualan?.is_test).map(r => ({
+        nomor: r.nomor_sp_sub, tipe: 'Sub Surat Pengantar', sumber: 'OFFLINE',
+        penjualan_id: r.suratPengantar?.penjualan_offline_id,
+        nama_penerima: r.suratPengantar?.penjualan?.nama_penerima || '-',
+        tanggal: r.suratPengantar?.tanggal,
+      })),
       ...sjInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
       ...invInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
       ...proforma.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_proforma, 'Proforma', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
+      ...subInv.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sub_invoice, 'Sub Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
       ...spInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Pengantar', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
     ]
       .filter(r => {
         if (tipe && r.tipe !== tipe) return false;
+        if (sumber && r.sumber !== sumber) return false;
         if (!search) return true;
         const q = search.toLowerCase();
         return r.nomor?.toLowerCase().includes(q) || r.nama_penerima?.toLowerCase().includes(q);
@@ -137,7 +150,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
         }),
         ProformaInvoice.findAll({
           where: { penjualan_interior_id: penjualanId },
-          attributes: ['id', 'nomor_proforma', 'tanggal'],
+          attributes: ['id', 'nomor_proforma', 'nomor_sub_invoice', 'tanggal'],
           order: [['tanggal', 'ASC']],
         }),
         SuratJalanInterior.findAll({
@@ -186,7 +199,8 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
           id: p.id, tipe: p.tipe, jumlah: parseFloat(p.jumlah), tanggal: p.tanggal,
         })),
         dokumen: {
-          proformas: proformas.map(d => ({ id: d.id, nomor: d.nomor_proforma, tanggal: d.tanggal, tipe: 'proforma' })),
+          proformas: proformas.filter(d => !d.nomor_sub_invoice).map(d => ({ id: d.id, nomor: d.nomor_proforma, tanggal: d.tanggal, tipe: 'proforma' })),
+          subInvoices: proformas.filter(d => !!d.nomor_sub_invoice).map(d => ({ id: d.id, nomor: d.nomor_sub_invoice, tanggal: d.tanggal, tipe: 'sub-invoice' })),
           suratJalans: suratJalans.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'surat-jalan-interior' })),
           suratPengantars: suratPengantars.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'sp-interior' })),
           invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, tipe: 'invoice-interior' })),

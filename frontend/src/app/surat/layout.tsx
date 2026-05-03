@@ -9,20 +9,11 @@ export default function SuratLayout({ children }: { children: React.ReactNode })
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'Inter, sans-serif' }}>
       <style>{`
-        .surat-header { padding: 0 20px; }
-        .surat-main { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+        .surat-header { padding: 0 16px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+        .surat-main { max-width: 680px; margin: 0 auto; padding: 18px 16px; padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
         @media (min-width: 640px) {
-          .surat-header { padding: 0 28px; }
-          .surat-main { padding: 32px 24px; }
-        }
-        .surat-invoice-row {
-          flex-wrap: nowrap;
-          align-items: center;
-        }
-        @media (max-width: 480px) {
-          .surat-invoice-row { flex-wrap: wrap; }
-          .surat-invoice-chip { order: -1; margin-left: auto; }
-          .surat-invoice-arrow { display: none; }
+          .surat-header { padding: 0 24px; }
+          .surat-main { padding: 28px 24px; }
         }
       `}</style>
       <header
