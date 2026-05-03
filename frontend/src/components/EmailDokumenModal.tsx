@@ -85,7 +85,8 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
   };
 
   const label = TIPE_LABEL[tipe] || tipe;
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  // sig.url sudah mengandung /api/... jadi pakai origin saja (tanpa /api di akhir)
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
 
   return (
     <div
