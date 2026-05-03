@@ -94,8 +94,12 @@ router.get('/signatures', authenticate, (req, res) => {
   res.json(list);
 });
 
-// GET /api/settings/signatures/:id — serve one signature file (accepts print token for PDF rendering)
-router.get('/signatures/:id', authenticatePrint, (req, res) => {
+// GET /api/settings/signatures/:id — serve one signature file (accepts both Bearer token and print token)
+router.get('/signatures/:id', (req, res, next) => {
+  // Support both: Bearer token (axios dari modal) dan print token (?token= dari iframe)
+  if (req.query.token) return authenticatePrint(req, res, next);
+  return authenticate(req, res, next);
+}, (req, res) => {
   const filename = decodeURIComponent(req.params.id);
   if (!isValidFilename(filename)) return res.status(400).json({ message: 'Nama file tidak valid' });
   const filepath = path.join(SIGS_DIR, filename);
