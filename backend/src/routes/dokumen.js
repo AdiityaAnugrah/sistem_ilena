@@ -117,6 +117,7 @@ router.post('/surat-jalan/:id/email', authenticate, async (req, res) => {
     await sendDocumentEmail({ to: email, subject: `Surat Jalan - ${doc.nomor}`, tipeLabel: 'Surat Jalan', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Jalan_${doc.nomor.replace(/\//g, '-')}.pdf` });
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
+    console.error('[email/surat-jalan] Error:', err.message, err.stack?.split('\n')[1]);
     return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
   }
 });

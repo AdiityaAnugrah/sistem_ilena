@@ -87,7 +87,7 @@ router.get('/signatures', authenticate, (req, res) => {
     : [];
   const list = files.map(f => ({
     id: f,
-    url: `/api/settings/signatures/${encodeURIComponent(f)}`,
+    url: `/settings/signatures/${encodeURIComponent(f)}`,
     createdAt: fs.statSync(path.join(SIGS_DIR, f)).mtime.toISOString(),
   }));
   list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -112,7 +112,7 @@ router.post('/signatures', authenticate, blockTestMutation, uploadMulti.single('
     return res.json({
       message: 'Tanda tangan berhasil disimpan',
       id: req.file.filename,
-      url: `/api/settings/signatures/${encodeURIComponent(req.file.filename)}`,
+      url: `/settings/signatures/${encodeURIComponent(req.file.filename)}`,
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });

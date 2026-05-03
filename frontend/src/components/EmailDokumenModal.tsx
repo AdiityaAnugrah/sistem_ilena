@@ -57,11 +57,11 @@ export default function EmailDokumenModal({ open, onClose, tipe, docId, nomor, d
         setSignatures(list);
         // Fetch setiap gambar via axios agar JWT header ikut terkirim
         const blobMap: Record<string, string> = {};
-        await Promise.all(list.map(sig =>
-          api.get(sig.url, { responseType: 'blob' })
+        await Promise.all(list.map(sig => {
+          return api.get(sig.url, { responseType: 'blob' })
             .then(res => { blobMap[sig.id] = URL.createObjectURL(res.data); })
-            .catch(() => {})
-        ));
+            .catch(() => {});
+        }));
         setSigBlobUrls(blobMap);
       })
       .catch(() => setSignatures([]))

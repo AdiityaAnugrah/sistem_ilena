@@ -171,6 +171,7 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   placeholder="Masukkan password"
                   className="pl-9 pr-10 h-10 text-[13.5px] border-slate-200 bg-white placeholder:text-slate-300 focus:border-red-400 focus:ring-2 focus:ring-red-500/15 transition-all"
                   style={{ borderRadius: '0.5rem' }}
