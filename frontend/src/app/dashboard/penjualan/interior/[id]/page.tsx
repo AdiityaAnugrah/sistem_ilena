@@ -7,10 +7,11 @@ import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, CreditCard, Truck,
-  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown,
+  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown, Mail,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
+import EmailDokumenModal from '@/components/EmailDokumenModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReturItem {
@@ -221,6 +222,7 @@ export default function PenjualanInteriorDetail() {
   const [docLoading, setDocLoading] = useState(false);
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
   const toggleCard = (key: string) => setOpenCards(prev => ({ ...prev, [key]: !prev[key] }));
+  const [emailModal, setEmailModal] = useState<{ tipe: string; docId: number; nomor: string } | null>(null);
 
   // Form states
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -604,6 +606,12 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#eff6ff', hoverColor: '#2563eb', hoverBorder: '#bfdbfe',
                   onClick: () => printSubInvoice(p),
                 },
+                {
+                  label: <Mail className="h-3 w-3" />,
+                  title: 'Kirim Email',
+                  hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
+                  onClick: () => setEmailModal({ tipe: 'proforma', docId: p.id, nomor: p.nomor_proforma }),
+                },
               ],
             })),
           },
@@ -618,6 +626,14 @@ export default function PenjualanInteriorDetail() {
               nomor: p.nomor_sub_invoice,
               sub: formatDate(p.tanggal),
               onPrint: () => printSubInvoice(p),
+              extraButtons: [
+                {
+                  label: <Mail className="h-3 w-3" />,
+                  title: 'Kirim Email',
+                  hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
+                  onClick: () => setEmailModal({ tipe: 'sub-invoice', docId: p.id, nomor: p.nomor_sub_invoice }),
+                },
+              ],
             })),
           },
           {
@@ -637,6 +653,12 @@ export default function PenjualanInteriorDetail() {
                   title: 'Input Retur',
                   hoverBg: '#fff7ed', hoverColor: '#c2410c', hoverBorder: '#fed7aa',
                   onClick: () => openReturModal(sj),
+                },
+                {
+                  label: <Mail className="h-3 w-3" />,
+                  title: 'Kirim Email',
+                  hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
+                  onClick: () => setEmailModal({ tipe: 'surat-jalan-interior', docId: sj.id, nomor: sj.nomor_surat }),
                 },
               ],
               extraContent: sj.returs?.length > 0 ? (
@@ -666,6 +688,14 @@ export default function PenjualanInteriorDetail() {
               nomor: sp.nomor_surat,
               sub: formatDate(sp.tanggal),
               onPrint: () => printDoc('sp-interior', sp.id),
+              extraButtons: [
+                {
+                  label: <Mail className="h-3 w-3" />,
+                  title: 'Kirim Email',
+                  hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
+                  onClick: () => setEmailModal({ tipe: 'sp-interior', docId: sp.id, nomor: sp.nomor_surat }),
+                },
+              ],
             })),
           },
           {
@@ -679,6 +709,14 @@ export default function PenjualanInteriorDetail() {
               nomor: inv.nomor_invoice,
               sub: formatDate(inv.tanggal),
               onPrint: () => printDoc('invoice-interior', inv.id),
+              extraButtons: [
+                {
+                  label: <Mail className="h-3 w-3" />,
+                  title: 'Kirim Email',
+                  hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
+                  onClick: () => setEmailModal({ tipe: 'invoice-interior', docId: inv.id, nomor: inv.nomor_invoice }),
+                },
+              ],
             })),
           },
         ];
@@ -1514,6 +1552,18 @@ export default function PenjualanInteriorDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Email Modal */}
+      {emailModal && (
+        <EmailDokumenModal
+          open={!!emailModal}
+          onClose={() => setEmailModal(null)}
+          tipe={emailModal.tipe}
+          docId={emailModal.docId}
+          nomor={emailModal.nomor}
+          defaultEmail={data?.email_customer || ''}
+        />
       )}
     </div>
   );

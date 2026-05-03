@@ -7,11 +7,12 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, FilePlus, Printer,
-  User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X, RotateCcw,
+  User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X, RotateCcw, Mail,
 } from 'lucide-react';
 
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
+import EmailDokumenModal from '@/components/EmailDokumenModal';
 
 function parseDimensi(deskripsi: any): string {
   try {
@@ -47,7 +48,7 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value
   </div>
 );
 
-const DocItem = ({ nomor, tanggal, onPrint }: { nomor: string; tanggal: string; onPrint: () => void }) => (
+const DocItem = ({ nomor, tanggal, onPrint, onEmail }: { nomor: string; tanggal: string; onPrint: () => void; onEmail?: () => void }) => (
   <div
     className="flex items-center justify-between p-3 rounded-xl"
     style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}
@@ -56,24 +57,30 @@ const DocItem = ({ nomor, tanggal, onPrint }: { nomor: string; tanggal: string; 
       <div className="text-xs font-mono font-medium" style={{ color: '#334155' }}>{nomor}</div>
       <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(tanggal)}</div>
     </div>
-    <button
-      onClick={onPrint}
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-      style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-      onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.background = '#fff1f1';
-        (e.currentTarget as HTMLElement).style.color = '#FA2F2F';
-        (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca';
-      }}
-      onMouseLeave={e => {
-        (e.currentTarget as HTMLElement).style.background = '#fff';
-        (e.currentTarget as HTMLElement).style.color = '#475569';
-        (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
-      }}
-    >
-      <Printer className="h-3.5 w-3.5" />
-      Cetak
-    </button>
+    <div style={{ display: 'flex', gap: 5 }}>
+      {onEmail && (
+        <button
+          onClick={onEmail}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fdf4ff'; (e.currentTarget as HTMLElement).style.color = '#86198f'; (e.currentTarget as HTMLElement).style.border = '1px solid #f0abfc'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+          title="Kirim via Email"
+        >
+          <Mail className="h-3.5 w-3.5" />
+        </button>
+      )}
+      <button
+        onClick={onPrint}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+        style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+      >
+        <Printer className="h-3.5 w-3.5" />
+        Cetak
+      </button>
+    </div>
   </div>
 );
 
@@ -404,6 +411,7 @@ export default function PenjualanOfflineDetail() {
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [emailModal, setEmailModal] = useState<{ tipe: string; docId: number; nomor: string } | null>(null);
 
   // Edit identitas states
   const [identitasModal, setIdentitasModal] = useState(false);
@@ -1102,6 +1110,7 @@ export default function PenjualanOfflineDetail() {
                     nomor={sj.nomor_surat}
                     tanggal={sj.tanggal}
                     onPrint={() => printDoc('surat-jalan', sj.id)}
+                    onEmail={() => setEmailModal({ tipe: 'surat-jalan', docId: sj.id, nomor: sj.nomor_surat })}
                   />
                 ))}
               </div>
@@ -1124,6 +1133,7 @@ export default function PenjualanOfflineDetail() {
                     nomor={inv.nomor_invoice}
                     tanggal={inv.tanggal}
                     onPrint={() => printDoc('invoice', inv.id)}
+                    onEmail={() => setEmailModal({ tipe: 'invoice', docId: inv.id, nomor: inv.nomor_invoice })}
                   />
                 ))}
               </div>
@@ -1146,6 +1156,7 @@ export default function PenjualanOfflineDetail() {
                       nomor={sp.nomor_sp}
                       tanggal={sp.tanggal}
                       onPrint={() => printDoc('sp', sp.id)}
+                      onEmail={() => setEmailModal({ tipe: 'sp', docId: sp.id, nomor: sp.nomor_sp })}
                     />
                     {/* Sub-SP section */}
                     <div className="mt-2 ml-3 pl-3" style={{ borderLeft: '2px solid #f1f5f9' }}>
@@ -1573,6 +1584,16 @@ export default function PenjualanOfflineDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {emailModal && (
+        <EmailDokumenModal
+          open={!!emailModal}
+          onClose={() => setEmailModal(null)}
+          tipe={emailModal.tipe}
+          docId={emailModal.docId}
+          nomor={emailModal.nomor}
+        />
       )}
     </div>
   );

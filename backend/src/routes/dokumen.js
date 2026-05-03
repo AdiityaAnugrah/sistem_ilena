@@ -48,6 +48,8 @@ const {
   generateHTMLProforma,
   generateHTMLSubInvoice,
 } = require('../utils/htmlGenerator');
+const { sendDocumentEmail } = require('../utils/mailer');
+const { htmlToPdf } = require('../utils/htmlToPdf');
 
 const router = express.Router();
 
@@ -58,99 +60,150 @@ router.use((_req, res, next) => {
   next();
 });
 
+async function fetchSuratJalan(id) {
+  const sj = await SuratJalan.findByPk(id, {
+    include: [{
+      model: PenjualanOffline, as: 'penjualan',
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+        { model: ReturOffline, as: 'returs' },
+        ...includeAlamat,
+      ],
+    }],
+  });
+  if (!sj) return null;
+  return { html: generateHTMLSuratJalan(sj.toJSON()), nomor: sj.nomor_surat, tanggal: sj.tanggal, nama: sj.penjualan?.nama_penerima };
+}
+
 // GET /api/dokumen/surat-jalan/:id/print
 router.get('/surat-jalan/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const sj = await SuratJalan.findByPk(req.params.id, {
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        include: [
-          { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
-          { model: ReturOffline, as: 'returs' },
-          ...includeAlamat,
-        ],
-      }],
-    });
-    if (!sj) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
-
-    const html = generateHTMLSuratJalan(sj.toJSON());
+    const doc = await fetchSuratJalan(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+// POST /api/dokumen/surat-jalan/:id/email
+router.post('/surat-jalan/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSuratJalan(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Surat Jalan - ${doc.nomor}`, tipeLabel: 'Surat Jalan', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Jalan_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+async function fetchInvoice(id) {
+  const inv = await Invoice.findByPk(id, {
+    include: [{
+      model: PenjualanOffline, as: 'penjualan',
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+        { model: SuratJalan, as: 'suratJalans' },
+        { model: ReturOffline, as: 'returs' },
+        ...includeAlamat,
+      ],
+    }],
+  });
+  if (!inv) return null;
+  const data = inv.toJSON();
+  if (data.penjualan) data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
+  return { html: generateHTMLInvoice(data), nomor: inv.nomor_invoice, tanggal: inv.tanggal, nama: inv.penjualan?.nama_penerima };
+}
 
 // GET /api/dokumen/invoice/:id/print
 router.get('/invoice/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const inv = await Invoice.findByPk(req.params.id, {
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        include: [
-          { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
-          { model: SuratJalan, as: 'suratJalans' },
-          { model: ReturOffline, as: 'returs' },
-          ...includeAlamat,
-        ],
-      }],
-    });
-    if (!inv) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
-
-    const data = inv.toJSON();
-    if (data.penjualan) {
-      data.penjualan.items = applyReturs(data.penjualan.items || [], data.penjualan.returs || []);
-    }
-
-    const html = generateHTMLInvoice(data);
+    const doc = await fetchInvoice(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
+// POST /api/dokumen/invoice/:id/email
+router.post('/invoice/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchInvoice(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Invoice tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Invoice - ${doc.nomor}`, tipeLabel: 'Invoice', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Invoice_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+async function fetchSuratPengantar(id) {
+  const sp = await SuratPengantar.findByPk(id, {
+    include: [{
+      model: PenjualanOffline, as: 'penjualan',
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+        { model: ReturOffline, as: 'returs' },
+        ...includeAlamat,
+      ],
+    }],
+  });
+  if (!sp) return null;
+  const data = sp.toJSON();
+  if (data.penjualan?.tipe === 'DISPLAY') {
+    const lakuPenjualans = await PenjualanOffline.findAll({
+      where: { display_source_id: data.penjualan.id },
+      include: [{ model: PenjualanOfflineItem, as: 'items' }],
+    });
+    const soldMap = {};
+    for (const laku of lakuPenjualans) {
+      for (const item of (laku.items || [])) {
+        const key = `${item.barang_id}-${item.varian_id || ''}`;
+        soldMap[key] = (soldMap[key] || 0) + item.qty;
+      }
+    }
+    data.penjualan.items = (data.penjualan.items || []).map(item => {
+      const key = `${item.barang_id}-${item.varian_id || ''}`;
+      return { ...item, qty: item.qty + (soldMap[key] || 0) };
+    });
+  }
+  return { html: generateHTMLSuratPengantar(data), nomor: sp.nomor_sp, tanggal: sp.tanggal, nama: sp.penjualan?.nama_penerima };
+}
+
 // GET /api/dokumen/sp/:id/print
 router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const sp = await SuratPengantar.findByPk(req.params.id, {
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        include: [
-          { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
-          { model: ReturOffline, as: 'returs' },
-          ...includeAlamat,
-        ],
-      }],
-    });
-    if (!sp) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
-
-    const data = sp.toJSON();
-
-    // Untuk DISPLAY: rekonstruksi qty asli = qty sisa + qty yang sudah terjual
-    if (data.penjualan?.tipe === 'DISPLAY') {
-      const lakuPenjualans = await PenjualanOffline.findAll({
-        where: { display_source_id: data.penjualan.id },
-        include: [{ model: PenjualanOfflineItem, as: 'items' }],
-      });
-      const soldMap = {};
-      for (const laku of lakuPenjualans) {
-        for (const item of (laku.items || [])) {
-          const key = `${item.barang_id}-${item.varian_id || ''}`;
-          soldMap[key] = (soldMap[key] || 0) + item.qty;
-        }
-      }
-      data.penjualan.items = (data.penjualan.items || []).map(item => {
-        const key = `${item.barang_id}-${item.varian_id || ''}`;
-        return { ...item, qty: item.qty + (soldMap[key] || 0) };
-      });
-    }
-
-    const html = generateHTMLSuratPengantar(data);
+    const doc = await fetchSuratPengantar(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/dokumen/sp/:id/email
+router.post('/sp/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSuratPengantar(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Surat Pengantar - ${doc.nomor}`, tipeLabel: 'Surat Pengantar', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Pengantar_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
   }
 });
 
@@ -190,81 +243,124 @@ router.get('/sp-sub/:id/print', authenticatePrint, async (req, res) => {
   }
 });
 
+async function fetchProforma(id) {
+  const proforma = await ProformaInvoice.findByPk(id, {
+    include: [{
+      model: PenjualanInterior, as: 'penjualan',
+      include: [
+        { model: PenjualanInteriorItem, as: 'items' },
+        { model: PembayaranInterior, as: 'pembayarans' },
+        { model: ProformaInvoice, as: 'proformas', attributes: ['id', 'terms', 'created_at'] },
+        { model: Provinsi, as: 'alamatProvinsi' },
+        { model: Kabupaten, as: 'alamatKabupaten' },
+        { model: Kecamatan, as: 'alamatKecamatan' },
+        { model: Kelurahan, as: 'alamatKelurahan' },
+      ],
+    }],
+  });
+  if (!proforma) return null;
+  const data = proforma.toJSON();
+  const allProformas = (data.penjualan.proformas || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const thisIdx = allProformas.findIndex(p => p.id === proforma.id);
+  const priorTermsByTipe = {};
+  allProformas.slice(0, thisIdx >= 0 ? thisIdx : 0).forEach(prev => {
+    let prevTerms = [];
+    try { prevTerms = prev.terms ? JSON.parse(prev.terms) : []; } catch {}
+    prevTerms.forEach(t => { const tipe = t.tipe || 'DP'; priorTermsByTipe[tipe] = (priorTermsByTipe[tipe] || 0) + 1; });
+  });
+  data.priorTermsByTipe = priorTermsByTipe;
+  return { html: generateHTMLProforma(data), nomor: proforma.nomor_proforma, tanggal: proforma.tanggal, nama: proforma.penjualan?.nama_customer };
+}
+
 // GET /api/dokumen/proforma/:id/print
 router.get('/proforma/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const proforma = await ProformaInvoice.findByPk(req.params.id, {
-      include: [{
-        model: PenjualanInterior, as: 'penjualan',
-        include: [
-          { model: PenjualanInteriorItem, as: 'items' },
-          { model: PembayaranInterior, as: 'pembayarans' },
-          { model: ProformaInvoice, as: 'proformas', attributes: ['id', 'terms', 'created_at'] },
-          { model: Provinsi, as: 'alamatProvinsi' },
-          { model: Kabupaten, as: 'alamatKabupaten' },
-          { model: Kecamatan, as: 'alamatKecamatan' },
-          { model: Kelurahan, as: 'alamatKelurahan' },
-        ],
-      }],
-    });
-    if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-
-    const data = proforma.toJSON();
-
-    // Hitung berapa term per tipe yang sudah "diklaim" proforma-proforma sebelum ini
-    const allProformas = (data.penjualan.proformas || [])
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    const thisIdx = allProformas.findIndex(p => p.id === proforma.id);
-    const priorTermsByTipe = {};
-    allProformas.slice(0, thisIdx >= 0 ? thisIdx : 0).forEach(prev => {
-      let prevTerms = [];
-      try { prevTerms = prev.terms ? JSON.parse(prev.terms) : []; } catch {}
-      prevTerms.forEach(t => {
-        const tipe = t.tipe || 'DP';
-        priorTermsByTipe[tipe] = (priorTermsByTipe[tipe] || 0) + 1;
-      });
-    });
-    data.priorTermsByTipe = priorTermsByTipe;
-
-    const html = generateHTMLProforma(data);
+    const doc = await fetchProforma(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+// POST /api/dokumen/proforma/:id/email
+router.post('/proforma/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchProforma(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Proforma Invoice - ${doc.nomor}`, tipeLabel: 'Proforma Invoice', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Proforma_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+async function fetchSubInvoice(id) {
+  const proforma = await ProformaInvoice.findByPk(id, {
+    include: [{
+      model: PenjualanInterior, as: 'penjualan',
+      include: [
+        { model: PenjualanInteriorItem, as: 'items' },
+        { model: Provinsi, as: 'alamatProvinsi' },
+        { model: Kabupaten, as: 'alamatKabupaten' },
+        { model: Kecamatan, as: 'alamatKecamatan' },
+        { model: Kelurahan, as: 'alamatKelurahan' },
+      ],
+    }],
+  });
+  if (!proforma) return null;
+  if (!proforma.nomor_sub_invoice) {
+    const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
+    const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
+    await proforma.update({ nomor_sub_invoice: nomor });
+  }
+  const data = proforma.toJSON();
+  return { html: generateHTMLSubInvoice(data), nomor: data.nomor_sub_invoice, tanggal: data.tanggal, nama: data.penjualan?.nama_customer };
+}
 
 // GET /api/dokumen/proforma/:id/sub-invoice/print
 router.get('/proforma/:id/sub-invoice/print', authenticatePrint, async (req, res) => {
   try {
-    const proforma = await ProformaInvoice.findByPk(req.params.id, {
-      include: [{
-        model: PenjualanInterior, as: 'penjualan',
-        include: [
-          { model: PenjualanInteriorItem, as: 'items' },
-          { model: Provinsi, as: 'alamatProvinsi' },
-          { model: Kabupaten, as: 'alamatKabupaten' },
-          { model: Kecamatan, as: 'alamatKecamatan' },
-          { model: Kelurahan, as: 'alamatKelurahan' },
-        ],
-      }],
-    });
-    if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-
-    // Generate nomor sub invoice sekali, simpan permanen
-    if (!proforma.nomor_sub_invoice) {
-      const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
-      const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
-      await proforma.update({ nomor_sub_invoice: nomor });
-    }
-
-    const html = generateHTMLSubInvoice(proforma.toJSON());
+    const doc = await fetchSubInvoice(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+// POST /api/dokumen/proforma/:id/sub-invoice/email
+router.post('/proforma/:id/sub-invoice/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSubInvoice(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Sub Invoice tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Invoice - ${doc.nomor}`, tipeLabel: 'Invoice', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Invoice_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+async function fetchSuratJalanInterior(id) {
+  const sji = await SuratJalanInterior.findByPk(id, {
+    include: [
+      { model: PenjualanInterior, as: 'penjualan', include: [{ model: Provinsi, as: 'alamatProvinsi' }, { model: Kabupaten, as: 'alamatKabupaten' }, { model: Kecamatan, as: 'alamatKecamatan' }, { model: Kelurahan, as: 'alamatKelurahan' }] },
+      { model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] },
+    ],
+  });
+  if (!sji) return null;
+  const data = sji.toJSON();
+  const normalized = { nomor_surat: data.nomor_surat, tanggal: data.tanggal, catatan: data.catatan, penjualan: { nama_penerima: data.penjualan.nama_customer, pengirim_detail: data.penjualan.alamat_detail, pengirimProvinsi: data.penjualan.alamatProvinsi, pengirimKabupaten: data.penjualan.alamatKabupaten, pengirimKecamatan: data.penjualan.alamatKecamatan, pengirimKelurahan: data.penjualan.alamatKelurahan, pengirim_kode_pos: data.penjualan.alamat_kode_pos, faktur: data.penjualan.faktur, items: (data.items || []).map(i => ({ barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang }, qty: i.qty_kirim, barang_id: i.penjualan_interior_item_id })) } };
+  return { html: generateHTMLSuratJalan(normalized), nomor: sji.nomor_surat, tanggal: sji.tanggal, nama: sji.penjualan?.nama_customer };
+}
 
 // GET /api/dokumen/surat-jalan-interior/:id/print
 router.get('/surat-jalan-interior/:id/print', authenticatePrint, async (req, res) => {
@@ -317,6 +413,21 @@ router.get('/surat-jalan-interior/:id/print', authenticatePrint, async (req, res
     res.send(html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/dokumen/surat-jalan-interior/:id/email
+router.post('/surat-jalan-interior/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSuratJalanInterior(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Jalan Interior tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Surat Jalan - ${doc.nomor}`, tipeLabel: 'Surat Jalan', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Jalan_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
   }
 });
 
@@ -437,30 +548,68 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
   }
 });
 
+// POST /api/dokumen/invoice-interior/:id/email
+router.post('/invoice-interior/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    // Re-use the print logic by calling the same handler inline via a lightweight helper
+    const inv = await InvoiceInterior.findByPk(req.params.id, { include: [{ model: PenjualanInterior, as: 'penjualan', include: [{ model: Provinsi, as: 'alamatProvinsi' }, { model: Kabupaten, as: 'alamatKabupaten' }, { model: Kecamatan, as: 'alamatKecamatan' }, { model: Kelurahan, as: 'alamatKelurahan' }] }] });
+    if (!inv) return res.status(404).json({ message: 'Invoice Interior tidak ditemukan' });
+    const data = inv.toJSON();
+    let sjIds = [];
+    if (data.surat_jalan_ids) { try { sjIds = JSON.parse(data.surat_jalan_ids); } catch { sjIds = []; } } else if (data.surat_jalan_interior_id) { sjIds = [data.surat_jalan_interior_id]; }
+    const suratJalans = await SuratJalanInterior.findAll({ where: { id: sjIds }, include: [{ model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] }] });
+    const ppnPersen = data.penjualan.pakai_ppn && data.penjualan.ppn_persen ? parseInt(data.penjualan.ppn_persen) : 0;
+    const rawItems = suratJalans.flatMap(sj => (sj.items || []).map(i => { const hb = parseFloat(i.item?.harga_satuan || 0); const hi = ppnPersen > 0 ? Math.round(hb * (1 + ppnPersen / 100)) : hb; return { barang: { id: i.item?.kode_barang, nama: i.item?.nama_barang }, qty: i.qty_kirim, harga_satuan: hi, subtotal: hi * i.qty_kirim }; }));
+    const mergeMap = new Map(); rawItems.forEach(item => { const key = `${item.barang.nama}||${item.harga_satuan}`; if (mergeMap.has(key)) { const ex = mergeMap.get(key); ex.qty += item.qty; ex.subtotal += item.subtotal; } else { mergeMap.set(key, { ...item }); } });
+    let invoiceItems = Array.from(mergeMap.values());
+    if (invoiceItems.length === 0) { const pItems = await PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: data.penjualan_interior_id } }); invoiceItems = pItems.map(i => { const hb = parseFloat(i.harga_satuan || 0); const hi = ppnPersen > 0 ? Math.round(hb * (1 + ppnPersen / 100)) : hb; return { barang: { id: i.kode_barang, nama: i.nama_barang }, qty: i.qty, harga_satuan: hi, subtotal: hi * i.qty }; }); }
+    const normalized = { nomor_invoice: data.nomor_invoice, tanggal: data.tanggal, jatuh_tempo: data.jatuh_tempo, catatan: data.catatan, ppn_persen: 0, penjualan: { nama_penerima: data.penjualan.nama_customer, nama_npwp: data.penjualan.nama_pt_npwp, pengirim_detail: data.penjualan.alamat_detail, pengirimProvinsi: data.penjualan.alamatProvinsi, pengirimKabupaten: data.penjualan.alamatKabupaten, pengirimKecamatan: data.penjualan.alamatKecamatan, pengirimKelurahan: data.penjualan.alamatKelurahan, pengirim_kode_pos: data.penjualan.alamat_kode_pos, no_po: data.penjualan.no_po, no_npwp: data.penjualan.no_npwp, faktur: data.penjualan.faktur, suratJalans: suratJalans.map(sj => ({ nomor_surat: sj.nomor_surat })), items: invoiceItems } };
+    const html = generateHTMLInvoice(normalized);
+    const pdf = await htmlToPdf(html);
+    await sendDocumentEmail({ to: email, subject: `Invoice - ${data.nomor_invoice}`, tipeLabel: 'Invoice', nomor: data.nomor_invoice, namaCustomer: data.penjualan?.nama_customer, tanggal: data.tanggal, pdfBuffer: pdf, pdfFilename: `Invoice_${data.nomor_invoice.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+async function fetchSpInterior(id) {
+  const sp = await SuratPengantarInterior.findByPk(id, {
+    include: [
+      { model: PenjualanInterior, as: 'penjualan', include: [{ model: Provinsi, as: 'alamatProvinsi' }, { model: Kabupaten, as: 'alamatKabupaten' }, { model: Kecamatan, as: 'alamatKecamatan' }, { model: Kelurahan, as: 'alamatKelurahan' }] },
+      { model: SuratPengantarInteriorItem, as: 'items' },
+    ],
+  });
+  if (!sp) return null;
+  return { html: generateHTMLSuratPengantarInterior(sp.toJSON()), nomor: sp.nomor_surat, tanggal: sp.tanggal, nama: sp.penjualan?.nama_customer };
+}
+
 // GET /api/dokumen/sp-interior/:id/print
 router.get('/sp-interior/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const { Provinsi: P, Kabupaten: Kab, Kecamatan: Kec, Kelurahan: Kel } = require('../models');
-    const sp = await SuratPengantarInterior.findByPk(req.params.id, {
-      include: [
-        {
-          model: PenjualanInterior, as: 'penjualan',
-          include: [
-            { model: P, as: 'alamatProvinsi' },
-            { model: Kab, as: 'alamatKabupaten' },
-            { model: Kec, as: 'alamatKecamatan' },
-            { model: Kel, as: 'alamatKelurahan' },
-          ],
-        },
-        { model: SuratPengantarInteriorItem, as: 'items' },
-      ],
-    });
-    if (!sp) return res.status(404).json({ message: 'Surat Pengantar Interior tidak ditemukan' });
-    const html = generateHTMLSuratPengantarInterior(sp.toJSON());
+    const doc = await fetchSpInterior(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Pengantar Interior tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/dokumen/sp-interior/:id/email
+router.post('/sp-interior/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSpInterior(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Surat Pengantar Interior tidak ditemukan' });
+    const pdf = await htmlToPdf(doc.html);
+    await sendDocumentEmail({ to: email, subject: `Surat Pengantar - ${doc.nomor}`, tipeLabel: 'Surat Pengantar', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Pengantar_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
   }
 });
 
