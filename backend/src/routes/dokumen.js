@@ -50,6 +50,24 @@ const {
 } = require('../utils/htmlGenerator');
 const { sendDocumentEmail } = require('../utils/mailer');
 const { htmlToPdf } = require('../utils/htmlToPdf');
+const fs = require('fs');
+const path = require('path');
+const SIGS_DIR = path.join(__dirname, '../../uploads/signatures');
+
+// Inject signature image into the first sig-body (Dibuat Oleh) of a document HTML
+function injectSignatureHtml(html, signatureId) {
+  if (!signatureId) return html;
+  const filename = decodeURIComponent(signatureId);
+  if (!/^[\w\-. ]+\.(png|jpg|jpeg|gif|webp)$/i.test(filename)) return html;
+  const filepath = path.join(SIGS_DIR, filename);
+  if (!fs.existsSync(filepath)) return html;
+  const buf = fs.readFileSync(filepath);
+  const ext = path.extname(filename).slice(1).toLowerCase();
+  const mime = ext === 'jpg' ? 'jpeg' : ext;
+  const dataUri = `data:image/${mime};base64,${buf.toString('base64')}`;
+  const imgTag = `<img src="${dataUri}" style="max-height:76px;max-width:130px;object-fit:contain;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;mix-blend-mode:multiply;-webkit-print-color-adjust:exact;print-color-adjust:exact;" alt="TTD">`;
+  return html.replace('<div class="sig-body">', `<div class="sig-body">${imgTag}`);
+}
 
 const router = express.Router();
 
@@ -90,11 +108,12 @@ router.get('/surat-jalan/:id/print', authenticatePrint, async (req, res) => {
 // POST /api/dokumen/surat-jalan/:id/email
 router.post('/surat-jalan/:id/email', authenticate, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, signatureId } = req.body;
     if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
     const doc = await fetchSuratJalan(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' });
-    const pdf = await htmlToPdf(doc.html);
+    const html = injectSignatureHtml(doc.html, signatureId);
+    const pdf = await htmlToPdf(html);
     await sendDocumentEmail({ to: email, subject: `Surat Jalan - ${doc.nomor}`, tipeLabel: 'Surat Jalan', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Jalan_${doc.nomor.replace(/\//g, '-')}.pdf` });
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
@@ -195,11 +214,12 @@ router.get('/sp/:id/print', authenticatePrint, async (req, res) => {
 // POST /api/dokumen/sp/:id/email
 router.post('/sp/:id/email', authenticate, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, signatureId } = req.body;
     if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
     const doc = await fetchSuratPengantar(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' });
-    const pdf = await htmlToPdf(doc.html);
+    const html = injectSignatureHtml(doc.html, signatureId);
+    const pdf = await htmlToPdf(html);
     await sendDocumentEmail({ to: email, subject: `Surat Pengantar - ${doc.nomor}`, tipeLabel: 'Surat Pengantar', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Pengantar_${doc.nomor.replace(/\//g, '-')}.pdf` });
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
@@ -207,39 +227,51 @@ router.post('/sp/:id/email', authenticate, async (req, res) => {
   }
 });
 
+async function fetchSpSub(id) {
+  const sub = await SuratPengantarSub.findByPk(id, {
+    include: [
+      {
+        model: SuratPengantar, as: 'suratPengantar',
+        include: [{ model: PenjualanOffline, as: 'penjualan', include: [...includeAlamat] }],
+      },
+      { model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] },
+    ],
+  });
+  if (!sub) return null;
+  const data = sub.toJSON();
+  const spData = {
+    ...data.suratPengantar,
+    nomor_sp: data.nomor_sp_sub,
+    penjualan: { ...data.suratPengantar.penjualan, items: [data.item] },
+  };
+  return { html: generateHTMLSuratPengantar(spData), nomor: data.nomor_sp_sub, tanggal: data.suratPengantar.tanggal, nama: data.suratPengantar.penjualan?.nama_penerima };
+}
+
 // GET /api/dokumen/sp-sub/:id/print
 router.get('/sp-sub/:id/print', authenticatePrint, async (req, res) => {
   try {
-    const sub = await SuratPengantarSub.findByPk(req.params.id, {
-      include: [
-        {
-          model: SuratPengantar, as: 'suratPengantar',
-          include: [{
-            model: PenjualanOffline, as: 'penjualan',
-            include: [...includeAlamat],
-          }],
-        },
-        { model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] },
-      ],
-    });
-    if (!sub) return res.status(404).json({ message: 'Sub-SP tidak ditemukan' });
-
-    const data = sub.toJSON();
-    // Pakai template SP utama tapi override nomor_sp dan items (hanya 1 item ini)
-    const spData = {
-      ...data.suratPengantar,
-      nomor_sp: data.nomor_sp_sub,
-      penjualan: {
-        ...data.suratPengantar.penjualan,
-        items: [data.item],
-      },
-    };
-
-    const html = generateHTMLSuratPengantar(spData);
+    const doc = await fetchSpSub(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Sub-SP tidak ditemukan' });
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(doc.html);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/dokumen/sp-sub/:id/email
+router.post('/sp-sub/:id/email', authenticate, async (req, res) => {
+  try {
+    const { email, signatureId } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
+    const doc = await fetchSpSub(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Sub-SP tidak ditemukan' });
+    const html = injectSignatureHtml(doc.html, signatureId);
+    const pdf = await htmlToPdf(html);
+    await sendDocumentEmail({ to: email, subject: `Surat Pengantar - ${doc.nomor}`, tipeLabel: 'Surat Pengantar', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Pengantar_${doc.nomor.replace(/\//g, '-')}.pdf` });
+    return res.json({ message: 'Email berhasil dikirim' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
   }
 });
 
@@ -419,11 +451,12 @@ router.get('/surat-jalan-interior/:id/print', authenticatePrint, async (req, res
 // POST /api/dokumen/surat-jalan-interior/:id/email
 router.post('/surat-jalan-interior/:id/email', authenticate, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, signatureId } = req.body;
     if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
     const doc = await fetchSuratJalanInterior(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Surat Jalan Interior tidak ditemukan' });
-    const pdf = await htmlToPdf(doc.html);
+    const html = injectSignatureHtml(doc.html, signatureId);
+    const pdf = await htmlToPdf(html);
     await sendDocumentEmail({ to: email, subject: `Surat Jalan - ${doc.nomor}`, tipeLabel: 'Surat Jalan', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Jalan_${doc.nomor.replace(/\//g, '-')}.pdf` });
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
@@ -601,11 +634,12 @@ router.get('/sp-interior/:id/print', authenticatePrint, async (req, res) => {
 // POST /api/dokumen/sp-interior/:id/email
 router.post('/sp-interior/:id/email', authenticate, async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, signatureId } = req.body;
     if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
     const doc = await fetchSpInterior(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Surat Pengantar Interior tidak ditemukan' });
-    const pdf = await htmlToPdf(doc.html);
+    const html = injectSignatureHtml(doc.html, signatureId);
+    const pdf = await htmlToPdf(html);
     await sendDocumentEmail({ to: email, subject: `Surat Pengantar - ${doc.nomor}`, tipeLabel: 'Surat Pengantar', nomor: doc.nomor, namaCustomer: doc.nama, tanggal: doc.tanggal, pdfBuffer: pdf, pdfFilename: `Surat_Pengantar_${doc.nomor.replace(/\//g, '-')}.pdf` });
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
