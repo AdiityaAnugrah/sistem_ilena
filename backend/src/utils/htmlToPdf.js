@@ -2,12 +2,33 @@ let browserInstance = null;
 
 async function getBrowser() {
   if (browserInstance && browserInstance.connected) return browserInstance;
-  const puppeteer = require('puppeteer');
-  browserInstance = await puppeteer.launch({
+
+  let launchOptions = {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
-  });
+  };
+
+  let puppeteer;
+
+  if (process.env.CHROME_PATH) {
+    // Pakai system Chrome yang di-set manual lewat env
+    puppeteer = require('puppeteer-core');
+    launchOptions.executablePath = process.env.CHROME_PATH;
+  } else {
+    try {
+      // Coba @sparticuz/chromium — bundle sendiri, cocok untuk server minimal
+      const chromium = require('@sparticuz/chromium');
+      puppeteer = require('puppeteer-core');
+      launchOptions.executablePath = await chromium.executablePath();
+      launchOptions.args = [...launchOptions.args, ...chromium.args];
+      launchOptions.defaultViewport = chromium.defaultViewport;
+    } catch {
+      // Fallback ke puppeteer bundled Chrome (dev/local)
+      puppeteer = require('puppeteer');
+    }
+  }
+
+  browserInstance = await puppeteer.launch(launchOptions);
   browserInstance.on('disconnected', () => { browserInstance = null; });
   return browserInstance;
 }
