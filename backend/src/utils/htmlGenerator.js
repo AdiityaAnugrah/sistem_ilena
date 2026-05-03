@@ -321,7 +321,7 @@ const buildFullToolbarJS = (pdfFilename) => `
             list.forEach(function(sig) {
                 var item = document.createElement('div');
                 item.className = 'sig-picker-item';
-                item.dataset.url = apiBase + sig.url + '?token=' + token + '&t=' + Date.now();
+                item.dataset.url = apiBase + '/api' + sig.url + '?token=' + token + '&t=' + Date.now();
                 item.dataset.id = sig.id;
 
                 var img = document.createElement('img');
@@ -400,7 +400,7 @@ const buildFullToolbarJS = (pdfFilename) => `
             e.target.value = '';
             loadSignatureList();
             // Auto-select the new one
-            selectedSigUrl = apiBase + data.url + '?token=' + token + '&t=' + Date.now();
+            selectedSigUrl = apiBase + '/api' + data.url + '?token=' + token + '&t=' + Date.now();
             sigImg.src = selectedSigUrl;
             btnAddSig.disabled = false;
             btnConfirm.disabled = false;
