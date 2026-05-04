@@ -512,7 +512,9 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     const penjualan = await PenjualanInterior.findByPk(req.params.id);
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    const { nama_customer, nama_pt_npwp, no_hp, no_po, no_npwp } = req.body;
+    const { nama_customer, nama_pt_npwp, no_hp, no_po, no_npwp,
+      alamat_provinsi_id, alamat_kabupaten_id, alamat_kecamatan_id, alamat_kelurahan_id,
+      alamat_detail, alamat_kode_pos } = req.body;
 
     const updates = {};
     if (nama_customer !== undefined) updates.nama_customer = nama_customer;
@@ -520,6 +522,12 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     if (no_hp !== undefined) updates.no_hp = no_hp;
     if (no_po !== undefined) updates.no_po = no_po;
     if (no_npwp !== undefined) updates.no_npwp = no_npwp;
+    if (alamat_provinsi_id !== undefined) updates.alamat_provinsi_id = alamat_provinsi_id || null;
+    if (alamat_kabupaten_id !== undefined) updates.alamat_kabupaten_id = alamat_kabupaten_id || null;
+    if (alamat_kecamatan_id !== undefined) updates.alamat_kecamatan_id = alamat_kecamatan_id || null;
+    if (alamat_kelurahan_id !== undefined) updates.alamat_kelurahan_id = alamat_kelurahan_id || null;
+    if (alamat_detail !== undefined) updates.alamat_detail = alamat_detail || null;
+    if (alamat_kode_pos !== undefined) updates.alamat_kode_pos = alamat_kode_pos || null;
 
     await penjualan.update(updates);
     await logAction(req.user.id, 'EDIT_IDENTITAS_INTERIOR', `Edit identitas penjualan interior #${penjualan.id}`, req.ip);

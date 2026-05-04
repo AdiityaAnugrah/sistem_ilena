@@ -12,6 +12,7 @@ import {
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
 import EmailDokumenModal from '@/components/EmailDokumenModal';
+import Select from 'react-select';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ReturItem {
@@ -218,6 +219,20 @@ export default function PenjualanInteriorDetail() {
   const [identitasWarn, setIdentitasWarn] = useState(false);
   const [identitasForm, setIdentitasForm] = useState({ nama_customer: '', nama_pt_npwp: '', no_hp: '', no_po: '', no_npwp: '' });
   const [identitasLoading, setIdentitasLoading] = useState(false);
+
+  // Alamat states for edit identitas
+  const [alamatForm, setAlamatForm] = useState({
+    provinsi_id: null as number | null,
+    kabupaten_id: null as number | null,
+    kecamatan_id: null as number | null,
+    kelurahan_id: null as number | null,
+    detail: '',
+    kode_pos: '',
+  });
+  const [provinsiList, setProvinsiList] = useState<{ value: number; label: string }[]>([]);
+  const [kabupatenList, setKabupatenList] = useState<{ value: number; label: string }[]>([]);
+  const [kecamatanList, setKecamatanList] = useState<{ value: number; label: string }[]>([]);
+  const [kelurahanList, setKelurahanList] = useState<{ value: number; label: string; kodepos?: string }[]>([]);
   const [modal, setModal] = useState<string | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
@@ -287,13 +302,31 @@ export default function PenjualanInteriorDetail() {
       no_po: data.no_po || '',
       no_npwp: data.no_npwp || '',
     });
+    setAlamatForm({
+      provinsi_id: data.alamat_provinsi_id ? Number(data.alamat_provinsi_id) : null,
+      kabupaten_id: data.alamat_kabupaten_id ? Number(data.alamat_kabupaten_id) : null,
+      kecamatan_id: data.alamat_kecamatan_id ? Number(data.alamat_kecamatan_id) : null,
+      kelurahan_id: data.alamat_kelurahan_id ? Number(data.alamat_kelurahan_id) : null,
+      detail: data.alamat_detail || '',
+      kode_pos: data.alamat_kode_pos || '',
+    });
+    // Fetch provinsi list
+    api.get('/alamat/provinsi').then((r: any) => setProvinsiList(r.data.map((x: any) => ({ value: x.id, label: x.label }))));
     setIdentitasWarn(true);
   };
 
   const saveIdentitas = async () => {
     setIdentitasLoading(true);
     try {
-      await api.patch(`/penjualan-interior/${id}/identitas`, identitasForm);
+      await api.patch(`/penjualan-interior/${id}/identitas`, {
+        ...identitasForm,
+        alamat_provinsi_id: alamatForm.provinsi_id,
+        alamat_kabupaten_id: alamatForm.kabupaten_id,
+        alamat_kecamatan_id: alamatForm.kecamatan_id,
+        alamat_kelurahan_id: alamatForm.kelurahan_id,
+        alamat_detail: alamatForm.detail,
+        alamat_kode_pos: alamatForm.kode_pos,
+      });
       toast.success('Identitas berhasil diperbarui');
       setIdentitasModal(false);
       fetchData();
@@ -303,6 +336,57 @@ export default function PenjualanInteriorDetail() {
       setIdentitasLoading(false);
     }
   };
+
+  // Cascade fetch untuk dropdown alamat di modal identitas
+  useEffect(() => {
+    if (alamatForm.provinsi_id) {
+      api.get(`/alamat/kabupaten/${alamatForm.provinsi_id}`).then((r: any) =>
+        setKabupatenList(r.data.map((x: any) => ({ value: x.id, label: x.label })))
+      );
+    } else {
+      setKabupatenList([]);
+    }
+  }, [alamatForm.provinsi_id]);
+
+  useEffect(() => {
+    if (alamatForm.kabupaten_id) {
+      api.get(`/alamat/kecamatan/${alamatForm.kabupaten_id}`).then((r: any) =>
+        setKecamatanList(r.data.map((x: any) => ({ value: x.id, label: x.label })))
+      );
+    } else {
+      setKecamatanList([]);
+    }
+  }, [alamatForm.kabupaten_id]);
+
+  useEffect(() => {
+    if (alamatForm.kecamatan_id) {
+      api.get(`/alamat/kelurahan/${alamatForm.kecamatan_id}`).then((r: any) =>
+        setKelurahanList(r.data.map((x: any) => ({ value: x.id, label: x.label, kodepos: x.kodepos })))
+      );
+    } else {
+      setKelurahanList([]);
+    }
+  }, [alamatForm.kecamatan_id]);
+
+  const updateAlamat = (field: string, val: any) => {
+    setAlamatForm(prev => {
+      const next = { ...prev, [field]: val };
+      if (field === 'provinsi_id') {
+        next.kabupaten_id = null; next.kecamatan_id = null; next.kelurahan_id = null; next.kode_pos = '';
+      } else if (field === 'kabupaten_id') {
+        next.kecamatan_id = null; next.kelurahan_id = null; next.kode_pos = '';
+      } else if (field === 'kecamatan_id') {
+        next.kelurahan_id = null; next.kode_pos = '';
+      }
+      return next;
+    });
+  };
+
+  const handleKelurahanChange = (opt: any) => {
+    const kodepos = opt?.kodepos ? String(opt.kodepos).slice(0, 5) : '';
+    setAlamatForm(prev => ({ ...prev, kelurahan_id: opt?.value || null, kode_pos: kodepos }));
+  };
+
 
   const createProforma = async () => {
     const hasZero = proformaTerms.some(t => !t.jumlah || Number(t.jumlah) <= 0);
@@ -858,6 +942,21 @@ export default function PenjualanInteriorDetail() {
               <InfoRow label="Faktur" value={data.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'} />
               {data.no_npwp && <InfoRow label="No. NPWP" value={data.no_npwp} />}
               {!!data.pakai_ppn && <InfoRow label="PPN" value={`${data.ppn_persen}%`} />}
+              {(data.alamat_detail || data.alamatProvinsi || data.alamatKabupaten) && (
+                <div className="col-span-2 sm:col-span-3 flex items-start gap-3 pt-1">
+                  <div className="text-xs w-32 flex-shrink-0 font-medium" style={{ color: '#94a3b8' }}>Alamat</div>
+                  <div className="text-sm font-medium" style={{ color: '#1e293b' }}>
+                    {[
+                      data.alamat_detail,
+                      data.alamatKelurahan?.label,
+                      data.alamatKecamatan?.label,
+                      data.alamatKabupaten?.label,
+                      data.alamatProvinsi?.label,
+                      data.alamat_kode_pos,
+                    ].filter(Boolean).join(', ') || '-'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1543,8 +1642,8 @@ export default function PenjualanInteriorDetail() {
       {/* Edit Identitas Modal */}
       {identitasModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
-            <div className="flex items-center gap-3 mb-5">
+          <div className="w-full max-w-lg rounded-2xl p-6 animate-fade-in flex flex-col" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '90vh' }}>
+            <div className="flex items-center gap-3 mb-5 flex-shrink-0">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
                 <Pencil className="h-5 w-5" style={{ color: '#FA2F2F' }} />
               </div>
@@ -1553,7 +1652,7 @@ export default function PenjualanInteriorDetail() {
                 <p className="text-xs" style={{ color: '#94a3b8' }}>Perubahan berlaku di semua dokumen terkait</p>
               </div>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto flex-1 pr-1">
               {[
                 { label: 'Nama Customer', key: 'nama_customer', required: true },
                 { label: 'PT / NPWP', key: 'nama_pt_npwp' },
@@ -1576,8 +1675,120 @@ export default function PenjualanInteriorDetail() {
                   />
                 </div>
               ))}
+
+              {/* Alamat Section */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-px flex-1" style={{ background: '#e2e8f0' }} />
+                  <span className="text-xs font-semibold px-2" style={{ color: '#94a3b8' }}>Alamat Pengiriman</span>
+                  <div className="h-px flex-1" style={{ background: '#e2e8f0' }} />
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Provinsi</label>
+                    <Select
+                      options={provinsiList}
+                      value={provinsiList.find(p => p.value === alamatForm.provinsi_id) || null}
+                      onChange={(opt: any) => updateAlamat('provinsi_id', opt?.value || null)}
+                      placeholder="Pilih provinsi..."
+                      isClearable
+                      className="text-sm"
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                      menuPosition="fixed"
+                      styles={{
+                        menuPortal: base => ({ ...base, zIndex: 9999 }),
+                        control: base => ({ ...base, background: '#f8fafc', borderColor: '#e2e8f0', fontSize: '13px', minHeight: '36px' }),
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Kabupaten/Kota</label>
+                    <Select
+                      options={kabupatenList}
+                      value={kabupatenList.find(k => k.value === alamatForm.kabupaten_id) || null}
+                      onChange={(opt: any) => updateAlamat('kabupaten_id', opt?.value || null)}
+                      placeholder="Pilih kabupaten..."
+                      isClearable
+                      isDisabled={!alamatForm.provinsi_id}
+                      className="text-sm"
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                      menuPosition="fixed"
+                      styles={{
+                        menuPortal: base => ({ ...base, zIndex: 9999 }),
+                        control: base => ({ ...base, background: '#f8fafc', borderColor: '#e2e8f0', fontSize: '13px', minHeight: '36px' }),
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Kecamatan</label>
+                    <Select
+                      options={kecamatanList}
+                      value={kecamatanList.find(k => k.value === alamatForm.kecamatan_id) || null}
+                      onChange={(opt: any) => updateAlamat('kecamatan_id', opt?.value || null)}
+                      placeholder="Pilih kecamatan..."
+                      isClearable
+                      isDisabled={!alamatForm.kabupaten_id}
+                      className="text-sm"
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                      menuPosition="fixed"
+                      styles={{
+                        menuPortal: base => ({ ...base, zIndex: 9999 }),
+                        control: base => ({ ...base, background: '#f8fafc', borderColor: '#e2e8f0', fontSize: '13px', minHeight: '36px' }),
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Kelurahan</label>
+                    <Select
+                      options={kelurahanList}
+                      value={kelurahanList.find(k => k.value === alamatForm.kelurahan_id) || null}
+                      onChange={handleKelurahanChange}
+                      placeholder="Pilih kelurahan..."
+                      isClearable
+                      isDisabled={!alamatForm.kecamatan_id}
+                      className="text-sm"
+                      menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+                      menuPosition="fixed"
+                      styles={{
+                        menuPortal: base => ({ ...base, zIndex: 9999 }),
+                        control: base => ({ ...base, background: '#f8fafc', borderColor: '#e2e8f0', fontSize: '13px', minHeight: '36px' }),
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Detail Alamat</label>
+                    <textarea
+                      value={alamatForm.detail}
+                      onChange={e => setAlamatForm(prev => ({ ...prev, detail: e.target.value }))}
+                      placeholder="Nama jalan, nomor, RT/RW, dll"
+                      rows={2}
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
+                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
+                      onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#475569' }}>Kode Pos</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={5}
+                      value={alamatForm.kode_pos}
+                      onChange={e => setAlamatForm(prev => ({ ...prev, kode_pos: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
+                      placeholder="12345"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                      onFocus={e => (e.target as HTMLElement).style.border = '1px solid #FA2F2F'}
+                      onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3 mt-5">
+            <div className="flex gap-3 mt-5 flex-shrink-0">
               <button onClick={() => setIdentitasModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
                 Batal
               </button>
