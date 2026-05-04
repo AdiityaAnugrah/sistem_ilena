@@ -26,6 +26,10 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
     ? new Date(tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
     : '-';
 
+  const nowDate = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
+
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -33,67 +37,91 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${tipeLabel} — ${nomor}</title>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0;">
+<body style="margin:0;padding:0;background:#eef2f7;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:40px 0 48px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.10);">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
-          <!-- Header -->
+          <!-- ── Header ── -->
           <tr>
-            <td style="background:linear-gradient(135deg,#c41c1c,#FA2F2F);padding:28px 32px;">
+            <td style="background:#B91C1C;padding:22px 32px;border-radius:14px 14px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
                     ${LOGO_EXISTS
-                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:40px;width:auto;display:block;object-fit:contain;" />`
-                      : `<div style="font-size:14px;font-weight:800;color:#ffffff;">${COMPANY.name}</div>`
+                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:38px;width:auto;display:block;" />`
+                      : `<div style="font-size:15px;font-weight:700;color:#fff;">${COMPANY.name}</div>`
                     }
                   </td>
                   <td align="right">
-                    <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:8px;padding:6px 14px;">
-                      <div style="font-size:10px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.06em;">Dokumen</div>
-                      <div style="font-size:13px;color:#fff;font-weight:700;margin-top:1px;">${tipeLabel}</div>
-                    </div>
+                    <span style="display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:5px 16px;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.08em;">${tipeLabel}</span>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
+          <!-- accent line -->
+          <tr><td style="background:linear-gradient(90deg,#FA2F2F,#ef4444);height:3px;"></td></tr>
 
-          <!-- Body -->
+          <!-- ── Body ── -->
           <tr>
-            <td style="padding:28px 32px 0;">
-              <p style="margin:0 0 20px;font-size:14px;color:#475569;line-height:1.6;">
-                Yth. <strong style="color:#0f172a;">${namaCustomer || 'Pelanggan'}</strong>,<br/>
-                Berikut kami lampirkan <strong>${tipeLabel}</strong> sebagai dokumen resmi dari transaksi Anda bersama ${COMPANY.name}.
+            <td style="background:#ffffff;padding:36px 36px 32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+
+              <!-- Date stamp -->
+              <p style="margin:0 0 28px;font-size:12px;color:#94a3b8;">${nowDate}</p>
+
+              <!-- Salutation -->
+              <p style="margin:0 0 3px;font-size:13px;color:#64748b;">Kepada Yth.</p>
+              <p style="margin:0 0 22px;font-size:16px;font-weight:700;color:#0f172a;">${namaCustomer || 'Pelanggan yang Terhormat'}</p>
+
+              <p style="margin:0 0 6px;font-size:14px;color:#475569;line-height:1.9;">Dengan hormat,</p>
+              <p style="margin:0 0 28px;font-size:14px;color:#475569;line-height:1.9;">
+                Bersama email ini, kami menyampaikan <strong style="color:#0f172a;">${tipeLabel}</strong> sebagai
+                dokumen resmi atas transaksi Anda bersama <strong style="color:#0f172a;">${COMPANY.name}</strong>.
+                Dokumen dimaksud terlampir dalam format PDF dan dapat Anda unduh melalui lampiran email ini.
               </p>
 
               <!-- Document info card -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;">
                 <tr>
-                  <td style="padding:18px 20px;">
-                    <table width="100%" cellpadding="0" cellspacing="0">
+                  <td colspan="2" style="background:#f8fafc;padding:12px 20px;border-bottom:1px solid #e2e8f0;">
+                    <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.09em;">Informasi Dokumen</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding:16px 20px 14px;border-bottom:1px solid #f1f5f9;">
+                    <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;">Nomor Dokumen</div>
+                    <div style="font-size:17px;font-weight:800;color:#0f172a;font-family:'Courier New',Courier,monospace;letter-spacing:0.03em;">${nomor}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 20px;width:50%;border-right:1px solid #f1f5f9;vertical-align:top;">
+                    <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;">Jenis Dokumen</div>
+                    <div style="font-size:13px;font-weight:700;color:#0f172a;">${tipeLabel}</div>
+                  </td>
+                  <td style="padding:14px 20px;width:50%;vertical-align:top;">
+                    <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;">Tanggal Dokumen</div>
+                    <div style="font-size:13px;font-weight:700;color:#0f172a;">${tgl}</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- PDF notice -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <table cellpadding="0" cellspacing="0">
                       <tr>
-                        <td style="padding:5px 0;border-bottom:1px solid #f1f5f9;">
-                          <span style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Nomor Dokumen</span>
-                          <div style="font-size:15px;font-weight:800;color:#0f172a;font-family:monospace;margin-top:2px;">${nomor}</div>
+                        <td style="padding-right:11px;vertical-align:top;">
+                          <div style="width:22px;height:22px;background:#0ea5e9;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:800;color:#fff;">i</div>
                         </td>
-                      </tr>
-                      <tr>
-                        <td style="padding:10px 0 5px;">
-                          <table width="100%" cellpadding="0" cellspacing="0">
-                            <tr>
-                              <td style="width:50%;padding-right:12px;">
-                                <span style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Tipe</span>
-                                <div style="font-size:13px;font-weight:700;color:#0f172a;margin-top:2px;">${tipeLabel}</div>
-                              </td>
-                              <td style="width:50%;">
-                                <span style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Tanggal</span>
-                                <div style="font-size:13px;font-weight:700;color:#0f172a;margin-top:2px;">${tgl}</div>
-                              </td>
-                            </tr>
-                          </table>
+                        <td>
+                          <div style="font-size:13px;font-weight:700;color:#0369a1;margin-bottom:3px;">Lampiran PDF</div>
+                          <div style="font-size:12px;color:#0369a1;line-height:1.7;">
+                            File PDF <strong>${tipeLabel} ${nomor}</strong> tersedia sebagai lampiran pada email ini.
+                            Mohon unduh dan simpan dokumen tersebut untuk keperluan administrasi Anda.
+                          </div>
                         </td>
                       </tr>
                     </table>
@@ -101,28 +129,40 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
                 </tr>
               </table>
 
-              <p style="margin:0 0 8px;font-size:13px;color:#64748b;line-height:1.6;">
-                Dokumen <strong>${tipeLabel} ${nomor}</strong> terlampir dalam format PDF pada email ini.
-                Silakan buka lampiran untuk melihat dan menyimpan dokumen secara lengkap.
+              ${catatan ? `
+              <!-- Notes -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px;">Catatan</div>
+                    <div style="font-size:13px;color:#78350f;line-height:1.7;">${catatan}</div>
+                  </td>
+                </tr>
+              </table>
+              ` : ''}
+
+              <!-- Closing -->
+              <p style="margin:0 0 4px;font-size:14px;color:#475569;line-height:1.9;">
+                Apabila terdapat pertanyaan atau hal-hal yang perlu dikonfirmasi mengenai dokumen ini,
+                jangan ragu untuk menghubungi kami.
               </p>
-              ${catatan ? `<p style="margin:12px 0 0;font-size:13px;color:#64748b;line-height:1.6;padding:12px 14px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:6px;"><strong>Catatan:</strong> ${catatan}</p>` : ''}
+              <p style="margin:0 0 28px;font-size:14px;color:#475569;line-height:1.9;">
+                Atas perhatian dan kepercayaan Bapak/Ibu, kami mengucapkan terima kasih.
+              </p>
+
+              <p style="margin:0 0 3px;font-size:14px;color:#475569;">Hormat kami,</p>
+              <p style="margin:0;font-size:15px;font-weight:700;color:#0f172a;">${COMPANY.name}</p>
+
             </td>
           </tr>
 
-          <!-- Divider -->
-          <tr><td style="padding:24px 32px 0;"><div style="height:1px;background:#f1f5f9;"></div></td></tr>
-
-          <!-- Footer -->
+          <!-- ── Footer ── -->
           <tr>
-            <td style="padding:20px 32px 28px;">
-              <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">
-                Hubungi kami jika ada pertanyaan mengenai dokumen ini.
-              </p>
-              <p style="margin:0;font-size:12px;color:#94a3b8;">
-                ${COMPANY.address}
-              </p>
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">
-                <span style="font-size:11px;color:#94a3b8;">Dikirim otomatis oleh sistem. Mohon tidak membalas email ini.</span>
+            <td style="background:#1e293b;padding:22px 32px 26px;border-radius:0 0 14px 14px;">
+              <div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">${COMPANY.name}</div>
+              <div style="font-size:11px;color:#94a3b8;line-height:1.7;margin-bottom:14px;">${COMPANY.address}</div>
+              <div style="border-top:1px solid #334155;padding-top:12px;">
+                <span style="font-size:10px;color:#64748b;">Email ini dikirim secara otomatis oleh sistem. Mohon tidak membalas email ini langsung.</span>
               </div>
             </td>
           </tr>
