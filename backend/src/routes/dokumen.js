@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const {
   SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, ProformaInvoice,
   PenjualanOffline, PenjualanOfflineItem, ReturOffline, Barang,
@@ -384,7 +385,7 @@ router.post('/proforma/:id/sub-invoice/email', authenticate, async (req, res) =>
   }
 });
 
-// DELETE /api/dokumen/proforma/:id/sub-invoice — hapus nomor sub invoice saja
+// DELETE /api/dokumen/proforma/:id/sub-invoice — hapus nomor sub invoice + renumber yang di atasnya
 router.delete('/proforma/:id/sub-invoice', authenticate, async (req, res) => {
   const t = await sequelize.transaction();
   try {
@@ -396,28 +397,56 @@ router.delete('/proforma/:id/sub-invoice', authenticate, async (req, res) => {
     if (!proforma.nomor_sub_invoice) { await t.rollback(); return res.status(400).json({ message: 'Sub invoice belum dibuat' }); }
 
     const nomor = proforma.nomor_sub_invoice;
-    const tahun = parseInt(nomor.split('/').pop(), 10);
+    const m = nomor.match(/^((?:TEST-)?(?:NF)?)(\d+)(.*)$/);
+    if (!m) { await t.rollback(); return res.status(400).json({ message: 'Format nomor tidak dikenali' }); }
+
+    const prefix = m[1];
+    const deletedNum = parseInt(m[2], 10);
+    const padLen = m[2].length;
+    const suffix = m[3]; // misal: /INV/CBM/12/2025
+
+    const tahun = parseInt(suffix.split('/').pop(), 10);
     const isTest = proforma.penjualan?.is_test === 1;
     const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
     const counterTipe = isTest
       ? (faktur === 'FAKTUR' ? 'TEST_INV_FAKTUR' : 'TEST_INV_NON_FAKTUR')
       : (faktur === 'FAKTUR' ? 'INV_FAKTUR' : 'INV_NON_FAKTUR');
 
-    // Parse angka urut dari nomor (misal: 00005/INV/CBM/01/2026 → 5)
-    const deletedNum = parseInt((nomor.match(/^(?:TEST-)?(?:NF)?(\d+)/) || [])[1] || '0', 10);
-
+    // Null-kan nomor yang dihapus
     await proforma.update({ nomor_sub_invoice: null }, { transaction: t });
 
-    // Hanya decrement counter jika nomor yang dihapus adalah nomor tertinggi.
-    // Jika ada nomor lebih besar yang masih aktif, jangan decrement agar tidak konflik.
+    // Renumber semua Invoice (offline + interior) dan sub invoice dengan nomor lebih besar
+    const likePattern = `%${suffix}`;
+
+    const [offlineInvs, interiorInvs, subInvs] = await Promise.all([
+      Invoice.findAll({ where: { nomor_invoice: { [Op.like]: likePattern } }, transaction: t, lock: t.LOCK.UPDATE }),
+      InvoiceInterior.findAll({ where: { nomor_invoice: { [Op.like]: likePattern } }, transaction: t, lock: t.LOCK.UPDATE }),
+      ProformaInvoice.findAll({ where: { nomor_sub_invoice: { [Op.like]: likePattern } }, transaction: t, lock: t.LOCK.UPDATE }),
+    ]);
+
+    const renumberDoc = async (doc, field) => {
+      const val = doc[field];
+      const dm = val.match(/^((?:TEST-)?(?:NF)?)(\d+)(.*)$/);
+      if (!dm || dm[1] !== prefix || dm[3] !== suffix) return;
+      const num = parseInt(dm[2], 10);
+      if (num <= deletedNum) return;
+      const newNomor = `${prefix}${String(num - 1).padStart(padLen, '0')}${suffix}`;
+      await doc.update({ [field]: newNomor }, { transaction: t });
+    };
+
+    for (const doc of offlineInvs) await renumberDoc(doc, 'nomor_invoice');
+    for (const doc of interiorInvs) await renumberDoc(doc, 'nomor_invoice');
+    for (const doc of subInvs) await renumberDoc(doc, 'nomor_sub_invoice');
+
+    // Decrement counter
     const counter = await DocumentCounter.findOne({ where: { tipe: counterTipe, bulan: 0, tahun }, transaction: t });
-    if (counter && counter.last_number > 0 && deletedNum === counter.last_number) {
+    if (counter && counter.last_number > 0) {
       counter.last_number -= 1;
       await counter.save({ transaction: t });
     }
 
     await t.commit();
-    return res.json({ message: 'Sub invoice berhasil dihapus' });
+    return res.json({ message: 'Sub invoice berhasil dihapus dan nomor disesuaikan' });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Gagal menghapus sub invoice', error: err.message });
