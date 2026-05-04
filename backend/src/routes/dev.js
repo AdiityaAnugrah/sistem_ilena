@@ -144,6 +144,11 @@ router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
       const sp = await SuratPengantar.findOne({ where: { nomor_sp: q } });
       if (sp) penjualanId = sp.penjualan_offline_id;
     }
+
+    if (!penjualanId) {
+      const spSub = await SuratPengantarSub.findOne({ where: { nomor_sp_sub: q }, include: [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['penjualan_offline_id'] }] });
+      if (spSub) penjualanId = spSub.suratPengantar?.penjualan_offline_id;
+    }
   } else {
     const sj = await SuratJalanInterior.findOne({ where: { nomor_surat: q } });
     if (sj) penjualanId = sj.penjualan_interior_id;
