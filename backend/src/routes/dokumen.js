@@ -403,10 +403,15 @@ router.delete('/proforma/:id/sub-invoice', authenticate, async (req, res) => {
       ? (faktur === 'FAKTUR' ? 'TEST_INV_FAKTUR' : 'TEST_INV_NON_FAKTUR')
       : (faktur === 'FAKTUR' ? 'INV_FAKTUR' : 'INV_NON_FAKTUR');
 
+    // Parse angka urut dari nomor (misal: 00005/INV/CBM/01/2026 → 5)
+    const deletedNum = parseInt((nomor.match(/^(?:TEST-)?(?:NF)?(\d+)/) || [])[1] || '0', 10);
+
     await proforma.update({ nomor_sub_invoice: null }, { transaction: t });
 
+    // Hanya decrement counter jika nomor yang dihapus adalah nomor tertinggi.
+    // Jika ada nomor lebih besar yang masih aktif, jangan decrement agar tidak konflik.
     const counter = await DocumentCounter.findOne({ where: { tipe: counterTipe, bulan: 0, tahun }, transaction: t });
-    if (counter && counter.last_number > 0) {
+    if (counter && counter.last_number > 0 && deletedNum === counter.last_number) {
       counter.last_number -= 1;
       await counter.save({ transaction: t });
     }
