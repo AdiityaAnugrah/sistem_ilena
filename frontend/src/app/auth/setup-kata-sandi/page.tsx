@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -13,7 +13,7 @@ interface SetupForm {
   konfirmasi: string;
 }
 
-export default function SetupKataSandiPage() {
+function SetupKataSandiContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
@@ -267,5 +267,20 @@ export default function SetupKataSandiPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SetupKataSandiPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8fafc' }}>
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin mb-4" />
+          <p className="text-sm" style={{ color: '#64748b' }}>Memuat halaman…</p>
+        </div>
+      </div>
+    }>
+      <SetupKataSandiContent />
+    </Suspense>
   );
 }
