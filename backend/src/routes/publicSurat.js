@@ -17,10 +17,10 @@ router.get('/', async (req, res) => {
   try {
     const { search, page = 1, limit = 20, tipe, sumber } = req.query;
 
-    const offlineInclude = [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }];
-    const interiorInclude = [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'is_test'] }];
+    const offlineInclude = [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'no_po', 'is_test'] }];
+    const interiorInclude = [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'no_po', 'is_test'] }];
 
-    const spSubOffInclude = [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['id', 'tanggal', 'penjualan_offline_id'], include: [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'is_test'] }] }];
+    const spSubOffInclude = [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['id', 'tanggal', 'penjualan_offline_id'], include: [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'no_po', 'is_test'] }] }];
 
     const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt, spSubOff, subInv] = await Promise.all([
       SuratJalan.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
@@ -34,35 +34,39 @@ router.get('/', async (req, res) => {
       ProformaInvoice.findAll({ where: { nomor_sub_invoice: { [Op.ne]: null } }, include: interiorInclude, order: [['tanggal', 'DESC']] }),
     ]);
 
-    const row = (r, nomor, tipeDoc, sumber, penjualanId, nama) => ({
+    const row = (r, nomor, tipeDoc, sumber, penjualanId, nama, noPo) => ({
       nomor, tipe: tipeDoc, sumber,
       penjualan_id: penjualanId,
       nama_penerima: nama || '-',
+      no_po: noPo || null,
       tanggal: r.tanggal,
     });
 
     const combined = [
-      ...sjOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
-      ...invOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
-      ...spOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sp, 'Surat Pengantar', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima)),
+      ...sjOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima, r.penjualan?.no_po)),
+      ...invOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima, r.penjualan?.no_po)),
+      ...spOff.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sp, 'Surat Pengantar', 'OFFLINE', r.penjualan_offline_id, r.penjualan?.nama_penerima, r.penjualan?.no_po)),
       ...spSubOff.filter(r => !r.suratPengantar?.penjualan?.is_test).map(r => ({
         nomor: r.nomor_sp_sub, tipe: 'Sub Surat Pengantar', sumber: 'OFFLINE',
         penjualan_id: r.suratPengantar?.penjualan_offline_id,
         nama_penerima: r.suratPengantar?.penjualan?.nama_penerima || '-',
+        no_po: r.suratPengantar?.penjualan?.no_po || null,
         tanggal: r.suratPengantar?.tanggal,
       })),
-      ...sjInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
-      ...invInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
-      ...proforma.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_proforma, 'Proforma', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
-      ...subInv.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sub_invoice, 'Sub Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
-      ...spInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Pengantar', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer)),
+      ...sjInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
+      ...invInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
+      ...proforma.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_proforma, 'Proforma', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
+      ...subInv.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sub_invoice, 'Sub Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
+      ...spInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Pengantar', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
     ]
       .filter(r => {
         if (tipe && r.tipe !== tipe) return false;
         if (sumber && r.sumber !== sumber) return false;
         if (!search) return true;
         const q = search.toLowerCase();
-        return r.nomor?.toLowerCase().includes(q) || r.nama_penerima?.toLowerCase().includes(q);
+        return r.nomor?.toLowerCase().includes(q)
+          || r.nama_penerima?.toLowerCase().includes(q)
+          || r.no_po?.toLowerCase().includes(q);
       })
       .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
 
