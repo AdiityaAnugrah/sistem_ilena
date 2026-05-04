@@ -11,14 +11,14 @@ const transporter = nodemailer.createTransport({
   secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    pass: process.env.SMTP_PASS,  
   },
 });
 
 const COMPANY = {
   name: 'CV. Catur Bhakti Mandiri',
   address: 'Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang',
-  color: '#FA2F2F',
+  color: '#B91C1C',
 };
 
 function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
@@ -45,24 +45,29 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
 
           <!-- ── Header ── -->
           <tr>
-            <td style="background:#B91C1C;padding:22px 32px;border-radius:14px 14px 0 0;">
+            <td style="background:#1e293b;padding:28px 32px 24px;border-radius:14px 14px 0 0;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
+                  <td style="vertical-align:middle;">
                     ${LOGO_EXISTS
-                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:38px;width:auto;display:block;" />`
-                      : `<div style="font-size:15px;font-weight:700;color:#fff;">${COMPANY.name}</div>`
+                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:42px;width:auto;display:block;margin-bottom:10px;" />`
+                      : ''
                     }
+                    <div style="font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:0.01em;">${COMPANY.name}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;line-height:1.5;">${COMPANY.address}</div>
                   </td>
-                  <td align="right">
-                    <span style="display:inline-block;background:rgba(255,255,255,0.18);border-radius:20px;padding:5px 16px;font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.08em;">${tipeLabel}</span>
+                  <td align="right" style="vertical-align:middle;padding-left:20px;white-space:nowrap;">
+                    <div style="background:#B91C1C;border-radius:8px;padding:10px 18px;display:inline-block;text-align:center;">
+                      <div style="font-size:9px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Dokumen</div>
+                      <div style="font-size:13px;font-weight:800;color:#ffffff;letter-spacing:0.04em;">${tipeLabel}</div>
+                    </div>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
           <!-- accent line -->
-          <tr><td style="background:linear-gradient(90deg,#FA2F2F,#ef4444);height:3px;"></td></tr>
+          <tr><td style="background:linear-gradient(90deg,#B91C1C,#FA2F2F,#ef4444);height:4px;"></td></tr>
 
           <!-- ── Body ── -->
           <tr>
