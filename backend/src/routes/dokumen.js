@@ -35,7 +35,7 @@ const includeAlamat = [
   { model: Kecamatan, as: 'pengirimKecamatan' },
   { model: Kelurahan, as: 'pengirimKelurahan' },
 ];
-const { authenticate, authenticatePrint } = require('../middleware/auth');
+const { authenticate, authenticatePrint, requireDev } = require('../middleware/auth');
 const { generateNomorInvoice } = require('../utils/generateNomor');
 const {
   generatePDFSuratJalan,
@@ -385,8 +385,8 @@ router.post('/proforma/:id/sub-invoice/email', authenticate, async (req, res) =>
   }
 });
 
-// DELETE /api/dokumen/proforma/:id/sub-invoice — hapus nomor sub invoice + renumber yang di atasnya
-router.delete('/proforma/:id/sub-invoice', authenticate, async (req, res) => {
+// DELETE /api/dokumen/proforma/:id/sub-invoice — hapus nomor sub invoice + renumber yang di atasnya (dev only)
+router.delete('/proforma/:id/sub-invoice', authenticate, requireDev, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const proforma = await ProformaInvoice.findByPk(req.params.id, {

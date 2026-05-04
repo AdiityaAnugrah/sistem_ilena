@@ -650,12 +650,12 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'sub-invoice', docId: p.id, nomor: p.nomor_sub_invoice }),
                 },
-                {
+                ...(me?.role === 'DEV' ? [{
                   label: <Trash2 className="h-3 w-3" />,
                   title: 'Hapus Sub Invoice',
                   hoverBg: '#fff1f2', hoverColor: '#be123c', hoverBorder: '#fecdd3',
                   onClick: () => deleteSubInvoice(p),
-                },
+                }] : []),
               ],
             })),
           },
