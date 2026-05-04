@@ -45,20 +45,20 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
 
           <!-- ── Header ── -->
           <tr>
-            <td style="background:#1e293b;padding:28px 32px 24px;border-radius:14px 14px 0 0;">
+            <td style="background:#ffffff;padding:24px 32px;border-radius:14px 14px 0 0;border:1px solid #e2e8f0;border-bottom:none;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="vertical-align:middle;">
                     ${LOGO_EXISTS
-                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:42px;width:auto;display:block;margin-bottom:10px;" />`
+                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:42px;width:auto;display:block;margin-bottom:8px;" />`
                       : ''
                     }
-                    <div style="font-size:14px;font-weight:700;color:#f1f5f9;letter-spacing:0.01em;">${COMPANY.name}</div>
-                    <div style="font-size:11px;color:#64748b;margin-top:2px;line-height:1.5;">${COMPANY.address}</div>
+                    <div style="font-size:14px;font-weight:700;color:#0f172a;letter-spacing:0.01em;">${COMPANY.name}</div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.5;">${COMPANY.address}</div>
                   </td>
                   <td align="right" style="vertical-align:middle;padding-left:20px;white-space:nowrap;">
                     <div style="background:#B91C1C;border-radius:8px;padding:10px 18px;display:inline-block;text-align:center;">
-                      <div style="font-size:9px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Dokumen</div>
+                      <div style="font-size:9px;color:rgba(255,255,255,0.65);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Dokumen</div>
                       <div style="font-size:13px;font-weight:800;color:#ffffff;letter-spacing:0.04em;">${tipeLabel}</div>
                     </div>
                   </td>
