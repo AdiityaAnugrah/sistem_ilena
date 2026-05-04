@@ -1,4 +1,18 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
+
+// Embed logo sebagai base64 agar tampil di semua email client (block external images)
+function loadLogoBase64() {
+  try {
+    const logoPath = path.join(__dirname, '../../../frontend/public/img/logo-invoice.jpg');
+    const buf = fs.readFileSync(logoPath);
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+const LOGO_DATA_URI = loadLogoBase64();
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -12,9 +26,7 @@ const transporter = nodemailer.createTransport({
 
 const COMPANY = {
   name: 'CV. Catur Bhakti Mandiri',
-  shortName: 'ILENA',
   address: 'Kawasan Industri BSB, A 3A, 5-6 Jatibarang, Mijen, Semarang',
-  phone: '',
   color: '#FA2F2F',
 };
 
@@ -42,8 +54,10 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
-                    <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.02em;">${COMPANY.shortName}</div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:2px;letter-spacing:0.04em;text-transform:uppercase;">${COMPANY.name}</div>
+                    ${LOGO_DATA_URI
+                      ? `<img src="${LOGO_DATA_URI}" alt="${COMPANY.name}" style="height:40px;width:auto;display:block;object-fit:contain;" />`
+                      : `<div style="font-size:14px;font-weight:800;color:#ffffff;">${COMPANY.name}</div>`
+                    }
                   </td>
                   <td align="right">
                     <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:8px;padding:6px 14px;">
@@ -116,9 +130,7 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
               <p style="margin:0;font-size:12px;color:#94a3b8;">
                 ${COMPANY.address}
               </p>
-              <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:11px;font-weight:800;color:${COMPANY.color};">${COMPANY.shortName}</span>
-                <span style="font-size:11px;color:#cbd5e1;">·</span>
+              <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">
                 <span style="font-size:11px;color:#94a3b8;">Dikirim otomatis oleh sistem. Mohon tidak membalas email ini.</span>
               </div>
             </td>
