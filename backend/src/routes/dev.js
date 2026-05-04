@@ -201,6 +201,7 @@ router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => 
       }
 
       await Invoice.destroy({ where: { penjualan_offline_id: offlineIds }, transaction: t });
+      await ReturOffline.destroy({ where: { penjualan_offline_id: offlineIds }, transaction: t });
       await SuratJalan.destroy({ where: { penjualan_offline_id: offlineIds }, transaction: t });
       await PenjualanOfflineItem.destroy({ where: { penjualan_offline_id: offlineIds }, transaction: t });
       await PenjualanOffline.destroy({ where: { id: offlineIds }, transaction: t });
