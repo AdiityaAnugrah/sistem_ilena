@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 const { authenticate, requireDev } = require('../middleware/auth');
 const {
   sequelize,
-  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub,
+  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, ReturOffline,
   PenjualanInterior, PenjualanInteriorItem, ProformaInvoice, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior, ReturSJInterior,
   SuratPengantarInterior, SuratPengantarInteriorItem, DocumentCounter, User,
@@ -289,6 +289,7 @@ async function deleteOffline(id, t) {
     await SuratPengantar.destroy({ where: { id: spIds }, transaction: t });
   }
   await Invoice.destroy({ where: { penjualan_offline_id: id }, transaction: t });
+  await ReturOffline.destroy({ where: { penjualan_offline_id: id }, transaction: t });
   await SuratJalan.destroy({ where: { penjualan_offline_id: id }, transaction: t });
   await PenjualanOfflineItem.destroy({ where: { penjualan_offline_id: id }, transaction: t });
   await PenjualanOffline.destroy({ where: { id }, transaction: t });
