@@ -13,6 +13,7 @@ const User = sequelize.define('users', {
     defaultValue: 'PENGGUNA',
   },
   active: { type: DataTypes.TINYINT(1), defaultValue: 1 },
+  setup_token: { type: DataTypes.STRING(100), allowNull: true, defaultValue: null },
 }, {
   timestamps: true,
   createdAt: 'created_at',

@@ -123,6 +123,43 @@ router.patch('/profile', authenticate, [
   }
 });
 
+// GET /api/auth/setup-password?token=xxx — validasi token setup
+router.get('/setup-password', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ message: 'Token tidak ditemukan' });
+
+  try {
+    const user = await User.findOne({ where: { setup_token: token } });
+    if (!user) return res.status(404).json({ message: 'Link tidak valid atau sudah kadaluarsa' });
+    return res.json({ valid: true, username: user.username, nama_lengkap: user.nama_lengkap });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/auth/setup-password — atur kata sandi pertama kali
+router.post('/setup-password', [
+  body('token').notEmpty().withMessage('Token wajib ada'),
+  body('password').isLength({ min: 6 }).withMessage('Password minimal 6 karakter'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  try {
+    const { token, password } = req.body;
+    const user = await User.findOne({ where: { setup_token: token } });
+    if (!user) return res.status(404).json({ message: 'Link tidak valid atau sudah kadaluarsa' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    await user.update({ password: hashed, active: 1, setup_token: null });
+    await logAction(user.id, 'SETUP_PASSWORD', 'Pengguna mengatur kata sandi pertama kali', req.ip);
+
+    return res.json({ message: 'Kata sandi berhasil diatur. Silahkan login.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // POST /api/auth/print-token — token 5 menit khusus untuk buka URL print PDF
 router.post('/print-token', authenticate, (req, res) => {
   const token = jwt.sign(

@@ -56,7 +56,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/barang', require('./routes/barang'));
 app.use('/api/alamat', require('./routes/alamat'));
 app.use('/api/penjualan', require('./routes/penjualan'));
-app.use('/api/users', require('./routes/users'));
+app.use('/api/users', require('./routes/users')); 
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/penjualan-offline', require('./routes/penjualanOffline'));
 app.use('/api/penjualan-interior', require('./routes/penjualanInterior'));

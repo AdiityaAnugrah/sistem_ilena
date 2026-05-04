@@ -116,10 +116,6 @@ export default function PenggunaPage() {
       toast.error('Username, email, dan role wajib diisi');
       return;
     }
-    if (!editTarget && !form.password.trim()) {
-      toast.error('Password wajib diisi untuk user baru');
-      return;
-    }
     setSaving(true);
     try {
       const payload: Record<string, string> = {
@@ -135,7 +131,7 @@ export default function PenggunaPage() {
         toast.success('User berhasil diupdate');
       } else {
         await api.post('/users', payload);
-        toast.success('User berhasil dibuat');
+        toast.success('User dibuat. Link aktivasi dikirim ke email.');
       }
       setModalOpen(false);
       fetchUsers();
@@ -358,16 +354,26 @@ export default function PenggunaPage() {
                 }
               }}
             />
-            <TextField
-              fullWidth
-              label={editTarget ? "Reset Password" : "Password"}
-              type="password"
-              size="small"
-              required={!editTarget}
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              placeholder={editTarget ? 'Kosongkan jika tak diubah' : 'Min. 6 karakter'}
-            />
+            {editTarget ? (
+              <TextField
+                fullWidth
+                label="Reset Password"
+                type="password"
+                size="small"
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Kosongkan jika tidak diubah"
+              />
+            ) : (
+              <Box sx={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', px: 2, py: 1.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#166534', display: 'block', mb: 0.5 }}>
+                  Link Aktivasi Kata Sandi
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#15803d', lineHeight: 1.7, display: 'block' }}>
+                  Setelah user dibuat, link untuk mengatur kata sandi akan otomatis dikirim ke alamat email yang didaftarkan.
+                </Typography>
+              </Box>
+            )}
             <FormControl fullWidth size="small">
               <InputLabel id="role-select-label">Akses / Role</InputLabel>
               <Select
