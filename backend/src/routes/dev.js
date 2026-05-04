@@ -162,6 +162,11 @@ router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
     }
 
     if (!penjualanId) {
+      const subInv = await ProformaInvoice.findOne({ where: { nomor_sub_invoice: q } });
+      if (subInv) penjualanId = subInv.penjualan_interior_id;
+    }
+
+    if (!penjualanId) {
       const sp = await SuratPengantarInterior.findOne({ where: { nomor_surat: q } });
       if (sp) penjualanId = sp.penjualan_interior_id;
     }
