@@ -223,6 +223,8 @@ export default function PenjualanInteriorDetail() {
   const [openCards, setOpenCards] = useState<Record<string, boolean>>({});
   const toggleCard = (key: string) => setOpenCards(prev => ({ ...prev, [key]: !prev[key] }));
   const [emailModal, setEmailModal] = useState<{ tipe: string; docId: number; nomor: string } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   // Form states
   const [proformaTanggal, setProformaTanggal] = useState(new Date().toISOString().split('T')[0]);
@@ -569,28 +571,38 @@ export default function PenjualanInteriorDetail() {
       {(() => {
         const subInvoices = (data.proformas || []).filter((p: any) => p.nomor_sub_invoice);
         const printSubInvoice = async (p: any) => {
+          const doPrint = async () => {
+            try {
+              const res = await api.post('/auth/print-token');
+              const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+              window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+            } catch { toast.error('Gagal membuka dokumen'); }
+          };
           if (!p.nomor_sub_invoice) {
-            const ok = window.confirm(
-              `Sub Invoice untuk ${p.nomor_proforma} belum dibuat.\n\nNomor baru akan digenerate secara permanen saat dicetak.\n\nLanjutkan?`
-            );
-            if (!ok) return;
+            setConfirmModal({
+              title: 'Generate Sub Invoice',
+              message: `Sub Invoice untuk ${p.nomor_proforma} belum dibuat. Nomor baru akan digenerate secara permanen saat dicetak. Lanjutkan?`,
+              onConfirm: doPrint,
+            });
+          } else {
+            await doPrint();
           }
-          try {
-            const res = await api.post('/auth/print-token');
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-            window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
-          } catch { toast.error('Gagal membuka dokumen'); }
         };
-        const deleteSubInvoice = async (p: any) => {
-          const ok = window.confirm(
-            `Hapus Sub Invoice ${p.nomor_sub_invoice}?\n\nNomor ini akan dihapus dan bisa digenerate ulang nanti.`
-          );
-          if (!ok) return;
-          try {
-            await api.delete(`/dokumen/proforma/${p.id}/sub-invoice`);
-            toast.success('Sub invoice berhasil dihapus');
-            fetchData();
-          } catch { toast.error('Gagal menghapus sub invoice'); }
+        const deleteSubInvoice = (p: any) => {
+          setConfirmModal({
+            title: 'Hapus Sub Invoice',
+            message: `Hapus Sub Invoice ${p.nomor_sub_invoice}? Nomor ini akan dihapus dan semua nomor di atasnya akan disesuaikan otomatis.`,
+            onConfirm: async () => {
+              setConfirmLoading(true);
+              try {
+                await api.delete(`/dokumen/proforma/${p.id}/sub-invoice`);
+                toast.success('Sub invoice berhasil dihapus');
+                setConfirmModal(null);
+                fetchData();
+              } catch { toast.error('Gagal menghapus sub invoice'); }
+              finally { setConfirmLoading(false); }
+            },
+          });
         };
         const docCards = [
           {
@@ -1587,6 +1599,19 @@ export default function PenjualanInteriorDetail() {
           nomor={emailModal.nomor}
           defaultEmail={data?.email_customer || ''}
         />
+      )}
+
+      {confirmModal && (
+        <ModalWrapper show onClose={() => { if (!confirmLoading) setConfirmModal(null); }}>
+          <ModalHeader icon={AlertTriangle} title={confirmModal.title} sub="Pastikan tindakan ini sudah benar" />
+          <p className="text-sm mb-1" style={{ color: '#475569', lineHeight: 1.7 }}>{confirmModal.message}</p>
+          <ModalFooter
+            onClose={() => setConfirmModal(null)}
+            onSubmit={confirmModal.onConfirm}
+            loading={confirmLoading}
+            label="Ya, Lanjutkan"
+          />
+        </ModalWrapper>
       )}
     </div>
   );
