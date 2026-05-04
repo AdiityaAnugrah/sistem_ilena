@@ -6,6 +6,8 @@ const {
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem,
   InvoiceInterior, SuratPengantarInterior, SuratPengantarInteriorItem,
+  DocumentCounter,
+  sequelize,
 } = require('../models');
 
 // Kurangi qty item berdasarkan total retur; hapus item yang sudah diretur penuh
@@ -379,6 +381,41 @@ router.post('/proforma/:id/sub-invoice/email', authenticate, async (req, res) =>
     return res.json({ message: 'Email berhasil dikirim' });
   } catch (err) {
     return res.status(500).json({ message: 'Gagal mengirim email', error: err.message });
+  }
+});
+
+// DELETE /api/dokumen/proforma/:id/sub-invoice — hapus nomor sub invoice saja
+router.delete('/proforma/:id/sub-invoice', authenticate, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const proforma = await ProformaInvoice.findByPk(req.params.id, {
+      include: [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'faktur', 'is_test'] }],
+      transaction: t,
+    });
+    if (!proforma) { await t.rollback(); return res.status(404).json({ message: 'Proforma tidak ditemukan' }); }
+    if (!proforma.nomor_sub_invoice) { await t.rollback(); return res.status(400).json({ message: 'Sub invoice belum dibuat' }); }
+
+    const nomor = proforma.nomor_sub_invoice;
+    const tahun = parseInt(nomor.split('/').pop(), 10);
+    const isTest = proforma.penjualan?.is_test === 1;
+    const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
+    const counterTipe = isTest
+      ? (faktur === 'FAKTUR' ? 'TEST_INV_FAKTUR' : 'TEST_INV_NON_FAKTUR')
+      : (faktur === 'FAKTUR' ? 'INV_FAKTUR' : 'INV_NON_FAKTUR');
+
+    await proforma.update({ nomor_sub_invoice: null }, { transaction: t });
+
+    const counter = await DocumentCounter.findOne({ where: { tipe: counterTipe, bulan: 0, tahun }, transaction: t });
+    if (counter && counter.last_number > 0) {
+      counter.last_number -= 1;
+      await counter.save({ transaction: t });
+    }
+
+    await t.commit();
+    return res.json({ message: 'Sub invoice berhasil dihapus' });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal menghapus sub invoice', error: err.message });
   }
 });
 

@@ -7,7 +7,7 @@ import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, CreditCard, Truck,
-  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown, Mail,
+  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown, Mail, Trash2,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
@@ -569,11 +569,28 @@ export default function PenjualanInteriorDetail() {
       {(() => {
         const subInvoices = (data.proformas || []).filter((p: any) => p.nomor_sub_invoice);
         const printSubInvoice = async (p: any) => {
+          if (!p.nomor_sub_invoice) {
+            const ok = window.confirm(
+              `Sub Invoice untuk ${p.nomor_proforma} belum dibuat.\n\nNomor baru akan digenerate secara permanen saat dicetak.\n\nLanjutkan?`
+            );
+            if (!ok) return;
+          }
           try {
             const res = await api.post('/auth/print-token');
             const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
             window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
           } catch { toast.error('Gagal membuka dokumen'); }
+        };
+        const deleteSubInvoice = async (p: any) => {
+          const ok = window.confirm(
+            `Hapus Sub Invoice ${p.nomor_sub_invoice}?\n\nNomor ini akan dihapus dan bisa digenerate ulang nanti.`
+          );
+          if (!ok) return;
+          try {
+            await api.delete(`/dokumen/proforma/${p.id}/sub-invoice`);
+            toast.success('Sub invoice berhasil dihapus');
+            fetchData();
+          } catch { toast.error('Gagal menghapus sub invoice'); }
         };
         const docCards = [
           {
@@ -632,6 +649,12 @@ export default function PenjualanInteriorDetail() {
                   title: 'Kirim Email',
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'sub-invoice', docId: p.id, nomor: p.nomor_sub_invoice }),
+                },
+                {
+                  label: <Trash2 className="h-3 w-3" />,
+                  title: 'Hapus Sub Invoice',
+                  hoverBg: '#fff1f2', hoverColor: '#be123c', hoverBorder: '#fecdd3',
+                  onClick: () => deleteSubInvoice(p),
                 },
               ],
             })),
