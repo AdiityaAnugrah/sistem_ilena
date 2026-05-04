@@ -2,17 +2,8 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
-// Embed logo sebagai base64 agar tampil di semua email client (block external images)
-function loadLogoBase64() {
-  try {
-    const logoPath = path.join(__dirname, '../../../frontend/public/img/logo-invoice.jpg');
-    const buf = fs.readFileSync(logoPath);
-    return `data:image/jpeg;base64,${buf.toString('base64')}`;
-  } catch {
-    return null;
-  }
-}
-const LOGO_DATA_URI = loadLogoBase64();
+const LOGO_PATH = path.join(__dirname, '../../../frontend/public/img/logo-invoice.jpg');
+const LOGO_EXISTS = fs.existsSync(LOGO_PATH);
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -54,8 +45,8 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td>
-                    ${LOGO_DATA_URI
-                      ? `<img src="${LOGO_DATA_URI}" alt="${COMPANY.name}" style="height:40px;width:auto;display:block;object-fit:contain;" />`
+                    ${LOGO_EXISTS
+                      ? `<img src="cid:company_logo" alt="${COMPANY.name}" style="height:40px;width:auto;display:block;object-fit:contain;" />`
                       : `<div style="font-size:14px;font-weight:800;color:#ffffff;">${COMPANY.name}</div>`
                     }
                   </td>
@@ -147,16 +138,28 @@ function buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan }) {
 async function sendDocumentEmail({ to, subject, tipeLabel, nomor, namaCustomer, tanggal, catatan, pdfBuffer, pdfFilename }) {
   const html = buildEmailBody({ tipeLabel, nomor, namaCustomer, tanggal, catatan });
 
+  const attachments = [];
+  if (LOGO_EXISTS) {
+    attachments.push({
+      filename: 'logo.jpg',
+      path: LOGO_PATH,
+      cid: 'company_logo',
+    });
+  }
+  if (pdfBuffer) {
+    attachments.push({
+      filename: pdfFilename || `${nomor}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf',
+    });
+  }
+
   await transporter.sendMail({
     from: process.env.SMTP_FROM || `"${COMPANY.name}" <${process.env.SMTP_USER}>`,
     to,
     subject,
     html,
-    attachments: pdfBuffer ? [{
-      filename: pdfFilename || `${nomor}.pdf`,
-      content: pdfBuffer,
-      contentType: 'application/pdf',
-    }] : [],
+    attachments,
   });
 }
 
