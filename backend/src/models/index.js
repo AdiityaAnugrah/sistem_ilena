@@ -26,6 +26,7 @@ const TutorialVideo = require('./TutorialVideo');
 const HargaKhusus = require('./HargaKhusus');
 const SuratPengantarInterior = require('./SuratPengantarInterior');
 const SuratPengantarInteriorItem = require('./SuratPengantarInteriorItem');
+const AppSetting = require('./AppSetting');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -154,4 +155,5 @@ module.exports = {
   HargaKhusus,
   SuratPengantarInterior,
   SuratPengantarInteriorItem,
+  AppSetting,
 };

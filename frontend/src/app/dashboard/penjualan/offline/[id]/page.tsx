@@ -487,15 +487,17 @@ export default function PenjualanOfflineDetail() {
   // Untuk DISPLAY: fetch laku sebelumnya → tentukan faktur yang harus dipakai
   useEffect(() => {
     if (!data || data.tipe !== 'DISPLAY') return;
-    api.get(`/penjualan-offline/laku-dari-display/${id}`)
-      .then(res => {
-        if (res.data.length > 0) {
-          const fakturLaku = res.data[0].faktur as 'FAKTUR' | 'NON_FAKTUR';
-          setJualFaktur(fakturLaku);
-          setJualFakturLocked(true);
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      api.get(`/penjualan-offline/laku-dari-display/${id}`),
+      api.get('/settings/app').catch(() => ({ data: {} })),
+    ]).then(([lakuRes, settingsRes]) => {
+      if (lakuRes.data.length > 0) {
+        const fakturLaku = lakuRes.data[0].faktur as 'FAKTUR' | 'NON_FAKTUR';
+        setJualFaktur(fakturLaku);
+        const lockSetting = settingsRes.data?.lock_jenis_dokumen_display ?? 'true';
+        setJualFakturLocked(lockSetting === 'true');
+      }
+    }).catch(() => {});
   }, [data?.tipe, id]);
 
   const openIdentitasModal = () => {

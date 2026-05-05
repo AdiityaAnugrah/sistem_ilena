@@ -138,4 +138,37 @@ router.delete('/signatures/:id', authenticate, blockTestMutation, async (req, re
   }
 });
 
+// ─── App Settings (key-value) ─────────────────────────────────────────────────
+
+const { AppSetting } = require('../models');
+
+// GET /api/settings/app — return all app settings as { key: value }
+router.get('/app', authenticate, async (req, res) => {
+  try {
+    const rows = await AppSetting.findAll();
+    const result = {};
+    rows.forEach(r => { result[r.key] = r.value; });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PUT /api/settings/app — upsert one setting { key, value } (DEV only)
+router.put('/app', authenticate, async (req, res) => {
+  if (req.user.role !== 'DEV') {
+    return res.status(403).json({ message: 'Hanya role DEV yang bisa mengubah pengaturan ini.' });
+  }
+  try {
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ message: 'Key wajib diisi' });
+
+    await AppSetting.upsert({ key, value: String(value) });
+    await logAction(req.user.id, 'UPDATE_APP_SETTING', `${key} = ${value}`, req.ip);
+    return res.json({ message: 'Pengaturan berhasil disimpan', key, value: String(value) });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

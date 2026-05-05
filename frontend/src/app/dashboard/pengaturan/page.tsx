@@ -7,7 +7,7 @@ import {
   Switch, FormControlLabel, Divider, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { Video, Save, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Video, Save, Trash2, AlertTriangle, ShieldAlert, Settings2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TutorialVideoModal from '@/components/TutorialVideoModal';
 
@@ -160,6 +160,29 @@ export default function PengaturanPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
 
+  // App settings
+  const [appSettings, setAppSettings] = useState<Record<string, string>>({});
+  const [appSettingsLoading, setAppSettingsLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/settings/app')
+      .then(r => setAppSettings(r.data || {}))
+      .catch(() => {})
+      .finally(() => setAppSettingsLoading(false));
+  }, []);
+
+  const toggleAppSetting = async (key: string, currentValue: string) => {
+    const newValue = currentValue === 'true' ? 'false' : 'true';
+    setAppSettings(prev => ({ ...prev, [key]: newValue }));
+    try {
+      await api.put('/settings/app', { key, value: newValue });
+      toast.success('Pengaturan berhasil disimpan');
+    } catch (err: any) {
+      setAppSettings(prev => ({ ...prev, [key]: currentValue }));
+      toast.error(err.response?.data?.message || 'Gagal menyimpan');
+    }
+  };
+
   // Hapus semua produksi — multi-step
   const [deleteAllStep, setDeleteAllStep] = useState(0); // 0=tutup, 1=warning, 2=ketik konfirmasi, 3=password
   const [deleteAllTyped, setDeleteAllTyped] = useState('');
@@ -234,49 +257,265 @@ export default function PengaturanPage() {
   }
 
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', p: { xs: 2, sm: 3 } }}>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>Pengaturan</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Konfigurasi video tutorial untuk setiap form penjualan.
-      </Typography>
-      <Divider sx={{ mb: 3 }} />
-
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-        <VideoCard
-          label="Tutorial — Penjualan Offline"
-          formType="PENJUALAN_OFFLINE"
-          onPreview={(url, start, end) => setPreviewData({ url, start, end })}
-        />
-        <VideoCard
-          label="Tutorial — Penjualan Interior"
-          formType="PENJUALAN_INTERIOR"
-          onPreview={(url, start, end) => setPreviewData({ url, start, end })}
-        />
+    <Box sx={{ maxWidth: 680, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+      {/* ═══ Page Header ═══ */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+          <Box sx={{
+            width: 36, height: 36, borderRadius: '10px',
+            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Settings2 size={18} color="#fff" />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: 22, color: '#0f172a', lineHeight: 1.2 }}>
+              Pengaturan
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: '#94a3b8' }}>
+              Kelola konfigurasi sistem dan manajemen data
+            </Typography>
+          </Box>
+        </Box>
       </Box>
 
-      <Divider sx={{ my: 3 }} />
-
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: '14px', borderColor: '#fca5a5' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-          <Trash2 size={17} color="#ef4444" />
-          <Typography sx={{ fontWeight: 700, fontSize: 14, color: '#ef4444' }}>Reset Data Testing</Typography>
+      {/* ═══ Section 1: Tutorial Video ═══ */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Video size={15} color="#ef4444" />
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
+            Tutorial Video
+          </Typography>
+          <Box sx={{
+            ml: 'auto', px: 1.5, py: 0.25, borderRadius: '20px',
+            background: '#fef2f2', border: '1px solid #fecaca',
+          }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: '#ef4444' }}>
+              2 video
+            </Typography>
+          </Box>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: 13 }}>
-          Hapus semua transaksi penjualan (offline & interior) yang dibuat dalam mode testing (is_test=1),
-          termasuk seluruh dokumen terkait seperti Surat Jalan, Invoice, Proforma, dan Pembayaran.
-        </Typography>
-        <Button
-          variant="outlined"
-          color="error"
-          size="small"
-          startIcon={<Trash2 size={14} />}
-          onClick={() => setConfirmOpen(true)}
-          sx={{ borderRadius: '8px' }}
-        >
-          Hapus Semua Data Testing
-        </Button>
-      </Paper>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <VideoCard
+            label="Tutorial — Penjualan Offline"
+            formType="PENJUALAN_OFFLINE"
+            onPreview={(url, start, end) => setPreviewData({ url, start, end })}
+          />
+          <VideoCard
+            label="Tutorial — Penjualan Interior"
+            formType="PENJUALAN_INTERIOR"
+            onPreview={(url, start, end) => setPreviewData({ url, start, end })}
+          />
+        </Box>
+      </Box>
 
+      {/* ═══ Section 2: Pengaturan Penjualan ═══ */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Settings2 size={15} color="#6366f1" />
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
+            Pengaturan Penjualan
+          </Typography>
+        </Box>
+        <Paper
+          variant="outlined"
+          sx={{
+            borderRadius: '14px', overflow: 'hidden',
+            border: '1px solid #e2e8f0',
+            transition: 'box-shadow 0.2s',
+            '&:hover': { boxShadow: '0 2px 12px rgba(99,102,241,0.08)' },
+          }}
+        >
+          <Box sx={{
+            display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' },
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', gap: 2,
+            p: 2.5,
+          }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                  Lock Jenis Dokumen Mengikuti Penjualan Sebelumnya
+                </Typography>
+                <Box sx={{
+                  px: 1, py: 0.15, borderRadius: '6px', flexShrink: 0,
+                  background: (appSettings.lock_jenis_dokumen_display ?? 'true') === 'true' ? '#eef2ff' : '#f1f5f9',
+                  border: (appSettings.lock_jenis_dokumen_display ?? 'true') === 'true' ? '1px solid #c7d2fe' : '1px solid #e2e8f0',
+                }}>
+                  <Typography sx={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                    color: (appSettings.lock_jenis_dokumen_display ?? 'true') === 'true' ? '#4f46e5' : '#94a3b8',
+                  }}>
+                    {(appSettings.lock_jenis_dokumen_display ?? 'true') === 'true' ? 'AKTIF' : 'NONAKTIF'}
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography sx={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.5 }}>
+                Jika aktif, jenis dokumen (Faktur / Non-Faktur) pada Proses Penjualan Display
+                akan otomatis terkunci mengikuti penjualan sebelumnya dari display yang sama.
+              </Typography>
+            </Box>
+            <Switch
+              checked={(appSettings.lock_jenis_dokumen_display ?? 'true') === 'true'}
+              onChange={() => toggleAppSetting('lock_jenis_dokumen_display', appSettings.lock_jenis_dokumen_display ?? 'true')}
+              size="small"
+              disabled={appSettingsLoading}
+              sx={{
+                flexShrink: 0,
+                '& .MuiSwitch-switchBase.Mui-checked': { color: '#6366f1' },
+                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#6366f1' },
+              }}
+            />
+          </Box>
+        </Paper>
+      </Box>
+
+      {/* ═══ Section 3: Manajemen Data ═══ */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Trash2 size={15} color="#f59e0b" />
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
+            Manajemen Data
+          </Typography>
+        </Box>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 2.5, borderRadius: '14px',
+            border: '1px solid #e2e8f0',
+            transition: 'box-shadow 0.2s',
+            '&:hover': { boxShadow: '0 2px 12px rgba(245,158,11,0.08)' },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+            <Box sx={{
+              width: 32, height: 32, borderRadius: '8px', flexShrink: 0,
+              background: '#fffbeb', border: '1px solid #fde68a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Trash2 size={14} color="#f59e0b" />
+            </Box>
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: '#1e293b', mb: 0.3 }}>
+                Reset Data Testing
+              </Typography>
+              <Typography sx={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.5 }}>
+                Hapus semua transaksi penjualan (offline & interior) yang dibuat dalam mode testing
+                (is_test=1), termasuk Surat Jalan, Invoice, Proforma, dan Pembayaran.
+              </Typography>
+            </Box>
+          </Box>
+          <Button
+            variant="outlined"
+            color="warning"
+            size="small"
+            startIcon={<Trash2 size={13} />}
+            onClick={() => setConfirmOpen(true)}
+            sx={{ borderRadius: '8px', ml: 5.5, fontWeight: 600 }}
+          >
+            Hapus Semua Data Testing
+          </Button>
+        </Paper>
+      </Box>
+
+      {/* ═══ Section 4: Danger Zone ═══ */}
+      <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <ShieldAlert size={15} color="#dc2626" />
+          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#dc2626', letterSpacing: '0.02em' }}>
+            Danger Zone
+          </Typography>
+          <Box sx={{
+            ml: 'auto', px: 1.5, py: 0.25, borderRadius: '20px',
+            background: '#fef2f2', border: '1px solid #fecaca',
+          }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: '#dc2626' }}>
+              HATI-HATI
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={{
+          border: '2px solid #dc2626', borderRadius: '16px', overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <Box sx={{
+            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            px: 3, py: 1.5,
+            display: 'flex', alignItems: 'center', gap: 1.5,
+          }}>
+            <ShieldAlert size={16} color="#fff" />
+            <Typography sx={{ fontWeight: 700, fontSize: 12, color: '#fff', letterSpacing: '0.04em' }}>
+              Operasi Tidak Bisa Dibatalkan
+            </Typography>
+          </Box>
+
+          <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Card 1: Hapus semua produksi */}
+            <Paper variant="outlined" sx={{
+              p: 2.5, borderRadius: '12px', borderColor: '#fca5a5', background: '#fff5f5',
+              transition: 'box-shadow 0.2s',
+              '&:hover': { boxShadow: '0 2px 12px rgba(220,38,38,0.1)' },
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
+                <Box sx={{
+                  width: 28, height: 28, borderRadius: '7px', flexShrink: 0,
+                  background: '#fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <AlertTriangle size={14} color="#dc2626" />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 12.5, color: '#dc2626' }}>
+                    Hapus Semua Data Penjualan Produksi
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#64748b', mt: 0.5, lineHeight: 1.5 }}>
+                    Menghapus <strong>seluruh</strong> transaksi offline & interior (is_test=0)
+                    beserta semua dokumen terkait dan mereset counter nomor dokumen ke 0.
+                  </Typography>
+                </Box>
+              </Box>
+              <Button variant="contained" size="small" color="error"
+                startIcon={<Trash2 size={12} />}
+                onClick={() => setDeleteAllStep(1)}
+                sx={{ borderRadius: '8px', ml: 5, fontWeight: 600, fontSize: 11.5 }}>
+                Hapus Semua Data Produksi
+              </Button>
+            </Paper>
+
+            {/* Card 2: Hapus per penjualan */}
+            <Paper variant="outlined" sx={{
+              p: 2.5, borderRadius: '12px', borderColor: '#fcd34d', background: '#fffbeb',
+              transition: 'box-shadow 0.2s',
+              '&:hover': { boxShadow: '0 2px 12px rgba(217,119,6,0.1)' },
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
+                <Box sx={{
+                  width: 28, height: 28, borderRadius: '7px', flexShrink: 0,
+                  background: '#fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <AlertTriangle size={14} color="#d97706" />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: 12.5, color: '#d97706' }}>
+                    Hapus Satu Data Penjualan
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: '#64748b', mt: 0.5, lineHeight: 1.5 }}>
+                    Hapus satu transaksi beserta dokumennya. Nomor dokumen berikutnya akan
+                    otomatis disesuaikan agar tidak ada celah urutan.
+                  </Typography>
+                </Box>
+              </Box>
+              <Button variant="outlined" size="small" color="warning"
+                startIcon={<Trash2 size={12} />}
+                onClick={() => setDeleteSingle(p => ({ ...p, open: true }))}
+                sx={{ borderRadius: '8px', ml: 5, fontWeight: 600, fontSize: 11.5 }}>
+                Pilih & Hapus Satu Penjualan
+              </Button>
+            </Paper>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ═══ Modals / Dialogs ═══ */}
       {previewData && (
         <TutorialVideoModal
           open={!!previewData}
@@ -286,57 +525,6 @@ export default function PengaturanPage() {
           endSecond={previewData.end ?? undefined}
         />
       )}
-
-      {/* ─── DANGER ZONE ─────────────────────────────────────────────────── */}
-      <Divider sx={{ my: 3 }} />
-      <Box sx={{ border: '2px solid #dc2626', borderRadius: '16px', overflow: 'hidden' }}>
-        {/* Header */}
-        <Box sx={{ background: '#dc2626', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <ShieldAlert size={20} color="#fff" />
-          <Typography sx={{ fontWeight: 800, fontSize: 14, color: '#fff', letterSpacing: '0.04em' }}>
-            DANGER ZONE — Operasi Tidak Bisa Dibatalkan
-          </Typography>
-        </Box>
-
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          {/* Card 1: Hapus semua produksi */}
-          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: '12px', borderColor: '#fca5a5', background: '#fff5f5' }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
-              <AlertTriangle size={18} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#dc2626' }}>Hapus Semua Data Penjualan Produksi</Typography>
-                <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5 }}>
-                  Menghapus <strong>seluruh</strong> transaksi offline & interior (is_test=0) beserta semua dokumen terkait
-                  (SJ, Invoice, Proforma, SP, Pembayaran) dan mereset semua counter nomor dokumen ke 0.
-                </Typography>
-              </Box>
-            </Box>
-            <Button variant="contained" size="small" color="error" startIcon={<Trash2 size={13} />}
-              onClick={() => setDeleteAllStep(1)} sx={{ borderRadius: '8px' }}>
-              Hapus Semua Data Produksi
-            </Button>
-          </Paper>
-
-          {/* Card 2: Hapus per penjualan */}
-          <Paper variant="outlined" sx={{ p: 2.5, borderRadius: '12px', borderColor: '#fcd34d', background: '#fffbeb' }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
-              <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0, marginTop: 1 }} />
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#d97706' }}>Hapus Satu Data Penjualan</Typography>
-                <Typography sx={{ fontSize: 12, color: '#64748b', mt: 0.5 }}>
-                  Hapus satu transaksi beserta dokumennya. Nomor dokumen berikutnya akan otomatis disesuaikan
-                  agar tidak ada celah urutan. Ini tidak bisa dikembalikan.
-                </Typography>
-              </Box>
-            </Box>
-            <Button variant="outlined" size="small" color="warning" startIcon={<Trash2 size={13} />}
-              onClick={() => setDeleteSingle(p => ({ ...p, open: true }))}
-              sx={{ borderRadius: '8px' }}>
-              Pilih & Hapus Satu Penjualan
-            </Button>
-          </Paper>
-        </Box>
-      </Box>
 
       {/* ── Dialog: Hapus Semua Produksi (multi-step) ── */}
       <Dialog open={deleteAllStep > 0} onClose={() => !deleteAllLoading && (setDeleteAllStep(0), setDeleteAllTyped(''), setDeleteAllPass(''))} maxWidth="sm" fullWidth>
