@@ -345,6 +345,7 @@ async function fetchSubInvoice(id) {
         { model: Kabupaten, as: 'alamatKabupaten' },
         { model: Kecamatan, as: 'alamatKecamatan' },
         { model: Kelurahan, as: 'alamatKelurahan' },
+        { model: SuratJalanInterior, as: 'suratJalans', attributes: ['id', 'nomor_surat'] },
       ],
     }],
   });
@@ -355,8 +356,35 @@ async function fetchSubInvoice(id) {
     await proforma.update({ nomor_sub_invoice: nomor });
   }
   const data = proforma.toJSON();
-  return { html: generateHTMLSubInvoice(data), nomor: data.nomor_sub_invoice, tanggal: data.tanggal, nama: data.penjualan?.nama_customer };
+
+  // Resolve surat jalan nomors from sub_invoice_sj_ids
+  let sjNomors = [];
+  if (data.sub_invoice_sj_ids) {
+    try {
+      const sjIds = JSON.parse(data.sub_invoice_sj_ids).map(Number);
+      const allSjs = data.penjualan?.suratJalans || [];
+      sjNomors = allSjs.filter(sj => sjIds.includes(sj.id)).map(sj => sj.nomor_surat);
+    } catch { /* ignore */ }
+  }
+
+  return { html: generateHTMLSubInvoice(data, sjNomors), nomor: data.nomor_sub_invoice, tanggal: data.tanggal, nama: data.penjualan?.nama_customer };
 }
+
+// PUT /api/dokumen/proforma/:id/sub-invoice/surat-jalan — simpan SJ IDs untuk sub invoice
+router.put('/proforma/:id/sub-invoice/surat-jalan', authenticate, async (req, res) => {
+  try {
+    const { surat_jalan_ids } = req.body;
+    if (!surat_jalan_ids || !Array.isArray(surat_jalan_ids) || surat_jalan_ids.length === 0) {
+      return res.status(400).json({ message: 'Pilih minimal satu Surat Jalan' });
+    }
+    const proforma = await ProformaInvoice.findByPk(req.params.id);
+    if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+    await proforma.update({ sub_invoice_sj_ids: JSON.stringify(surat_jalan_ids) });
+    return res.json({ message: 'Surat Jalan berhasil disimpan' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 
 // GET /api/dokumen/proforma/:id/sub-invoice/print
 router.get('/proforma/:id/sub-invoice/print', authenticatePrint, async (req, res) => {
@@ -412,8 +440,8 @@ router.delete('/proforma/:id/sub-invoice', authenticate, requireDev, async (req,
       ? (faktur === 'FAKTUR' ? 'TEST_INV_FAKTUR' : 'TEST_INV_NON_FAKTUR')
       : (faktur === 'FAKTUR' ? 'INV_FAKTUR' : 'INV_NON_FAKTUR');
 
-    // Null-kan nomor yang dihapus
-    await proforma.update({ nomor_sub_invoice: null }, { transaction: t });
+    // Null-kan nomor dan SJ IDs yang dihapus
+    await proforma.update({ nomor_sub_invoice: null, sub_invoice_sj_ids: null }, { transaction: t });
 
     // Renumber semua Invoice (offline + interior) dan sub invoice dengan nomor lebih besar
     const likePattern = `%${suffix}`;

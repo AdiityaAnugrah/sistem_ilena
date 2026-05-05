@@ -1853,7 +1853,7 @@ const generateHTMLProforma = (inv) => {
   `;
 };
 
-const generateHTMLSubInvoice = (inv) => {
+const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   const penjualan = inv.penjualan || {};
   const items = penjualan.items || [];
 
@@ -2034,12 +2034,12 @@ const generateHTMLSubInvoice = (inv) => {
                         <td style="font-size:11.5px;" class="pe-3">Terbilang</td>
                         <td style="font-size:11.5px;">: <i>${terbilang(grandTotalWithPPN)}</i></td>
                     </tr>
+                    ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">PO</td>
+                        <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
                     <tr>
                         <td class="pe-3" style="font-size:11.5px;">Surat Jalan</td>
-                        <td style="font-size:11.5px;">: -</td>
+                        <td style="font-size:11.5px;">: ${sjNomors.length > 0 ? sjNomors.map(n => n.split('/')[0]).join(', ') : '-'}</td>
                     </tr>
-                    ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
-                        <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
                     ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
                         <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
                 </tbody>

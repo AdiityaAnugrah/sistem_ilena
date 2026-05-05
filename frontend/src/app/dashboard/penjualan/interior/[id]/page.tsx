@@ -260,6 +260,10 @@ export default function PenjualanInteriorDetail() {
   const [invIntSjIds, setInvIntSjIds] = useState<number[]>([]);
   const [invIntCatatan, setInvIntCatatan] = useState('');
 
+  // Sub Invoice SJ selection state
+  const [subInvSjModal, setSubInvSjModal] = useState<{ open: boolean; proforma: any }>({ open: false, proforma: null });
+  const [subInvSjIds, setSubInvSjIds] = useState<number[]>([]);
+
   // Retur state
   const [returModal, setReturModal] = useState<{ open: boolean; sj: SuratJalanInteriorData | null }>({ open: false, sj: null });
   const [returForm, setReturForm] = useState<{
@@ -660,17 +664,38 @@ export default function PenjualanInteriorDetail() {
               const res = await api.post('/auth/print-token');
               const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
               window.open(`${baseUrl}/dokumen/proforma/${p.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+              fetchData();
             } catch { toast.error('Gagal membuka dokumen'); }
           };
-          if (!p.nomor_sub_invoice) {
+
+          // Cek apakah sudah ada Surat Jalan di penjualan ini
+          const suratJalans = data.suratJalans || [];
+
+          if (suratJalans.length === 0) {
+            // Belum ada SJ → wajib buat dulu
+            toast.error('Surat Jalan belum dibuat. Buat Surat Jalan terlebih dahulu sebelum membuat Sub Invoice.');
+            return;
+          }
+
+          // Jika sudah pernah punya nomor sub invoice (reprint), langsung cetak
+          if (p.nomor_sub_invoice) {
+            await doPrint();
+            return;
+          }
+
+          // Jika sudah punya SJ IDs tersimpan, langsung generate & cetak
+          if (p.sub_invoice_sj_ids) {
             setConfirmModal({
               title: 'Generate Sub Invoice',
               message: `Sub Invoice untuk ${p.nomor_proforma} belum dibuat. Nomor baru akan digenerate secara permanen saat dicetak. Lanjutkan?`,
               onConfirm: doPrint,
             });
-          } else {
-            await doPrint();
+            return;
           }
+
+          // Belum ada SJ IDs tersimpan → tampilkan modal pilih SJ
+          setSubInvSjIds([]);
+          setSubInvSjModal({ open: true, proforma: p });
         };
         const deleteSubInvoice = (p: any) => {
           setConfirmModal({
@@ -1498,6 +1523,91 @@ export default function PenjualanInteriorDetail() {
           <ModalInput label="Catatan (opsional)" value={invIntCatatan} onChange={(e: any) => setInvIntCatatan(e.target.value)} />
         </div>
         <ModalFooter onClose={() => { setModal(null); setInvIntSjIds([]); }} onSubmit={createInvoiceInterior} loading={docLoading} label="Buat Invoice" />
+      </ModalWrapper>
+
+      {/* ── Modal Pilih Surat Jalan untuk Sub Invoice ── */}
+      <ModalWrapper show={subInvSjModal.open} onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); }}>
+        <ModalHeader icon={Truck} title="Pilih Surat Jalan" sub={`Untuk Sub Invoice ${subInvSjModal.proforma?.nomor_proforma || ''}`} />
+        <div className="space-y-4">
+          <div className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
+            style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
+            📋 Pilih Surat Jalan yang terkait dengan Sub Invoice ini
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
+              Surat Jalan Tersedia <span className="font-normal" style={{ color: '#94a3b8' }}>(pilih satu atau lebih)</span>
+            </label>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {(data?.suratJalans || []).map((sj: any) => {
+                const checked = subInvSjIds.includes(sj.id);
+                return (
+                  <label key={sj.id}
+                    className="flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer"
+                    style={{
+                      background: checked ? '#eff6ff' : '#f8fafc',
+                      border: `1px solid ${checked ? '#bfdbfe' : '#f1f5f9'}`,
+                    }}>
+                    <input type="checkbox" checked={checked}
+                      onChange={e => setSubInvSjIds(prev =>
+                        e.target.checked ? [...prev, sj.id] : prev.filter(x => x !== sj.id)
+                      )}
+                      className="rounded" style={{ accentColor: '#2563eb' }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-mono font-medium" style={{ color: '#334155' }}>{sj.nomor_surat}</div>
+                      <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(sj.tanggal)}</div>
+                    </div>
+                    {checked && (
+                      <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                        Dipilih
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            {subInvSjIds.length > 0 && (
+              <p className="text-xs mt-1.5" style={{ color: '#2563eb' }}>{subInvSjIds.length} surat jalan dipilih</p>
+            )}
+          </div>
+        </div>
+        <ModalFooter
+          onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); }}
+          onSubmit={async () => {
+            if (subInvSjIds.length === 0) {
+              toast.error('Pilih minimal satu Surat Jalan');
+              return;
+            }
+            const proformaRef = subInvSjModal.proforma;
+            setDocLoading(true);
+            try {
+              // Simpan SJ IDs ke proforma
+              await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, { surat_jalan_ids: subInvSjIds });
+              // Generate & cetak
+              setSubInvSjModal({ open: false, proforma: null });
+              setSubInvSjIds([]);
+              setConfirmModal({
+                title: 'Generate Sub Invoice',
+                message: `Sub Invoice untuk ${proformaRef.nomor_proforma} akan digenerate. Nomor baru akan dibuat secara permanen. Lanjutkan?`,
+                onConfirm: async () => {
+                  try {
+                    const res = await api.post('/auth/print-token');
+                    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+                    window.open(`${baseUrl}/dokumen/proforma/${proformaRef.id}/sub-invoice/print?token=${res.data.token}`, '_blank');
+                    fetchData();
+                  } catch { toast.error('Gagal membuka dokumen'); }
+                },
+              });
+            } catch {
+              toast.error('Gagal menyimpan Surat Jalan');
+            } finally {
+              setDocLoading(false);
+            }
+          }}
+          loading={docLoading}
+          label="Lanjutkan"
+          disabled={subInvSjIds.length === 0}
+        />
       </ModalWrapper>
 
       {/* ── Modal Retur ── */}
