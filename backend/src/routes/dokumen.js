@@ -374,12 +374,12 @@ async function fetchSubInvoice(id) {
 router.put('/proforma/:id/sub-invoice/surat-jalan', authenticate, async (req, res) => {
   try {
     const { surat_jalan_ids } = req.body;
-    if (!surat_jalan_ids || !Array.isArray(surat_jalan_ids) || surat_jalan_ids.length === 0) {
-      return res.status(400).json({ message: 'Pilih minimal satu Surat Jalan' });
+    if (!Array.isArray(surat_jalan_ids)) {
+      return res.status(400).json({ message: 'surat_jalan_ids harus berupa array' });
     }
     const proforma = await ProformaInvoice.findByPk(req.params.id);
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-    await proforma.update({ sub_invoice_sj_ids: JSON.stringify(surat_jalan_ids) });
+    await proforma.update({ sub_invoice_sj_ids: surat_jalan_ids.length > 0 ? JSON.stringify(surat_jalan_ids) : null });
     return res.json({ message: 'Surat Jalan berhasil disimpan' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });

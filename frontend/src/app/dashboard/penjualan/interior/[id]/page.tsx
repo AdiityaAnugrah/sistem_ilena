@@ -668,18 +668,21 @@ export default function PenjualanInteriorDetail() {
             } catch { toast.error('Gagal membuka dokumen'); }
           };
 
-          // Cek apakah sudah ada Surat Jalan di penjualan ini
-          const suratJalans = data.suratJalans || [];
-
-          if (suratJalans.length === 0) {
-            // Belum ada SJ → wajib buat dulu
-            toast.error('Surat Jalan belum dibuat. Buat Surat Jalan terlebih dahulu sebelum membuat Sub Invoice.');
-            return;
-          }
-
           // Jika sudah pernah punya nomor sub invoice (reprint), langsung cetak
           if (p.nomor_sub_invoice) {
             await doPrint();
+            return;
+          }
+
+          const suratJalans = data.suratJalans || [];
+
+          // Tidak ada SJ sama sekali → langsung confirm & generate tanpa SJ
+          if (suratJalans.length === 0) {
+            setConfirmModal({
+              title: 'Generate Sub Invoice',
+              message: `Sub Invoice untuk ${p.nomor_proforma} akan digenerate tanpa Surat Jalan. Nomor baru akan dibuat secara permanen. Lanjutkan?`,
+              onConfirm: doPrint,
+            });
             return;
           }
 
@@ -693,7 +696,7 @@ export default function PenjualanInteriorDetail() {
             return;
           }
 
-          // Belum ada SJ IDs tersimpan → tampilkan modal pilih SJ
+          // Ada SJ tersedia → tampilkan modal pilih SJ (opsional)
           setSubInvSjIds([]);
           setSubInvSjModal({ open: true, proforma: p });
         };
@@ -1531,11 +1534,11 @@ export default function PenjualanInteriorDetail() {
         <div className="space-y-4">
           <div className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
-            📋 Pilih Surat Jalan yang terkait dengan Sub Invoice ini
+            📋 Pilih Surat Jalan yang terkait — opsional, boleh tidak dipilih
           </div>
           <div>
             <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
-              Surat Jalan Tersedia <span className="font-normal" style={{ color: '#94a3b8' }}>(pilih satu atau lebih)</span>
+              Surat Jalan Tersedia <span className="font-normal" style={{ color: '#94a3b8' }}>(opsional)</span>
             </label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {(data?.suratJalans || []).map((sj: any) => {
@@ -1574,21 +1577,19 @@ export default function PenjualanInteriorDetail() {
         <ModalFooter
           onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); }}
           onSubmit={async () => {
-            if (subInvSjIds.length === 0) {
-              toast.error('Pilih minimal satu Surat Jalan');
-              return;
-            }
             const proformaRef = subInvSjModal.proforma;
             setDocLoading(true);
             try {
-              // Simpan SJ IDs ke proforma
-              await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, { surat_jalan_ids: subInvSjIds });
-              // Generate & cetak
+              // Simpan SJ IDs ke proforma (boleh kosong)
+              if (subInvSjIds.length > 0) {
+                await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, { surat_jalan_ids: subInvSjIds });
+              }
               setSubInvSjModal({ open: false, proforma: null });
               setSubInvSjIds([]);
+              const sjLabel = subInvSjIds.length > 0 ? `${subInvSjIds.length} Surat Jalan terpilih` : 'tanpa Surat Jalan';
               setConfirmModal({
                 title: 'Generate Sub Invoice',
-                message: `Sub Invoice untuk ${proformaRef.nomor_proforma} akan digenerate. Nomor baru akan dibuat secara permanen. Lanjutkan?`,
+                message: `Sub Invoice untuk ${proformaRef.nomor_proforma} akan digenerate (${sjLabel}). Nomor baru akan dibuat secara permanen. Lanjutkan?`,
                 onConfirm: async () => {
                   try {
                     const res = await api.post('/auth/print-token');
@@ -1606,7 +1607,6 @@ export default function PenjualanInteriorDetail() {
           }}
           loading={docLoading}
           label="Lanjutkan"
-          disabled={subInvSjIds.length === 0}
         />
       </ModalWrapper>
 
