@@ -443,4 +443,152 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
   }
 });
 
+// DELETE /api/dev/dokumen/sj-interior/:id — hapus satu SJ interior + cascade + renumber
+router.delete('/dokumen/sj-interior/:id', authenticate, requireDev, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const sj = await SuratJalanInterior.findByPk(req.params.id, { transaction: t });
+    if (!sj) { await t.rollback(); return res.status(404).json({ message: 'Surat Jalan tidak ditemukan' }); }
+
+    const sjNomor = sj.nomor_surat;
+    const sjId = sj.id;
+
+    // Kumpulkan invoice yang terhubung (legacy FK atau JSON array)
+    const allInvs = await InvoiceInterior.findAll({
+      where: { penjualan_interior_id: sj.penjualan_interior_id },
+      attributes: ['id', 'nomor_invoice', 'surat_jalan_interior_id', 'surat_jalan_ids'],
+      transaction: t,
+    });
+    const attachedInvIds = [];
+    const attachedInvNomors = [];
+    for (const inv of allInvs) {
+      let linked = Number(inv.surat_jalan_interior_id) === sjId;
+      if (!linked && inv.surat_jalan_ids) {
+        try { linked = JSON.parse(inv.surat_jalan_ids).map(Number).includes(sjId); } catch { /* skip */ }
+      }
+      if (linked) { attachedInvIds.push(inv.id); attachedInvNomors.push(inv.nomor_invoice); }
+    }
+
+    // Cascade delete
+    await ReturSJInterior.destroy({ where: { surat_jalan_interior_id: sjId }, transaction: t });
+    if (attachedInvIds.length) await InvoiceInterior.destroy({ where: { id: attachedInvIds }, transaction: t });
+    await SuratJalanInteriorItem.destroy({ where: { surat_jalan_interior_id: sjId }, transaction: t });
+    await sj.destroy({ transaction: t });
+
+    // Renumber SJ
+    await renumberType({
+      tables: [{ model: SuratJalan, field: 'nomor_surat' }, { model: SuratJalanInterior, field: 'nomor_surat' }],
+      deletedNomors: [sjNomor],
+      counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'SJ_NON_FAKTUR' : 'SJ_FAKTUR',
+      t,
+    });
+    // Renumber invoice yang ikut terhapus
+    if (attachedInvNomors.length) {
+      await renumberType({
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }, { model: ProformaInvoice, field: 'nomor_sub_invoice' }],
+        deletedNomors: attachedInvNomors,
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
+        t,
+      });
+    }
+
+    await t.commit();
+    await logAction(req.user.id, 'DEV_HAPUS_SJ_INTERIOR', `Hapus SJ ${sjNomor}`, req.ip);
+    return res.json({ message: `Surat Jalan ${sjNomor} berhasil dihapus` });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal menghapus', error: err.message });
+  }
+});
+
+// DELETE /api/dev/dokumen/proforma/:id — hapus satu proforma + renumber
+router.delete('/dokumen/proforma/:id', authenticate, requireDev, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const proforma = await ProformaInvoice.findByPk(req.params.id, { transaction: t });
+    if (!proforma) { await t.rollback(); return res.status(404).json({ message: 'Proforma tidak ditemukan' }); }
+
+    const proformaNomor = proforma.nomor_proforma;
+    const subInvNomor = proforma.nomor_sub_invoice;
+
+    await proforma.destroy({ transaction: t });
+
+    await renumberType({
+      tables: [{ model: ProformaInvoice, field: 'nomor_proforma' }],
+      deletedNomors: [proformaNomor],
+      counterTipeFn: () => 'PROFORMA',
+      t,
+    });
+    if (subInvNomor) {
+      await renumberType({
+        tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }, { model: ProformaInvoice, field: 'nomor_sub_invoice' }],
+        deletedNomors: [subInvNomor],
+        counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
+        t,
+      });
+    }
+
+    await t.commit();
+    await logAction(req.user.id, 'DEV_HAPUS_PROFORMA', `Hapus Proforma ${proformaNomor}`, req.ip);
+    return res.json({ message: `Proforma ${proformaNomor} berhasil dihapus` });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal menghapus', error: err.message });
+  }
+});
+
+// DELETE /api/dev/dokumen/sp-interior/:id — hapus satu surat pengantar interior + renumber
+router.delete('/dokumen/sp-interior/:id', authenticate, requireDev, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const sp = await SuratPengantarInterior.findByPk(req.params.id, { transaction: t });
+    if (!sp) { await t.rollback(); return res.status(404).json({ message: 'Surat Pengantar tidak ditemukan' }); }
+
+    const spNomor = sp.nomor_surat;
+
+    await SuratPengantarInteriorItem.destroy({ where: { surat_pengantar_interior_id: sp.id }, transaction: t });
+    await sp.destroy({ transaction: t });
+
+    await renumberType({
+      tables: [{ model: SuratPengantarInterior, field: 'nomor_surat' }],
+      deletedNomors: [spNomor],
+      counterTipeFn: () => 'SP_INT',
+      t,
+    });
+
+    await t.commit();
+    await logAction(req.user.id, 'DEV_HAPUS_SP_INTERIOR', `Hapus SP ${spNomor}`, req.ip);
+    return res.json({ message: `Surat Pengantar ${spNomor} berhasil dihapus` });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal menghapus', error: err.message });
+  }
+});
+
+// DELETE /api/dev/dokumen/invoice-interior/:id — hapus satu invoice interior + renumber
+router.delete('/dokumen/invoice-interior/:id', authenticate, requireDev, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const inv = await InvoiceInterior.findByPk(req.params.id, { transaction: t });
+    if (!inv) { await t.rollback(); return res.status(404).json({ message: 'Invoice tidak ditemukan' }); }
+
+    const invNomor = inv.nomor_invoice;
+    await inv.destroy({ transaction: t });
+
+    await renumberType({
+      tables: [{ model: Invoice, field: 'nomor_invoice' }, { model: InvoiceInterior, field: 'nomor_invoice' }, { model: ProformaInvoice, field: 'nomor_sub_invoice' }],
+      deletedNomors: [invNomor],
+      counterTipeFn: (prefix) => prefix.startsWith('NF') ? 'INV_NON_FAKTUR' : 'INV_FAKTUR',
+      t,
+    });
+
+    await t.commit();
+    await logAction(req.user.id, 'DEV_HAPUS_INVOICE_INTERIOR', `Hapus Invoice ${invNomor}`, req.ip);
+    return res.json({ message: `Invoice ${invNomor} berhasil dihapus` });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal menghapus', error: err.message });
+  }
+});
+
 module.exports = router;

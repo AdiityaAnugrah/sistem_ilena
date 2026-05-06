@@ -716,6 +716,25 @@ export default function PenjualanInteriorDetail() {
             },
           });
         };
+
+        const deleteDoc = (opts: { title: string; message: string; url: string; successMsg: string }) => {
+          setConfirmModal({
+            title: opts.title,
+            message: opts.message,
+            onConfirm: async () => {
+              setConfirmLoading(true);
+              try {
+                await api.delete(opts.url);
+                toast.success(opts.successMsg);
+                setConfirmModal(null);
+                fetchData();
+              } catch (err: any) {
+                toast.error(err?.response?.data?.message || 'Gagal menghapus dokumen');
+              } finally { setConfirmLoading(false); }
+            },
+          });
+        };
+
         const docCards = [
           {
             key: 'proforma',
@@ -753,6 +772,17 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'proforma', docId: p.id, nomor: p.nomor_proforma }),
                 },
+                ...(me?.role === 'DEV' ? [{
+                  label: <Trash2 className="h-3 w-3" />,
+                  title: 'Hapus Proforma',
+                  hoverBg: '#fef2f2', hoverColor: '#dc2626', hoverBorder: '#fecaca',
+                  onClick: () => deleteDoc({
+                    title: 'Hapus Proforma Invoice',
+                    message: `Hapus ${p.nomor_proforma}? Nomor proforma dan sub invoice (jika ada) akan disesuaikan otomatis.`,
+                    url: `/dev/dokumen/proforma/${p.id}`,
+                    successMsg: `Proforma ${p.nomor_proforma} berhasil dihapus`,
+                  }),
+                }] : []),
               ],
             })),
           },
@@ -807,6 +837,17 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'surat-jalan-interior', docId: sj.id, nomor: sj.nomor_surat }),
                 },
+                ...(me?.role === 'DEV' ? [{
+                  label: <Trash2 className="h-3 w-3" />,
+                  title: 'Hapus Surat Jalan',
+                  hoverBg: '#fef2f2', hoverColor: '#dc2626', hoverBorder: '#fecaca',
+                  onClick: () => deleteDoc({
+                    title: 'Hapus Surat Jalan',
+                    message: `Hapus ${sj.nomor_surat}? Invoice yang terhubung ke SJ ini juga akan ikut terhapus. Semua nomor akan disesuaikan otomatis.`,
+                    url: `/dev/dokumen/sj-interior/${sj.id}`,
+                    successMsg: `Surat Jalan ${sj.nomor_surat} berhasil dihapus`,
+                  }),
+                }] : []),
               ],
               extraContent: sj.returs?.length > 0 ? (
                 <div className="px-3 pb-2.5">
@@ -842,6 +883,17 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'sp-interior', docId: sp.id, nomor: sp.nomor_surat }),
                 },
+                ...(me?.role === 'DEV' ? [{
+                  label: <Trash2 className="h-3 w-3" />,
+                  title: 'Hapus Surat Pengantar',
+                  hoverBg: '#fef2f2', hoverColor: '#dc2626', hoverBorder: '#fecaca',
+                  onClick: () => deleteDoc({
+                    title: 'Hapus Surat Pengantar',
+                    message: `Hapus ${sp.nomor_surat}? Nomor akan disesuaikan otomatis.`,
+                    url: `/dev/dokumen/sp-interior/${sp.id}`,
+                    successMsg: `Surat Pengantar ${sp.nomor_surat} berhasil dihapus`,
+                  }),
+                }] : []),
               ],
             })),
           },
@@ -863,6 +915,17 @@ export default function PenjualanInteriorDetail() {
                   hoverBg: '#fdf4ff', hoverColor: '#86198f', hoverBorder: '#f0abfc',
                   onClick: () => setEmailModal({ tipe: 'invoice-interior', docId: inv.id, nomor: inv.nomor_invoice }),
                 },
+                ...(me?.role === 'DEV' ? [{
+                  label: <Trash2 className="h-3 w-3" />,
+                  title: 'Hapus Invoice',
+                  hoverBg: '#fef2f2', hoverColor: '#dc2626', hoverBorder: '#fecaca',
+                  onClick: () => deleteDoc({
+                    title: 'Hapus Invoice',
+                    message: `Hapus ${inv.nomor_invoice}? Nomor akan disesuaikan otomatis.`,
+                    url: `/dev/dokumen/invoice-interior/${inv.id}`,
+                    successMsg: `Invoice ${inv.nomor_invoice} berhasil dihapus`,
+                  }),
+                }] : []),
               ],
             })),
           },
