@@ -3,14 +3,7 @@
 # Usage: bash deploy.sh
 set -e
 
-# Load node/npm — SSH non-interactive tidak auto-load profile
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-# Fallback: cari npm dari semua kemungkinan lokasi
-if ! command -v npm &>/dev/null; then
-  NODE_BIN=$(find /root/.nvm/versions/node /usr/local/bin /usr/bin -name "npm" -type f 2>/dev/null | head -1)
-  [ -n "$NODE_BIN" ] && export PATH="$(dirname "$NODE_BIN"):$PATH"
-fi
+export PATH="/root/.nvm/versions/node/v22.14.0/bin:$PATH"
 
 BASE=/mine/sistem_ilena/html
 cd "$BASE"
