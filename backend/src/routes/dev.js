@@ -469,11 +469,41 @@ router.delete('/dokumen/sj-interior/:id', authenticate, requireDev, async (req, 
       if (linked) { attachedInvIds.push(inv.id); attachedInvNomors.push(inv.nomor_invoice); }
     }
 
+    // Kumpulkan qty sebelum dihapus untuk restore sudah_kirim
+    const sjItems = await SuratJalanInteriorItem.findAll({
+      where: { surat_jalan_interior_id: sjId },
+      attributes: ['penjualan_interior_item_id', 'qty_kirim'],
+      transaction: t,
+    });
+    const returItems = await ReturSJInterior.findAll({
+      where: { surat_jalan_interior_id: sjId },
+      attributes: ['penjualan_interior_item_id', 'qty_retur'],
+      transaction: t,
+    });
+
     // Cascade delete
     await ReturSJInterior.destroy({ where: { surat_jalan_interior_id: sjId }, transaction: t });
     if (attachedInvIds.length) await InvoiceInterior.destroy({ where: { id: attachedInvIds }, transaction: t });
     await SuratJalanInteriorItem.destroy({ where: { surat_jalan_interior_id: sjId }, transaction: t });
     await sj.destroy({ transaction: t });
+
+    // Restore sudah_kirim: undo SJ delivery (-qty_kirim) + undo retur effect (+qty_retur)
+    const netByItemId = {};
+    for (const item of sjItems) {
+      const pid = item.penjualan_interior_item_id;
+      netByItemId[pid] = (netByItemId[pid] || 0) - item.qty_kirim;
+    }
+    for (const retur of returItems) {
+      const pid = retur.penjualan_interior_item_id;
+      netByItemId[pid] = (netByItemId[pid] || 0) + retur.qty_retur;
+    }
+    for (const [pid, net] of Object.entries(netByItemId)) {
+      if (net === 0) continue;
+      const piItem = await PenjualanInteriorItem.findByPk(pid, { transaction: t });
+      if (piItem) {
+        await piItem.update({ sudah_kirim: Math.max(0, piItem.sudah_kirim + net) }, { transaction: t });
+      }
+    }
 
     // Renumber SJ
     await renumberType({
