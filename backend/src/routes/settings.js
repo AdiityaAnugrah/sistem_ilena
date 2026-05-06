@@ -25,6 +25,21 @@ if (fs.existsSync(LEGACY_SIG)) {
 
 const isValidFilename = (name) => name && !name.includes('..') && !name.includes('/') && !name.includes('\\');
 
+// Validasi magic bytes — pastikan file benar-benar gambar, bukan rename dari exe/php
+function isValidImageBuffer(buf) {
+  if (!buf || buf.length < 12) return false;
+  // PNG: 89 50 4E 47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+  // JPG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+  // GIF: 47 49 46
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return true;
+  // WEBP: 52 49 46 46 ... 57 45 42 50
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+  return false;
+}
+
 // ─── Single signature (backward compat) ──────────────────────────────────────
 
 const storage = multer.diskStorage({
@@ -45,6 +60,11 @@ const upload = multer({
 router.post('/signature', authenticate, blockTestMutation, upload.single('signature'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'File tanda tangan wajib diupload' });
+    const buf = fs.readFileSync(req.file.path);
+    if (!isValidImageBuffer(buf)) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'File bukan gambar yang valid' });
+    }
     await logAction(req.user.id, 'UPLOAD_SIGNATURE', 'Upload tanda tangan sistem', req.ip);
     return res.json({ message: 'Tanda tangan berhasil disimpan' });
   } catch (err) {
@@ -112,6 +132,11 @@ router.get('/signatures/:id', (req, res, next) => {
 router.post('/signatures', authenticate, blockTestMutation, uploadMulti.single('signature'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'File tanda tangan wajib diupload' });
+    const buf = fs.readFileSync(req.file.path);
+    if (!isValidImageBuffer(buf)) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'File bukan gambar yang valid' });
+    }
     await logAction(req.user.id, 'UPLOAD_SIGNATURE', `Upload tanda tangan: ${req.file.filename}`, req.ip);
     return res.json({
       message: 'Tanda tangan berhasil disimpan',

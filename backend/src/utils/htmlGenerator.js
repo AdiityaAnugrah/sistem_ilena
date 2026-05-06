@@ -4,6 +4,16 @@ const path = require('path');
 require('dayjs/locale/id');
 dayjs.locale('id');
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ─── Gambar lokal → data URI (agar tidak bergantung URL eksternal) ────────────
 function loadImgBase64(filename, mime) {
   try {
@@ -621,7 +631,7 @@ const generateHTMLSuratJalan = (sj) => {
       <p class="m-0 mt-3">
           <b style="font-weight:600;">Keterangan : </b>
           <span class="text-danger">
-              ${sj.catatan.replace(/\n/g, '<br>')}
+              ${escapeHtml(sj.catatan).replace(/\n/g, '<br>')}
           </span>
       </p>
   ` : '';
@@ -963,7 +973,7 @@ const generateHTMLSuratPengantar = (sp) => {
       <p class="m-0 mt-3">
           <b style="font-weight:600;">Keterangan : </b>
           <span class="text-danger">
-              ${sp.catatan.replace(/\n/g, '<br>')}
+              ${escapeHtml(sp.catatan).replace(/\n/g, '<br>')}
           </span>
       </p>
   ` : '';
@@ -1144,7 +1154,7 @@ const generateHTMLSuratPengantarInterior = (sp) => {
   const catatanHTML = sp.catatan ? `
     <p class="m-0 mt-3">
         <b style="font-weight:600;">Keterangan : </b>
-        <span class="text-danger">${sp.catatan.replace(/\n/g, '<br>')}</span>
+        <span class="text-danger">${escapeHtml(sp.catatan).replace(/\n/g, '<br>')}</span>
     </p>
   ` : '';
 
@@ -1827,7 +1837,7 @@ const generateHTMLProforma = (inv) => {
                     ${penjualan.no_po ? `<tr><td class="pe-3" style="font-size:11.5px;">No. PO</td>
                         <td style="font-size:11.5px;">: <b>${penjualan.no_po}</b></td></tr>` : ''}
                     ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
-                        <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
+                        <td style="font-size:11.5px;">: ${escapeHtml(inv.catatan)}</td></tr>` : ''}
                 </tbody>
             </table>
         </div>
@@ -2041,7 +2051,7 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
                         <td style="font-size:11.5px;">: ${sjNomors.length > 0 ? sjNomors.map(n => n.split('/')[0]).join(', ') : '-'}</td>
                     </tr>
                     ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
-                        <td style="font-size:11.5px;">: ${inv.catatan}</td></tr>` : ''}
+                        <td style="font-size:11.5px;">: ${escapeHtml(inv.catatan)}</td></tr>` : ''}
                 </tbody>
             </table>
         </div>
