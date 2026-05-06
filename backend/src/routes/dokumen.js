@@ -36,6 +36,7 @@ const includeAlamat = [
   { model: Kelurahan, as: 'pengirimKelurahan' },
 ];
 const { authenticate, authenticatePrint, requireDev } = require('../middleware/auth');
+const { emitDataUpdated } = require('../socket');
 const { generateNomorInvoice } = require('../utils/generateNomor');
 const {
   generatePDFSuratJalan,
@@ -380,6 +381,7 @@ router.put('/proforma/:id/sub-invoice/surat-jalan', authenticate, async (req, re
     const proforma = await ProformaInvoice.findByPk(req.params.id);
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
     await proforma.update({ sub_invoice_sj_ids: surat_jalan_ids.length > 0 ? JSON.stringify(surat_jalan_ids) : null });
+    emitDataUpdated(`penjualan-interior:${proforma.penjualan_interior_id}`, { updatedBy: req.user?.id });
     return res.json({ message: 'Surat Jalan berhasil disimpan' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
@@ -474,6 +476,7 @@ router.delete('/proforma/:id/sub-invoice', authenticate, requireDev, async (req,
     }
 
     await t.commit();
+    emitDataUpdated(`penjualan-interior:${proforma.penjualan_interior_id}`, { updatedBy: req.user.id });
     return res.json({ message: 'Sub invoice berhasil dihapus dan nomor disesuaikan' });
   } catch (err) {
     await t.rollback();

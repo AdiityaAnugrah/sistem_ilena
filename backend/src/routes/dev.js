@@ -10,6 +10,7 @@ const {
   SuratPengantarInterior, SuratPengantarInteriorItem, DocumentCounter, User,
 } = require('../models');
 const { logAction } = require('../middleware/logger');
+const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
@@ -523,6 +524,7 @@ router.delete('/dokumen/sj-interior/:id', authenticate, requireDev, async (req, 
     }
 
     await t.commit();
+    emitDataUpdated(`penjualan-interior:${sj.penjualan_interior_id}`, { updatedBy: req.user.id });
     await logAction(req.user.id, 'DEV_HAPUS_SJ_INTERIOR', `Hapus SJ ${sjNomor}`, req.ip);
     return res.json({ message: `Surat Jalan ${sjNomor} berhasil dihapus` });
   } catch (err) {
@@ -559,6 +561,7 @@ router.delete('/dokumen/proforma/:id', authenticate, requireDev, async (req, res
     }
 
     await t.commit();
+    emitDataUpdated(`penjualan-interior:${proforma.penjualan_interior_id}`, { updatedBy: req.user.id });
     await logAction(req.user.id, 'DEV_HAPUS_PROFORMA', `Hapus Proforma ${proformaNomor}`, req.ip);
     return res.json({ message: `Proforma ${proformaNomor} berhasil dihapus` });
   } catch (err) {
@@ -587,6 +590,7 @@ router.delete('/dokumen/sp-interior/:id', authenticate, requireDev, async (req, 
     });
 
     await t.commit();
+    emitDataUpdated(`penjualan-interior:${sp.penjualan_interior_id}`, { updatedBy: req.user.id });
     await logAction(req.user.id, 'DEV_HAPUS_SP_INTERIOR', `Hapus SP ${spNomor}`, req.ip);
     return res.json({ message: `Surat Pengantar ${spNomor} berhasil dihapus` });
   } catch (err) {
@@ -613,6 +617,7 @@ router.delete('/dokumen/invoice-interior/:id', authenticate, requireDev, async (
     });
 
     await t.commit();
+    emitDataUpdated(`penjualan-interior:${inv.penjualan_interior_id}`, { updatedBy: req.user.id });
     await logAction(req.user.id, 'DEV_HAPUS_INVOICE_INTERIOR', `Hapus Invoice ${invNomor}`, req.ip);
     return res.json({ message: `Invoice ${invNomor} berhasil dihapus` });
   } catch (err) {
