@@ -3,6 +3,11 @@
 # Usage: bash deploy.sh
 set -e
 
+# Load nvm / node path (SSH non-interactive tidak auto-load profile)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+export PATH="$NVM_DIR/versions/node/$(ls $NVM_DIR/versions/node | sort -V | tail -1)/bin:$PATH"
+
 BASE=/mine/sistem_ilena/html
 cd "$BASE"
 
