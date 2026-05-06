@@ -621,4 +621,56 @@ router.delete('/dokumen/invoice-interior/:id', authenticate, requireDev, async (
   }
 });
 
+// POST /api/dev/fix/recalculate-sudah-kirim — hitung ulang sudah_kirim dari data DB
+// Body (optional): { penjualan_interior_id: number } — jika kosong, fix semua
+router.post('/fix/recalculate-sudah-kirim', authenticate, requireDev, async (req, res) => {
+  const { penjualan_interior_id } = req.body || {};
+  const t = await sequelize.transaction();
+  try {
+    const where = penjualan_interior_id ? { penjualan_interior_id } : {};
+    const items = await PenjualanInteriorItem.findAll({ where, attributes: ['id', 'sudah_kirim'], transaction: t });
+
+    let fixed = 0;
+    for (const item of items) {
+      const [sjRows, returRows, spRows] = await Promise.all([
+        SuratJalanInteriorItem.findAll({
+          where: { penjualan_interior_item_id: item.id },
+          attributes: ['qty_kirim'],
+          transaction: t,
+        }),
+        ReturSJInterior.findAll({
+          where: { penjualan_interior_item_id: item.id },
+          attributes: ['qty_retur'],
+          transaction: t,
+        }),
+        SuratPengantarInteriorItem.findAll({
+          where: { penjualan_interior_item_id: item.id },
+          attributes: ['qty'],
+          transaction: t,
+        }),
+      ]);
+
+      const correct = Math.max(0,
+        sjRows.reduce((s, r) => s + r.qty_kirim, 0)
+        - returRows.reduce((s, r) => s + r.qty_retur, 0)
+        + spRows.reduce((s, r) => s + r.qty, 0)
+      );
+
+      if (correct !== item.sudah_kirim) {
+        await item.update({ sudah_kirim: correct }, { transaction: t });
+        fixed++;
+      }
+    }
+
+    await t.commit();
+    await logAction(req.user.id, 'DEV_FIX_SUDAH_KIRIM',
+      `Recalculate sudah_kirim: ${fixed} item diperbaiki (scope: ${penjualan_interior_id ? `penjualan #${penjualan_interior_id}` : 'semua'})`, req.ip);
+
+    return res.json({ message: `Selesai. ${fixed} item diperbaiki dari ${items.length} total.`, fixed, total: items.length });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Gagal recalculate', error: err.message });
+  }
+});
+
 module.exports = router;
