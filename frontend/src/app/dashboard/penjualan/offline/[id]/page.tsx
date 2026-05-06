@@ -13,6 +13,7 @@ import {
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
 import EmailDokumenModal from '@/components/EmailDokumenModal';
+import AlamatForm from '@/components/forms/AlamatForm';
 
 function parseDimensi(deskripsi: any): string {
   try {
@@ -417,6 +418,7 @@ export default function PenjualanOfflineDetail() {
   const [identitasModal, setIdentitasModal] = useState(false);
   const [identitasWarn, setIdentitasWarn] = useState(false);
   const [identitasForm, setIdentitasForm] = useState({ nama_penerima: '', no_hp_penerima: '', no_po: '', nama_npwp: '', no_npwp: '' });
+  const [alamatForm, setAlamatForm] = useState({ provinsi_id: null as number | null, kabupaten_id: null as number | null, kecamatan_id: null as number | null, kelurahan_id: null as number | null, detail: '', kode_pos: '' });
   const [identitasLoading, setIdentitasLoading] = useState(false);
   const [sjModal, setSjModal] = useState(false);
   const [invModal, setInvModal] = useState(false);
@@ -508,6 +510,14 @@ export default function PenjualanOfflineDetail() {
       nama_npwp: data.nama_npwp || '',
       no_npwp: data.no_npwp || '',
     });
+    setAlamatForm({
+      provinsi_id: data.pengirim_provinsi_id || null,
+      kabupaten_id: data.pengirim_kabupaten_id || null,
+      kecamatan_id: data.pengirim_kecamatan_id || null,
+      kelurahan_id: data.pengirim_kelurahan_id || null,
+      detail: data.pengirim_detail || '',
+      kode_pos: data.pengirim_kode_pos || '',
+    });
     setIdentitasWarn(true);
   };
 
@@ -577,7 +587,15 @@ export default function PenjualanOfflineDetail() {
   const saveIdentitas = async () => {
     setIdentitasLoading(true);
     try {
-      await api.patch(`/penjualan-offline/${id}/identitas`, identitasForm);
+      await api.patch(`/penjualan-offline/${id}/identitas`, {
+        ...identitasForm,
+        pengirim_provinsi_id: alamatForm.provinsi_id,
+        pengirim_kabupaten_id: alamatForm.kabupaten_id,
+        pengirim_kecamatan_id: alamatForm.kecamatan_id,
+        pengirim_kelurahan_id: alamatForm.kelurahan_id,
+        pengirim_detail: alamatForm.detail,
+        pengirim_kode_pos: alamatForm.kode_pos,
+      });
       toast.success('Identitas berhasil diperbarui');
       setIdentitasModal(false);
       fetchData();
@@ -1542,7 +1560,7 @@ export default function PenjualanOfflineDetail() {
       {/* Edit Identitas Modal */}
       {identitasModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
-          <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
                 <Pencil className="h-5 w-5" style={{ color: '#FA2F2F' }} />
@@ -1575,6 +1593,9 @@ export default function PenjualanOfflineDetail() {
                   />
                 </div>
               ))}
+              <div className="pt-2 border-t border-slate-100">
+                <AlamatForm label="Alamat Pengiriman" value={alamatForm} onChange={setAlamatForm} />
+              </div>
             </div>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setIdentitasModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>

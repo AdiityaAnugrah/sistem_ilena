@@ -553,7 +553,11 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     const penjualan = await PenjualanOffline.findByPk(req.params.id);
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    const { nama_penerima, no_hp_penerima, no_po, nama_npwp, no_npwp } = req.body;
+    const {
+      nama_penerima, no_hp_penerima, no_po, nama_npwp, no_npwp,
+      pengirim_provinsi_id, pengirim_kabupaten_id, pengirim_kecamatan_id, pengirim_kelurahan_id,
+      pengirim_detail, pengirim_kode_pos,
+    } = req.body;
 
     const updates = {};
     if (nama_penerima !== undefined) updates.nama_penerima = nama_penerima;
@@ -561,6 +565,12 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
     if (no_po !== undefined) updates.no_po = no_po;
     if (nama_npwp !== undefined) updates.nama_npwp = nama_npwp;
     if (no_npwp !== undefined) updates.no_npwp = no_npwp;
+    if (pengirim_provinsi_id !== undefined) updates.pengirim_provinsi_id = pengirim_provinsi_id || null;
+    if (pengirim_kabupaten_id !== undefined) updates.pengirim_kabupaten_id = pengirim_kabupaten_id || null;
+    if (pengirim_kecamatan_id !== undefined) updates.pengirim_kecamatan_id = pengirim_kecamatan_id || null;
+    if (pengirim_kelurahan_id !== undefined) updates.pengirim_kelurahan_id = pengirim_kelurahan_id || null;
+    if (pengirim_detail !== undefined) updates.pengirim_detail = pengirim_detail || null;
+    if (pengirim_kode_pos !== undefined) updates.pengirim_kode_pos = pengirim_kode_pos || null;
 
     await penjualan.update(updates);
     const { logAction } = require('../middleware/logger');
