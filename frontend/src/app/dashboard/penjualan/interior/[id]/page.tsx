@@ -931,30 +931,33 @@ export default function PenjualanInteriorDetail() {
           },
         ];
         return (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
             {docCards.map(card => {
               const isOpen = !!openCards[card.key];
               const Icon = card.icon;
               return (
                 <div key={card.key} className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+                  {/* Card header */}
                   <button
                     className="w-full flex items-center justify-between px-4 py-3 transition-all"
                     style={{ background: isOpen ? card.bg : '#fff' }}
                     onClick={() => toggleCard(card.key)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: card.bg }}>
                         <Icon className="h-3.5 w-3.5" style={{ color: card.color }} />
                       </div>
-                      <div className="text-left">
-                        <div className="text-xs font-semibold" style={{ color: '#334155' }}>{card.label}</div>
+                      <div className="text-left min-w-0">
+                        <div className="text-xs font-semibold truncate" style={{ color: '#334155' }}>{card.label}</div>
                         <div className="text-xs" style={{ color: card.items.length > 0 ? card.color : '#94a3b8' }}>
                           {card.items.length} dokumen
                         </div>
                       </div>
                     </div>
-                    <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 transition-transform" style={{ color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                    <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 ml-1 transition-transform" style={{ color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
                   </button>
+
+                  {/* Card body */}
                   {isOpen && (
                     <div className="border-t" style={{ borderColor: card.border }}>
                       {card.items.length === 0 ? (
@@ -963,26 +966,29 @@ export default function PenjualanInteriorDetail() {
                         <div className="divide-y" style={{ borderColor: '#f1f5f9' }}>
                           {card.items.map((item: any, idx: number) => (
                             <div key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                              <div className="flex items-center justify-between px-3 py-2.5 gap-2">
-                                <div className="min-w-0">
-                                  <div className="text-xs font-mono font-semibold truncate" style={{ color: '#334155' }}>{item.nomor}</div>
+                              <div className="px-3 pt-2.5 pb-2">
+                                {/* Nomor + tanggal */}
+                                <div className="mb-1.5">
+                                  <div className="text-xs font-mono font-semibold" style={{ color: '#334155', wordBreak: 'break-all' }}>{item.nomor}</div>
                                   <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{item.sub}</div>
                                 </div>
-                                <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Action buttons — wrap otomatis jika banyak */}
+                                <div className="flex flex-wrap gap-1">
                                   {(item.extraButtons || []).map((btn: any, bi: number) => (
                                     <button key={bi} onClick={btn.onClick} title={btn.title}
-                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+                                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
                                       style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = btn.hoverBg; (e.currentTarget as HTMLElement).style.color = btn.hoverColor; (e.currentTarget as HTMLElement).style.border = `1px solid ${btn.hoverBorder}`; }}
-                                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+                                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = btn.hoverBg; el.style.color = btn.hoverColor; el.style.border = `1px solid ${btn.hoverBorder}`; }}
+                                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#fff'; el.style.color = '#475569'; el.style.border = '1px solid #e2e8f0'; }}
                                     >{btn.label}</button>
                                   ))}
                                   <button
                                     onClick={item.onPrint}
-                                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+                                    title="Cetak"
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
                                     style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}
-                                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff1f1'; (e.currentTarget as HTMLElement).style.color = '#FA2F2F'; (e.currentTarget as HTMLElement).style.border = '1px solid #fecaca'; }}
-                                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#475569'; (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0'; }}
+                                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#fff1f1'; el.style.color = '#FA2F2F'; el.style.border = '1px solid #fecaca'; }}
+                                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = '#fff'; el.style.color = '#475569'; el.style.border = '1px solid #e2e8f0'; }}
                                   >
                                     <Printer className="h-3 w-3" />
                                   </button>
