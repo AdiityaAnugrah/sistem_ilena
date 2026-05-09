@@ -8,6 +8,8 @@ const { sequelize } = require('./models');
 const logger = require('./config/logger');
 const socketModule = require('./socket');
 
+// CI/CD Test - 2026-05-09
+
 const app = express();
 const server = http.createServer(app);
 
