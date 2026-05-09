@@ -1624,6 +1624,7 @@ const generateHTMLProforma = (inv) => {
     TERMIN_2: 'TERMIN 2',
     TERMIN_3: 'TERMIN 3',
     PELUNASAN_AKHIR: 'PELUNASAN AKHIR',
+    PELUNASAN_PENUH: 'PELUNASAN PENUH',
   };
   let termRows = '';
   const totalPaid = pembayarans.reduce((s, p) => s + Number(p.jumlah || 0), 0);
@@ -1879,6 +1880,7 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   const TIPE_LABEL = {
     DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2',
     TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir',
+    PELUNASAN_PENUH: 'Pelunasan Penuh',
   };
 
   let rowNo = 0;

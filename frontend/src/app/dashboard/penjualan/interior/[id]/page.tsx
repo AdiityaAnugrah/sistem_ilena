@@ -1134,7 +1134,7 @@ export default function PenjualanInteriorDetail() {
       {/* ── Modal Proforma ── */}
       {modal === 'proforma' && (() => {
         // Hitung total sudah dibayar dari pembayaran sebelumnya
-        const TIPE_LABEL_MAP: Record<string, string> = { DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir' };
+        const TIPE_LABEL_MAP: Record<string, string> = { DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir', PELUNASAN_PENUH: 'Pelunasan Penuh' };
         const prevPembayarans: any[] = data.pembayarans || [];
         const totalSudahBayar = prevPembayarans.reduce((s: number, p: any) => s + Number(p.jumlah || 0), 0);
         const sisaTagihan = grandTotal - totalSudahBayar;
@@ -1150,6 +1150,7 @@ export default function PenjualanInteriorDetail() {
           { value: 'TERMIN_2', label: 'Termin 2' },
           { value: 'TERMIN_3', label: 'Termin 3' },
           { value: 'PELUNASAN_AKHIR', label: 'Pelunasan Akhir' },
+          { value: 'PELUNASAN_PENUH', label: 'Pelunasan Penuh' },
         ];
         const nextTipe = TIPE_OPTS[Math.min(proformaTerms.length, TIPE_OPTS.length - 1)].value;
         return (
@@ -1311,6 +1312,7 @@ export default function PenjualanInteriorDetail() {
           { value: 'TERMIN_2', label: 'Termin 2' },
           { value: 'TERMIN_3', label: 'Termin 3' },
           { value: 'PELUNASAN_AKHIR', label: 'Pelunasan Akhir' },
+          { value: 'PELUNASAN_PENUH', label: 'Pelunasan Penuh' },
         ];
         return (
           <ModalWrapper show onClose={() => { setModal(null); setEditProforma(null); setEditTerms([]); }}>

@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op } = require('sequelize');
+const { Op, Transaction } = require('sequelize');
 const {
   sequelize,
   PenjualanInterior, PenjualanInteriorItem, ProformaInvoice, PembayaranInterior,
@@ -224,22 +224,135 @@ router.patch('/:id/proforma/:proformaId', authenticate, async (req, res) => {
   }
 });
 
+// ── Flow detection helper function ───────────────────────────────────────────
+/**
+ * Detects the payment flow for a penjualan based on existing payments
+ * @param {number} penjualanId - The penjualan_interior_id
+ * @param {object} transaction - Sequelize transaction object
+ * @returns {Promise<object>} Flow information: { hasDP, hasPelunasanPenuh, existingPayments }
+ */
+async function detectPaymentFlow(penjualanId, transaction) {
+  const existingPayments = await PembayaranInterior.findAll({
+    where: { penjualan_interior_id: penjualanId },
+    attributes: ['id', 'tipe', 'jumlah'],
+    transaction,
+  });
+
+  const hasDP = existingPayments.some(p => p.tipe === 'DP');
+  const hasPelunasanPenuh = existingPayments.some(p => p.tipe === 'PELUNASAN_PENUH');
+
+  return {
+    hasDP,
+    hasPelunasanPenuh,
+    existingPayments,
+  };
+}
+
 // POST /api/penjualan-interior/:id/pembayaran
 router.post('/:id/pembayaran', authenticate, async (req, res) => {
+  // Use transaction with READ COMMITTED isolation level to prevent race conditions
+  const transaction = await sequelize.transaction({
+    isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
   try {
     const penjualan = await PenjualanInterior.findByPk(req.params.id, {
-      include: [{ model: PembayaranInterior, as: 'pembayarans' }],
+      include: [
+        { model: PenjualanInteriorItem, as: 'items' },
+      ],
+      transaction,
     });
-    if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    if (!penjualan) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Data tidak ditemukan' });
+    }
 
     const { tipe, jumlah, tanggal, catatan } = req.body;
 
-    // Business rule: termin/pelunasan wajib sudah ada DP
+    // Validate payment type
+    const validTypes = ['DP', 'TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR', 'PELUNASAN_PENUH'];
+    if (!validTypes.includes(tipe)) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Tipe pembayaran tidak valid' });
+    }
+
+    // Validate jumlah is a positive number within range (Requirement 3.8)
+    const jumlahNum = parseFloat(jumlah);
+    if (isNaN(jumlahNum) || jumlahNum <= 0 || jumlahNum > 999999999.99) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Jumlah pembayaran harus lebih dari 0 dan maksimal 999999999.99' });
+    }
+
+    // Detect payment flow using transaction
+    const { hasDP, hasPelunasanPenuh, existingPayments } = await detectPaymentFlow(req.params.id, transaction);
+
+    // Rule: If PELUNASAN_PENUH exists, reject DP
+    if (hasPelunasanPenuh && tipe === 'DP') {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Tidak dapat menambah DP setelah pelunasan penuh' });
+    }
+
+    // Rule: If PELUNASAN_PENUH exists, reject TERMIN/PELUNASAN_AKHIR
+    if (hasPelunasanPenuh && ['TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR'].includes(tipe)) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Pembayaran sudah lunas penuh, tidak dapat menambah pembayaran lagi' });
+    }
+
+    // Rule: If PELUNASAN_PENUH exists, reject another PELUNASAN_PENUH
+    if (hasPelunasanPenuh && tipe === 'PELUNASAN_PENUH') {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Pembayaran sudah lunas penuh, tidak dapat menambah pembayaran lagi' });
+    }
+
+    // Rule: TERMIN/PELUNASAN_AKHIR requires DP
     if (['TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR'].includes(tipe)) {
-      const hasDP = penjualan.pembayarans.some(p => p.tipe === 'DP');
       if (!hasDP) {
+        await transaction.rollback();
         return res.status(400).json({ message: 'Wajib ada pembayaran DP sebelum termin/pelunasan' });
       }
+    }
+
+    // Calculate Grand Total
+    const subtotal = penjualan.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+    const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
+    const grandTotal = subtotal + ppn;
+
+    // Rule: PELUNASAN_PENUH amount must equal Grand Total (within 0.01 tolerance)
+    if (tipe === 'PELUNASAN_PENUH') {
+      if (Math.abs(jumlahNum - grandTotal) > 0.01) {
+        const formatRupiah = (num) => {
+          return new Intl.NumberFormat('id-ID', {
+            style: 'decimal',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(num);
+        };
+        await transaction.rollback();
+        return res.status(400).json({ 
+          message: `Jumlah pelunasan penuh harus sama dengan grand total (Rp ${formatRupiah(grandTotal)})` 
+        });
+      }
+    }
+
+    // Rule: Check overpayment using existingPayments from flow detection
+    // Calculate total existing payments rounded to 2 decimal places (Requirement 3.1)
+    const totalExisting = Math.round(
+      existingPayments.reduce((sum, p) => sum + parseFloat(p.jumlah || 0), 0) * 100
+    ) / 100;
+    
+    if (totalExisting + jumlahNum > grandTotal + 0.01) {
+      const remaining = Math.round((grandTotal - totalExisting) * 100) / 100;
+      const formatRupiah = (num) => {
+        return new Intl.NumberFormat('id-ID', {
+          style: 'decimal',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(num);
+      };
+      await transaction.rollback();
+      return res.status(400).json({ 
+        message: `Jumlah pembayaran melebihi total. Sisa yang harus dibayar: Rp ${formatRupiah(remaining)}` 
+      });
     }
 
     const pembayaran = await PembayaranInterior.create({
@@ -249,13 +362,16 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
       tanggal: tanggal || new Date().toISOString().split('T')[0],
       catatan: catatan || null,
       created_by: req.user.id,
-    });
+    }, { transaction });
+
+    await transaction.commit();
 
     await logAction(req.user.id, 'BUAT_PEMBAYARAN', `Tipe: ${tipe}, Jumlah: ${jumlah}`, req.ip);
     await recalculateStatusInterior(req.params.id);
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil ditambahkan' });
   } catch (err) {
+    await transaction.rollback();
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
