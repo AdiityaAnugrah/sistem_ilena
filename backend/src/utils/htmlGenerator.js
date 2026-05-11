@@ -1703,17 +1703,20 @@ const generateHTMLProforma = (inv) => {
           <td class="num fw-bold" style="font-size:11.5px;color:#dc2626;">${formatRupiah(Math.max(0, sisa))}</td>
       </tr>`;
 
-    // Hitung total term yang belum dibayar di proforma ini → untuk terbilang
+    // Hitung jumlah term pertama yang belum dibayar di proforma ini → untuk terbilang
     const tipeCountForDue = { ...priorTermsByTipe };
-    let proformaDue = 0;
-    terms.forEach(term => {
+    let firstUnpaidTermAmount = 0;
+    for (const term of terms) {
       const tipe = term.tipe || 'DP';
       if (!tipeCountForDue[tipe]) tipeCountForDue[tipe] = 0;
       const matched = (paymentsByTipe[tipe] || [])[tipeCountForDue[tipe]] || null;
       tipeCountForDue[tipe]++;
-      if (!matched) proformaDue += Number(term.jumlah) || 0;
-    });
-    terbilangAmount = proformaDue > 0 ? proformaDue : Math.max(0, sisa);
+      if (!matched) {
+        firstUnpaidTermAmount = Number(term.jumlah) || 0;
+        break; // Ambil term pertama yang belum dibayar saja
+      }
+    }
+    terbilangAmount = firstUnpaidTermAmount > 0 ? firstUnpaidTermAmount : Math.max(0, sisa);
   }
 
   const npwpRow = penjualan.no_npwp
