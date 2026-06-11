@@ -128,20 +128,20 @@ export default function DashboardPage() {
   const total = stats.offline + stats.interior + stats.display;
 
   return (
-    <div className="space-y-6 w-full mt-4 lg:mt-0">
+    <div className="space-y-5 sm:space-y-6 w-full mt-2 lg:mt-0">
 
       {/* ─── Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-medium mb-1" style={{ color: '#64748b' }}>
+          <p className="text-sm sm:text-xs font-medium mb-1" style={{ color: '#64748b' }}>
             {now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <h1 className="text-xl sm:text-2xl font-bold" style={{ color: '#0f172a', letterSpacing: '-0.02em' }}>
+          <h1 className="text-[1.65rem] sm:text-2xl font-bold leading-tight" style={{ color: '#0f172a', letterSpacing: '-0.01em' }}>
             {greeting}, <span style={{ color: '#FA2F2F' }}>{user?.username}</span>
           </h1>
         </div>
         <div
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold self-start sm:self-auto"
+          className="inline-flex min-h-[44px] items-center gap-2 px-3.5 py-2 rounded-xl text-sm sm:text-xs font-semibold self-start sm:self-auto"
           style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
         >
           <div
@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
       {/* ─── Overview Banner ─── */}
       <div
-        className="rounded-2xl p-6 sm:p-8 relative overflow-hidden"
+        className="rounded-2xl p-5 sm:p-8 relative overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
           boxShadow: '0 10px 25px -5px rgba(15,23,42,0.1)',
@@ -171,17 +171,17 @@ export default function DashboardPage() {
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 sm:gap-10">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] mb-2 text-red-200">
+            <p className="text-sm sm:text-xs font-semibold uppercase tracking-[0.08em] sm:tracking-[0.1em] mb-2 text-red-200">
               Total Transaksi Sistem
             </p>
             {loading ? (
               <div className="skeleton h-12 w-24 mb-1 bg-white/10 rounded-lg" />
             ) : (
-              <div className="text-5xl sm:text-6xl font-black text-white leading-none tracking-tight">
+              <div className="text-[3.25rem] sm:text-6xl font-black text-white leading-none tracking-tight">
                 {total.toLocaleString('id-ID')}
               </div>
             )}
-            <p className="text-sm mt-3 text-slate-400">
+            <p className="text-base sm:text-sm mt-3 text-slate-300">
               Keseluruhan dari semua unit bisnis
             </p>
           </div>
@@ -203,18 +203,18 @@ export default function DashboardPage() {
       </div>
 
       {/* ─── Stat Cards ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
         {statCards.map((card) => (
           <Link
             key={card.label}
             href={card.href}
-            className="group block rounded-2xl p-6 transition-all duration-300 relative overflow-hidden bg-white"
+            className="group block min-h-[150px] rounded-2xl p-5 sm:p-6 transition-all duration-300 relative overflow-hidden bg-white"
             style={{ border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(15,23,42,0.02)' }}
           >
             {/* Hover subtle glow */}
             <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-10 transition-opacity duration-500 rounded-bl-full pointer-events-none" style={{ background: `radial-gradient(circle, ${card.color} 0%, transparent 70%)` }}></div>
             
-            <div className="flex items-start justify-between mb-8 relative z-10">
+            <div className="flex items-start justify-between mb-5 sm:mb-8 relative z-10">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
                 style={{ background: card.bg }}
@@ -234,10 +234,10 @@ export default function DashboardPage() {
                   {card.value.toLocaleString('id-ID')}
                 </div>
               )}
-              <div className="text-sm font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">
+              <div className="text-base sm:text-sm font-semibold text-slate-700 group-hover:text-slate-900 transition-colors">
                 {card.label}
               </div>
-              <div className="text-xs text-slate-400 mt-1">{card.desc}</div>
+              <div className="text-sm sm:text-xs text-slate-500 mt-1">{card.desc}</div>
             </div>
 
             {/* Bottom colored bar */}
@@ -249,75 +249,75 @@ export default function DashboardPage() {
       {/* ─── Keuangan Bulan Ini ─── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+          <h2 className="text-base sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-slate-800 flex items-center gap-2">
             <Wallet className="h-4 w-4 text-red-500" /> Ringkasan Keuangan
           </h2>
-          <Link href="/dashboard/keuangan" className="text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1">
+          <Link href="/dashboard/keuangan" className="min-h-[44px] text-sm sm:text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1">
             Lihat Detail <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Omzet Offline */}
-          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+          <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fff1f1' }}>
                 <Banknote className="h-4 w-4" style={{ color: '#FA2F2F' }} />
               </div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Omzet Offline</span>
+              <span className="text-sm sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">Omzet Offline</span>
             </div>
             {financeLoading ? (
               <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
             ) : (
               <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.omzet)}</div>
             )}
-            <div className="text-xs text-slate-400 mt-1">Total penjualan offline</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Total penjualan offline</div>
           </div>
 
           {/* Piutang Display */}
-          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+          <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fefce8' }}>
                 <AlertCircle className="h-4 w-4" style={{ color: '#ca8a04' }} />
               </div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Piutang Display</span>
+              <span className="text-sm sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">Piutang Display</span>
             </div>
             {financeLoading ? (
               <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
             ) : (
               <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.piutang)}</div>
             )}
-            <div className="text-xs text-slate-400 mt-1">Barang display belum terjual</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Barang display belum terjual</div>
           </div>
 
           {/* Outstanding Interior */}
-          <div className="rounded-2xl p-5 bg-white" style={{ border: '1px solid #e2e8f0' }}>
+          <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0f9ff' }}>
                 <TrendingUp className="h-4 w-4" style={{ color: '#0369a1' }} />
               </div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Outstanding Interior</span>
+              <span className="text-sm sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">Outstanding Interior</span>
             </div>
             {financeLoading ? (
               <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
             ) : (
               <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.outstanding)}</div>
             )}
-            <div className="text-xs text-slate-400 mt-1">Sisa tagihan proyek interior</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Sisa tagihan proyek interior</div>
           </div>
         </div>
       </div>
 
       {/* ─── Quick Actions ─── */}
       <div className="pt-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="text-base sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-slate-800 mb-4 flex items-center gap-2">
            <Activity className="h-4 w-4 text-red-500" /> Akses Cepat
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {quickActions.map((action) => (
             <Link
               key={action.label}
               href={action.href}
-              className="group block rounded-xl p-5 bg-white transition-all duration-300 hover:-translate-y-1"
+              className="group block min-h-[104px] rounded-xl p-5 bg-white transition-all duration-300 hover:-translate-y-1"
               style={{ border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(15,23,42,0.03)' }}
             >
               <div
@@ -328,10 +328,10 @@ export default function DashboardPage() {
                   className="h-5 w-5 text-slate-500 group-hover:text-red-600 transition-colors duration-300"
                 />
               </div>
-              <div className="font-semibold text-sm text-slate-800 mb-1 group-hover:text-red-600 transition-colors">
+              <div className="font-semibold text-base sm:text-sm text-slate-800 mb-1 group-hover:text-red-600 transition-colors">
                 {action.label}
               </div>
-              <div className="text-xs text-slate-400 leading-relaxed">{action.desc}</div>
+              <div className="text-sm sm:text-xs text-slate-500 leading-relaxed">{action.desc}</div>
             </Link>
           ))}
         </div>

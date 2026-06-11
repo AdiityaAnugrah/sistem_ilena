@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, TextField, InputAdornment, MenuItem, Select,
-  FormControl, InputLabel, CircularProgress, Pagination, Chip, IconButton,
+  FormControl, CircularProgress, Pagination, Chip, IconButton,
 } from '@mui/material';
 import { Search, FileText, RefreshCw } from 'lucide-react';
 
@@ -17,9 +17,18 @@ const TIPE_CONFIG: Record<string, { color: 'default' | 'primary' | 'secondary' |
   'Proforma':        { color: 'secondary', label: 'Proforma' },
 };
 
+interface SuratRow {
+  nomor: string;
+  tipe: string;
+  sumber: 'OFFLINE' | 'INTERIOR';
+  nama_penerima: string;
+  tanggal: string;
+  penjualan_id: number;
+}
+
 export default function SemuaSuratPage() {
   const router = useRouter();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<SuratRow[]>([]);
   const [search, setSearch] = useState('');
   const [tipeFilter, setTipeFilter] = useState('');
   const [sumberFilter, setSumberFilter] = useState('');
@@ -31,12 +40,12 @@ export default function SemuaSuratPage() {
   const fetchData = useCallback(async (s = search, p = page, t = tipeFilter, sumber = sumberFilter) => {
     setLoading(true);
     try {
-      const params: Record<string, any> = { page: p, limit: 20 };
+      const params: Record<string, string | number> = { page: p, limit: 20 };
       if (s) params.search = s;
       if (t) params.tipe = t;
       const res = await api.get('/public/surat', { params });
-      let rows = res.data.data;
-      if (sumber) rows = rows.filter((r: any) => r.sumber === sumber);
+      let rows = res.data.data as SuratRow[];
+      if (sumber) rows = rows.filter((r) => r.sumber === sumber);
       setData(rows);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
@@ -60,30 +69,30 @@ export default function SemuaSuratPage() {
     fetchData('', 1, '', '');
   };
 
-  const goToDetail = (row: any) => {
+  const goToDetail = (row: SuratRow) => {
     if (row.sumber === 'OFFLINE') router.push(`/dashboard/penjualan/offline/${row.penjualan_id}`);
     else router.push(`/dashboard/penjualan/interior/${row.penjualan_id}`);
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 0, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, mb: { xs: 2, md: 4 }, gap: 2 }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <FileText size={28} style={{ color: '#FA2F2F' }} />
-            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>Semua Dokumen</Typography>
+            <FileText size={28} style={{ color: '#FA2F2F', flexShrink: 0 }} />
+            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', fontSize: { xs: 26, md: 34 }, lineHeight: 1.15 }}>Semua Dokumen</Typography>
           </Box>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 15, md: 14 } }}>
             Total {total} dokumen — Surat Jalan, Invoice, Surat Pengantar, Proforma
           </Typography>
         </Box>
-        <Chip label={`${total} Dokumen`} variant="outlined" sx={{ fontWeight: 700, borderRadius: '8px' }} />
+        <Chip label={`${total} Dokumen`} variant="outlined" sx={{ fontWeight: 700, borderRadius: '8px', display: { xs: 'none', md: 'inline-flex' } }} />
       </Box>
 
-      <Paper sx={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      <Paper sx={{ borderRadius: { xs: '16px', md: '20px' }, overflow: 'hidden', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         {/* Filter Bar */}
-        <Box sx={{ p: 3, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider' }}>
           <form onSubmit={handleSearch}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
               <Box sx={{ flex: 1, minWidth: 240 }}>
@@ -126,8 +135,54 @@ export default function SemuaSuratPage() {
           </form>
         </Box>
 
-        {/* Table */}
-        <TableContainer>
+        {/* Mobile cards */}
+        <Box sx={{ display: { xs: 'block', md: 'none' }, p: 2, bgcolor: '#f8fafc' }}>
+          {loading ? (
+            <Box sx={{ py: 5, display: 'flex', justifyContent: 'center' }}><CircularProgress size={30} /></Box>
+          ) : data.length === 0 ? (
+            <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary', fontSize: 16, fontWeight: 600 }}>Tidak ada dokumen ditemukan.</Box>
+          ) : (
+            <div className="mobile-card-list">
+              {data.map((row, idx) => (
+                <button
+                  type="button"
+                  key={`${row.sumber}-${row.nomor}-${idx}`}
+                  className="mobile-record-card text-left"
+                  onClick={() => goToDetail(row)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="mobile-record-title font-mono">{row.nomor}</div>
+                      <div className="mobile-record-meta mt-1">{row.nama_penerima}</div>
+                      <div className="mobile-record-meta">Tanggal: {formatDate(row.tanggal)}</div>
+                    </div>
+                    <Chip
+                      label={row.sumber === 'INTERIOR' ? 'Interior' : 'Offline'}
+                      size="small"
+                      variant="outlined"
+                      color={row.sumber === 'INTERIOR' ? 'secondary' : 'primary'}
+                      sx={{ fontWeight: 800, borderRadius: '8px', flexShrink: 0 }}
+                    />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Chip
+                      label={TIPE_CONFIG[row.tipe]?.label || row.tipe}
+                      size="small"
+                      color={TIPE_CONFIG[row.tipe]?.color || 'default'}
+                      sx={{ fontWeight: 800, borderRadius: '8px' }}
+                    />
+                    <span className="inline-flex min-h-[38px] items-center rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700">
+                      Buka Detail
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </Box>
+
+        {/* Desktop table */}
+        <TableContainer sx={{ display: { xs: 'none', md: 'block' } }}>
           <Table sx={{ minWidth: 700 }}>
             <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
               <TableRow>
@@ -183,8 +238,8 @@ export default function SemuaSuratPage() {
         </TableContainer>
 
         {/* Footer */}
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(248,250,252,0.5)' }}>
-          <Typography variant="caption" color="text.secondary">Total {total} dokumen</Typography>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, bgcolor: 'rgba(248,250,252,0.5)' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} dokumen</Typography>
           <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
         </Box>
       </Paper>

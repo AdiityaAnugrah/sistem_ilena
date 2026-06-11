@@ -33,12 +33,32 @@ export default function GlobalSearch({ dark = false }: { dark?: boolean }) {
 
   // Fetch results
   useEffect(() => {
-    if (debouncedQuery.length < 2) { setResults([]); setOpen(false); return; }
-    setLoading(true);
-    api.get(`/search?q=${encodeURIComponent(debouncedQuery)}`)
-      .then(r => { setResults(r.data); setOpen(true); })
-      .catch(() => setResults([]))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    if (debouncedQuery.length < 2) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setResults([]);
+        setOpen(false);
+      });
+      return () => { cancelled = true; };
+    }
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoading(true);
+      api.get(`/search?q=${encodeURIComponent(debouncedQuery)}`)
+        .then(r => {
+          if (cancelled) return;
+          setResults(r.data);
+          setOpen(true);
+        })
+        .catch(() => {
+          if (!cancelled) setResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    });
+    return () => { cancelled = true; };
   }, [debouncedQuery]);
 
   // Close on outside click
@@ -88,7 +108,7 @@ export default function GlobalSearch({ dark = false }: { dark?: boolean }) {
   };
 
   return (
-    <div ref={containerRef} className="relative" style={{ width: dark ? '100%' : 280 }}>
+    <div ref={containerRef} className="relative min-w-0" style={{ width: dark ? '100%' : 'min(280px, 100%)', maxWidth: '100%' }}>
       {/* Input */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all"
         style={dark
@@ -103,8 +123,8 @@ export default function GlobalSearch({ dark = false }: { dark?: boolean }) {
           value={query}
           onChange={e => setQuery(e.target.value)}
           onFocus={() => { if (results.length > 0) setOpen(true); }}
-          placeholder="Cari… (Ctrl+K)"
-          className="flex-1 bg-transparent outline-none text-xs"
+          placeholder="Cari..."
+          className="min-w-0 flex-1 bg-transparent outline-none text-xs"
           style={{ color: dark ? 'rgba(255,255,255,0.85)' : '#0f172a' }}
         />
         {query && (

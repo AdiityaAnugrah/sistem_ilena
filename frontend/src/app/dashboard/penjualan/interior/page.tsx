@@ -20,8 +20,17 @@ const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary
   COMPLETED: { label: 'Selesai', color: 'success' },
 };
 
+interface InteriorRow {
+  id: number;
+  tanggal: string;
+  no_po?: string | null;
+  nama_customer: string;
+  faktur: string;
+  status: string;
+}
+
 export default function PenjualanInteriorPage() {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<InteriorRow[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -37,7 +46,7 @@ export default function PenjualanInteriorPage() {
   ) => {
     setLoading(true);
     try {
-      const params: Record<string, any> = { page: p, limit: 20 };
+      const params: Record<string, string | number> = { page: p, limit: 20 };
       if (s)      params.search         = s;
       if (status) params.status         = status;
       if (dari)   params.tanggal_dari   = dari;
@@ -62,26 +71,26 @@ export default function PenjualanInteriorPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 0, md: 4 }, maxWidth: 1400, mx: 'auto' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, mb: { xs: 2, md: 4 }, gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
         <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-            <Home size={28} style={{ color: '#FA2F2F' }} />
-            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary' }}>Penjualan Interior</Typography>
+            <Home size={28} style={{ color: '#FA2F2F', flexShrink: 0 }} />
+            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', fontSize: { xs: 26, md: 34 }, lineHeight: 1.15 }}>Penjualan Interior</Typography>
           </Box>
-          <Typography variant="body2" color="text.secondary">Total {total} proyek interior tercatat</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 15, md: 14 } }}>Total {total} proyek interior tercatat</Typography>
         </Box>
         <Link href="/dashboard/penjualan/interior/baru" style={{ textDecoration: 'none' }}>
-          <Button variant="contained" startIcon={<Plus size={18} />} sx={{ borderRadius: '12px', px: 3, py: 1.2, boxShadow: '0 4px 12px rgba(250,47,47,0.25)', bgcolor: '#FA2F2F', '&:hover': { bgcolor: '#d41a1a' } }}>
+          <Button fullWidth variant="contained" startIcon={<Plus size={18} />} sx={{ borderRadius: '12px', px: 3, py: { xs: 1.35, md: 1.2 }, minHeight: { xs: 48, md: 40 }, fontSize: { xs: 15, md: 14 }, boxShadow: '0 4px 12px rgba(250,47,47,0.25)', bgcolor: '#FA2F2F', '&:hover': { bgcolor: '#d41a1a' } }}>
             Interior Baru
           </Button>
         </Link>
       </Box>
 
-      <Paper sx={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
+      <Paper sx={{ borderRadius: { xs: '16px', md: '20px' }, overflow: 'hidden', border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         {/* Filter Bar */}
-        <Box sx={{ p: 3, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'rgba(248,250,252,0.5)', borderBottom: '1px solid', borderColor: 'divider' }}>
           <form onSubmit={e => { e.preventDefault(); setPage(1); fetchData(search, 1); }}>
             <Grid container spacing={2} sx={{ alignItems: 'flex-end' }}>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -118,8 +127,57 @@ export default function PenjualanInteriorPage() {
           </form>
         </Box>
 
-        {/* Table */}
-        <TableContainer>
+        {/* Mobile cards */}
+        <Box sx={{ display: { xs: 'block', md: 'none' }, p: 2, bgcolor: '#f8fafc' }}>
+          {loading ? (
+            <Box sx={{ py: 5, display: 'flex', justifyContent: 'center' }}><CircularProgress size={30} /></Box>
+          ) : data.length === 0 ? (
+            <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary', fontSize: 16, fontWeight: 600 }}>Tidak ada data.</Box>
+          ) : (
+            <div className="mobile-card-list">
+              {data.map((row) => (
+                <article key={row.id} className="mobile-record-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="mobile-record-title">{row.nama_customer}</div>
+                      <div className="mobile-record-meta mt-1">Tanggal: {formatDate(row.tanggal)}</div>
+                      <div className="mobile-record-meta">No. PO: {row.no_po || '-'}</div>
+                    </div>
+                    <Chip label={STATUS_CONFIG[row.status]?.label || row.status} size="small" color={STATUS_CONFIG[row.status]?.color || 'default'} sx={{ fontWeight: 800, borderRadius: '8px', flexShrink: 0 }} />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Chip
+                      label={row.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontWeight: 800,
+                        borderRadius: '8px',
+                        ...(row.faktur === 'FAKTUR'
+                          ? { borderColor: '#6366f1', color: '#4338ca', bgcolor: '#eef2ff' }
+                          : { borderColor: '#94a3b8', color: '#475569', bgcolor: '#f8fafc' }),
+                      }}
+                    />
+                  </div>
+                  <Link href={`/dashboard/penjualan/interior/${row.id}`} style={{ textDecoration: 'none' }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      startIcon={<Eye size={18} />}
+                      className="mobile-action-button"
+                      sx={{ mt: 2, bgcolor: '#FA2F2F', '&:hover': { bgcolor: '#d41a1a' } }}
+                    >
+                      Buka Detail
+                    </Button>
+                  </Link>
+                </article>
+              ))}
+            </div>
+          )}
+        </Box>
+
+        {/* Desktop table */}
+        <TableContainer sx={{ display: { xs: 'none', md: 'block' } }}>
           <Table sx={{ minWidth: 800 }}>
             <TableHead sx={{ bgcolor: 'rgba(248,250,252,0.8)' }}>
               <TableRow>
@@ -133,7 +191,7 @@ export default function PenjualanInteriorPage() {
                 <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
               ) : data.length === 0 ? (
                 <TableRow><TableCell colSpan={6} align="center" sx={{ py: 10 }}>Tidak ada data.</TableCell></TableRow>
-              ) : data.map((row: any) => (
+              ) : data.map((row) => (
                 <TableRow key={row.id} hover sx={{ '& td': { py: 1.8 } }}>
                   <TableCell><Typography variant="body2" sx={{ fontWeight: 600 }}>{formatDate(row.tanggal)}</Typography></TableCell>
                   <TableCell><Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.disabled' }}>{row.no_po || '-'}</Typography></TableCell>
@@ -166,8 +224,8 @@ export default function PenjualanInteriorPage() {
         </TableContainer>
 
         {/* Footer */}
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(248,250,252,0.5)' }}>
-          <Typography variant="caption" color="text.secondary">Total {total} proyek</Typography>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, bgcolor: 'rgba(248,250,252,0.5)' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} proyek</Typography>
           <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
         </Box>
       </Paper>
