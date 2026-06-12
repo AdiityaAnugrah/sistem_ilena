@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem,
+  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   sequelize,
 } = require('../models');
@@ -11,6 +11,13 @@ const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
 const sumItems = (items = []) => items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+const getOfflineProgress = (penjualan) => {
+  if (penjualan.status === 'COMPLETED') return { label: 'Lunas / Selesai', level: 100 };
+  if (penjualan.invoices?.length > 0) return { label: 'Invoice Dibuat', level: 75 };
+  if (penjualan.suratJalans?.length > 0) return { label: 'Surat Jalan Dibuat', level: 50 };
+  if (penjualan.status === 'ACTIVE') return { label: 'Aktif / Belum Lunas', level: 25 };
+  return { label: 'Draft', level: 10 };
+};
 
 // GET /api/keuangan/offline
 router.get('/offline', authenticate, async (req, res) => {
@@ -116,22 +123,32 @@ router.get('/offline', authenticate, async (req, res) => {
       const where = { tipe: 'PENJUALAN', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
       const { count, rows } = await PenjualanOffline.findAndCountAll({
         where,
-        include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['subtotal'] }],
+        include: [
+          { model: PenjualanOfflineItem, as: 'items', attributes: ['subtotal'] },
+          { model: SuratJalan, as: 'suratJalans', attributes: ['id'] },
+          { model: Invoice, as: 'invoices', attributes: ['id'] },
+        ],
         order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
         limit: limitInt,
         offset,
         distinct: true,
       });
-      const list = rows.map(p => ({
-        id: p.id,
-        tanggal: p.tanggal,
-        nama_penerima: p.nama_penerima,
-        faktur: p.faktur,
-        status: p.status,
-        from_display: !!p.display_source_id,
-        belumLunas: p.status !== 'COMPLETED',
-        total: money(sumItems(p.items)),
-      }));
+      const list = rows.map(p => {
+        const progress = getOfflineProgress(p);
+        return {
+          id: p.id,
+          tanggal: p.tanggal,
+          nama_penerima: p.nama_penerima,
+          faktur: p.faktur,
+          status: p.status,
+          from_display: !!p.display_source_id,
+          belumLunas: p.status !== 'COMPLETED',
+          lunas: p.status === 'COMPLETED',
+          progressLabel: progress.label,
+          progressLevel: progress.level,
+          total: money(sumItems(p.items)),
+        };
+      });
       return res.json({
         summary,
         list,
