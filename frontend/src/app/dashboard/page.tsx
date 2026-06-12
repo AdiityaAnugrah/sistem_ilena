@@ -14,11 +14,17 @@ function fmtRp(n: number) {
   return `Rp ${n.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 }
 
+const today = () => new Date().toISOString().split('T')[0];
+const firstOfYear = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-01-01`;
+};
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [stats, setStats] = useState({ offline: 0, interior: 0, display: 0 });
   const [loading, setLoading] = useState(true);
-  const [finance, setFinance] = useState({ omzet: 0, piutang: 0, outstanding: 0 });
+  const [finance, setFinance] = useState({ omzet: 0, belumLunas: 0, piutangDisplay: 0, outstanding: 0 });
   const [financeLoading, setFinanceLoading] = useState(true);
 
   const fetchStats = async () => {
@@ -42,13 +48,15 @@ export default function DashboardPage() {
 
   const fetchFinance = async () => {
     try {
+      const params = new URLSearchParams({ from: firstOfYear(), to: today(), limit: '1' });
       const [offRes, intRes] = await Promise.all([
-        api.get(`/keuangan/offline?limit=1`),
-        api.get(`/keuangan/interior?limit=1`),
+        api.get(`/keuangan/offline?${params}`),
+        api.get(`/keuangan/interior?${params}`),
       ]);
       setFinance({
         omzet: offRes.data.summary?.totalOmzet || 0,
-        piutang: (offRes.data.summary?.totalPiutang || 0) + (offRes.data.summary?.totalDisplayBelumLunas || 0),
+        belumLunas: offRes.data.summary?.totalBelumLunas || 0,
+        piutangDisplay: offRes.data.summary?.totalPiutang || 0,
         outstanding: intRes.data.summary?.totalOutstanding || 0,
       });
     } catch {
@@ -257,7 +265,7 @@ export default function DashboardPage() {
             Lihat Detail <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Omzet Offline */}
           <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
             <div className="flex items-center gap-3 mb-3">
@@ -271,23 +279,39 @@ export default function DashboardPage() {
             ) : (
               <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.omzet)}</div>
             )}
-            <div className="text-sm sm:text-xs text-slate-500 mt-1">Total penjualan offline</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Penjualan tahun ini</div>
+          </div>
+
+          {/* Belum Lunas Offline */}
+          <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fef2f2' }}>
+                <AlertCircle className="h-4 w-4" style={{ color: '#dc2626' }} />
+              </div>
+              <span className="text-sm sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">Belum Lunas Offline</span>
+            </div>
+            {financeLoading ? (
+              <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
+            ) : (
+              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.belumLunas)}</div>
+            )}
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Sudah laku, belum selesai</div>
           </div>
 
           {/* Piutang Display */}
           <div className="rounded-2xl p-5 bg-white min-h-[134px]" style={{ border: '1px solid #e2e8f0' }}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#fefce8' }}>
-                <AlertCircle className="h-4 w-4" style={{ color: '#ca8a04' }} />
+                <Package className="h-4 w-4" style={{ color: '#ca8a04' }} />
               </div>
               <span className="text-sm sm:text-xs font-semibold text-slate-600 uppercase tracking-wide">Piutang Display</span>
             </div>
             {financeLoading ? (
               <div className="h-8 w-32 rounded bg-slate-100 animate-pulse" />
             ) : (
-              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.piutang)}</div>
+              <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.piutangDisplay)}</div>
             )}
-            <div className="text-sm sm:text-xs text-slate-500 mt-1">Sisa display + laku belum lunas</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Barang display masih di toko</div>
           </div>
 
           {/* Outstanding Interior */}
