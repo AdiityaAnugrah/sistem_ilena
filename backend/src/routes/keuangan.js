@@ -9,6 +9,9 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+const money = (value) => Math.round(Number(value || 0));
+const sumItems = (items = []) => items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+
 // GET /api/keuangan/offline
 router.get('/offline', authenticate, async (req, res) => {
   try {
@@ -35,7 +38,25 @@ router.get('/offline', authenticate, async (req, res) => {
       attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
       raw: true,
     });
-    const totalOmzet = parseFloat(penjualanItems[0]?.total || 0);
+    const totalOmzet = money(penjualanItems[0]?.total);
+
+    // Total penjualan offline yang belum ditandai selesai/lunas
+    const belumLunasItems = await PenjualanOfflineItem.findAll({
+      include: [{
+        model: PenjualanOffline, as: 'penjualan',
+        where: {
+          tipe: 'PENJUALAN',
+          status: { [Op.ne]: 'COMPLETED' },
+          is_test: isTest,
+          ...(from || to ? { tanggal: dateWhere } : {}),
+        },
+        attributes: [],
+        required: true,
+      }],
+      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
+      raw: true,
+    });
+    const totalBelumLunas = money(belumLunasItems[0]?.total);
 
     // Total nilai display masih aktif (sisa item qty > 0)
     const displayAktif = await PenjualanOffline.findAll({
@@ -46,9 +67,10 @@ router.get('/offline', authenticate, async (req, res) => {
     let totalPiutang = 0;
     for (const d of displayAktif) {
       for (const item of d.items) {
-        if (item.qty > 0) totalPiutang += parseFloat(item.subtotal || 0);
+        if (item.qty > 0) totalPiutang += Number(item.subtotal || 0);
       }
     }
+    totalPiutang = money(totalPiutang);
 
     // Total sudah terjual dari display (penjualan dengan display_source_id)
     const terjualItems = await PenjualanOfflineItem.findAll({
@@ -65,7 +87,28 @@ router.get('/offline', authenticate, async (req, res) => {
       attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
       raw: true,
     });
-    const totalTerjualDisplay = parseFloat(terjualItems[0]?.total || 0);
+    const totalTerjualDisplay = money(terjualItems[0]?.total);
+
+    // Total display yang sudah laku tetapi transaksi penjualannya belum selesai/lunas
+    const displayBelumLunasItems = await PenjualanOfflineItem.findAll({
+      include: [{
+        model: PenjualanOffline, as: 'penjualan',
+        where: {
+          tipe: 'PENJUALAN',
+          status: { [Op.ne]: 'COMPLETED' },
+          is_test: isTest,
+          display_source_id: { [Op.not]: null },
+          ...(from || to ? { tanggal: dateWhere } : {}),
+        },
+        attributes: [],
+        required: true,
+      }],
+      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
+      raw: true,
+    });
+    const totalDisplayBelumLunas = money(displayBelumLunasItems[0]?.total);
+
+    const summary = { totalOmzet, totalBelumLunas, totalPiutang, totalTerjualDisplay, totalDisplayBelumLunas };
 
     // ── List data sesuai tab ──────────────────────────────────────────────────
 
@@ -85,10 +128,12 @@ router.get('/offline', authenticate, async (req, res) => {
         nama_penerima: p.nama_penerima,
         faktur: p.faktur,
         status: p.status,
-        total: p.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0),
+        from_display: !!p.display_source_id,
+        belumLunas: p.status !== 'COMPLETED',
+        total: money(sumItems(p.items)),
       }));
       return res.json({
-        summary: { totalOmzet, totalPiutang, totalTerjualDisplay },
+        summary,
         list,
         total: count,
         totalPages: Math.ceil(count / limitInt),
@@ -112,31 +157,38 @@ router.get('/offline', authenticate, async (req, res) => {
     const terjualPerDisplay = await PenjualanOffline.findAll({
       where: { display_source_id: { [Op.in]: displayIds.length ? displayIds : [0] }, is_test: isTest },
       include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['subtotal', 'barang_id'] }],
-      attributes: ['id', 'display_source_id'],
+      attributes: ['id', 'display_source_id', 'status'],
     });
     const terjualMap = {};
+    const terjualBelumLunasMap = {};
     for (const p of terjualPerDisplay) {
       const srcId = p.display_source_id;
-      terjualMap[srcId] = (terjualMap[srcId] || 0) + p.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const totalPenjualan = sumItems(p.items);
+      terjualMap[srcId] = (terjualMap[srcId] || 0) + totalPenjualan;
+      if (p.status !== 'COMPLETED') {
+        terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + totalPenjualan;
+      }
     }
 
     const list = rows.map(d => {
-      const nilaiSisa = d.items.filter(i => i.qty > 0).reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const nilaiSisa = d.items.filter(i => i.qty > 0).reduce((s, i) => s + Number(i.subtotal || 0), 0);
       const nilaiTerjual = terjualMap[d.id] || 0;
+      const nilaiTerjualBelumLunas = terjualBelumLunasMap[d.id] || 0;
       return {
         id: d.id,
         tanggal: d.tanggal,
         nama_penerima: d.nama_penerima,
         status: d.status,
-        nilaiSisa,
-        nilaiTerjual,
-        nilaiTotal: nilaiSisa + nilaiTerjual,
+        nilaiSisa: money(nilaiSisa),
+        nilaiTerjual: money(nilaiTerjual),
+        nilaiTerjualBelumLunas: money(nilaiTerjualBelumLunas),
+        nilaiTotal: money(nilaiSisa + nilaiTerjual),
         adaSisa: d.items.some(i => i.qty > 0),
       };
     });
 
     return res.json({
-      summary: { totalOmzet, totalPiutang, totalTerjualDisplay },
+      summary,
       list,
       total: count,
       totalPages: Math.ceil(count / limitInt),
@@ -174,12 +226,14 @@ router.get('/interior', authenticate, async (req, res) => {
 
     let totalNilaiProyek = 0, totalTerbayar = 0;
     for (const p of allProyek) {
-      const subtotal = p.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const subtotal = sumItems(p.items);
       const ppn = p.pakai_ppn ? subtotal * (parseInt(p.ppn_persen) / 100) : 0;
       totalNilaiProyek += subtotal + ppn;
-      totalTerbayar += p.pembayarans.reduce((s, pb) => s + parseFloat(pb.jumlah || 0), 0);
+      totalTerbayar += p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0);
     }
-    const totalOutstanding = Math.max(0, totalNilaiProyek - totalTerbayar);
+    totalNilaiProyek = money(totalNilaiProyek);
+    totalTerbayar = money(totalTerbayar);
+    const totalOutstanding = money(Math.max(0, totalNilaiProyek - totalTerbayar));
 
     // ── List ──────────────────────────────────────────────────────────────────
 
@@ -196,11 +250,11 @@ router.get('/interior', authenticate, async (req, res) => {
     });
 
     const list = rows.map(p => {
-      const subtotal = p.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const subtotal = sumItems(p.items);
       const ppn = p.pakai_ppn ? subtotal * (parseInt(p.ppn_persen) / 100) : 0;
-      const grandTotal = subtotal + ppn;
-      const terbayar = p.pembayarans.reduce((s, pb) => s + parseFloat(pb.jumlah || 0), 0);
-      const sisa = Math.max(0, grandTotal - terbayar);
+      const grandTotal = money(subtotal + ppn);
+      const terbayar = money(p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0));
+      const sisa = money(Math.max(0, grandTotal - terbayar));
       const persen = grandTotal > 0 ? Math.min(100, Math.round((terbayar / grandTotal) * 100)) : 0;
       return {
         id: p.id,
@@ -216,7 +270,7 @@ router.get('/interior', authenticate, async (req, res) => {
         sisa,
         persen,
         lunas: sisa === 0 && grandTotal > 0,
-        pembayarans: p.pembayarans.map(pb => ({ tipe: pb.tipe, jumlah: parseFloat(pb.jumlah), tanggal: pb.tanggal })),
+        pembayarans: p.pembayarans.map(pb => ({ tipe: pb.tipe, jumlah: money(pb.jumlah), tanggal: pb.tanggal })),
       };
     });
 

@@ -542,13 +542,16 @@ const MOBILE_SCALE_JS = `
 `;
 
 const formatRupiah = (num) =>
-  'Rp ' + Number(num || 0).toLocaleString('id-ID', { minimumFractionDigits: 0 });
+  'Rp ' + Math.round(Number(num || 0)).toLocaleString('id-ID', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 
 const toTitleCase = (str) =>
   str ? str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '';
 
 const terbilang = (num) => {
-  const n = Math.floor(Math.abs(num || 0));
+  const n = Math.round(Math.abs(num || 0));
   if (n === 0) return 'Nol rupiah';
 
   const satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan',

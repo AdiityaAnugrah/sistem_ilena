@@ -88,6 +88,8 @@ const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
+const money = (value) => Math.round(Number(value || 0));
+
 const fullInclude = [
   { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
   { model: SuratJalan, as: 'suratJalans' },
@@ -137,7 +139,7 @@ router.post('/', authenticate, async (req, res) => {
       qty: item.qty,
       harga_satuan: item.harga_satuan,
       diskon: item.diskon || 0,
-      subtotal: item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100),
+      subtotal: money(item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100)),
     }));
     await PenjualanOfflineItem.bulkCreate(itemsData);
 
@@ -252,7 +254,7 @@ router.put('/:id', authenticate, async (req, res) => {
         qty: item.qty,
         harga_satuan: item.harga_satuan,
         diskon: item.diskon || 0,
-        subtotal: item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100),
+        subtotal: money(item.qty * item.harga_satuan * (1 - Math.max(0, item.diskon || 0) / 100)),
       }));
       await PenjualanOfflineItem.bulkCreate(itemsData);
     }
@@ -452,7 +454,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
           finalHargaSatuan = displayEffectivePrice;
           finalDiskon = 0;
         }
-        const subtotalM = finalHargaSatuan * qtyJualInt * (1 - finalDiskon / 100);
+        const subtotalM = money(finalHargaSatuan * qtyJualInt * (1 - finalDiskon / 100));
 
         // Create new item in PENJUALAN
         await PenjualanOfflineItem.create({
@@ -468,7 +470,7 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
 
         // Update remaining display qty
         const sisakQty = itemDisplay.qty - qtyJualInt;
-        const subtotalSisa = sisakQty > 0 ? displayEffectivePrice * sisakQty : 0;
+        const subtotalSisa = sisakQty > 0 ? money(displayEffectivePrice * sisakQty) : 0;
         await itemDisplay.update({ qty: sisakQty > 0 ? sisakQty : 0, subtotal: subtotalSisa }, { transaction: t });
       }
 

@@ -202,7 +202,7 @@ function buildExcelXml({
       <Column ss:Width="55"/><Column ss:Width="100"/><Column ss:Width="110"/><Column ss:Width="80"/>
       <Row ss:Height="26">${excelCell(title, 'String', 'Title')}</Row>
       <Row>${excelCell(`Filter: ${filters || 'Semua data'}`, 'String', 'Meta')}</Row>
-      <Row>${excelCell(`Total transaksi: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total qty: ${totalQty}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: Rp ${totalNilai.toLocaleString('id-ID')}`, 'String', 'Summary')}</Row>
+      <Row>${excelCell(`Total transaksi: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total qty: ${totalQty}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: Rp ${Math.round(totalNilai).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`, 'String', 'Summary')}</Row>
       <Row>${header.map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
       ${bodyXml}
     </Table>

@@ -15,6 +15,8 @@ const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
 
+const money = (value) => Math.round(Number(value || 0));
+
 // ── Auto-recalculate status interior ──────────────────────────────────────────
 async function recalculateStatusInterior(penjualanId) {
   const [penjualan, items, pembayarans, proformaCount, sjCount, invoiceCount] = await Promise.all([
@@ -36,8 +38,8 @@ async function recalculateStatusInterior(penjualanId) {
   const allDelivered = items.length > 0 && items.every(i => (i.sudah_kirim || 0) >= i.qty);
   const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
   const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
-  const grandTotal = subtotal + ppn;
-  const totalBayar = pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0);
+  const grandTotal = money(subtotal + ppn);
+  const totalBayar = money(pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0));
   const fullyPaid = grandTotal > 0 && totalBayar >= grandTotal;
 
   const newStatus = (allDelivered && fullyPaid) ? 'COMPLETED' : 'ACTIVE';
@@ -315,7 +317,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     // Calculate Grand Total
     const subtotal = penjualan.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
     const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
-    const grandTotal = subtotal + ppn;
+    const grandTotal = money(subtotal + ppn);
 
     // Rule: PELUNASAN_PENUH amount must equal Grand Total (within 0.01 tolerance)
     if (tipe === 'PELUNASAN_PENUH') {
@@ -323,9 +325,9 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
         const formatRupiah = (num) => {
           return new Intl.NumberFormat('id-ID', {
             style: 'decimal',
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }).format(num);
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(Math.round(Number(num || 0)));
         };
         await transaction.rollback();
         return res.status(400).json({ 
@@ -336,18 +338,16 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
 
     // Rule: Check overpayment using existingPayments from flow detection
     // Calculate total existing payments rounded to 2 decimal places (Requirement 3.1)
-    const totalExisting = Math.round(
-      existingPayments.reduce((sum, p) => sum + parseFloat(p.jumlah || 0), 0) * 100
-    ) / 100;
+    const totalExisting = money(existingPayments.reduce((sum, p) => sum + parseFloat(p.jumlah || 0), 0));
     
     if (totalExisting + jumlahNum > grandTotal + 0.01) {
-      const remaining = Math.round((grandTotal - totalExisting) * 100) / 100;
+      const remaining = money(grandTotal - totalExisting);
       const formatRupiah = (num) => {
         return new Intl.NumberFormat('id-ID', {
           style: 'decimal',
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }).format(num);
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(Math.round(Number(num || 0)));
       };
       await transaction.rollback();
       return res.status(400).json({ 

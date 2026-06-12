@@ -97,7 +97,7 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }>
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
 
 function formatRp(v: number) {
-  return 'Rp ' + Math.round(v).toLocaleString('id-ID');
+  return 'Rp ' + Math.round(Number(v || 0)).toLocaleString('id-ID', { maximumFractionDigits: 0 });
 }
 
 function formatTgl(d?: string) {

@@ -4,13 +4,13 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import { CircularProgress, Pagination } from '@mui/material';
-import { TrendingUp, Store, Wallet, ArrowRight, CheckCircle, Clock, RefreshCw, Info, ChevronDown } from 'lucide-react';
+import { ArrowRight, CheckCircle, Clock, RefreshCw, Info, ChevronDown, Download } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 
 const today = () => new Date().toISOString().split('T')[0];
-const firstOfMonth = () => {
+const firstOfYear = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  return `${d.getFullYear()}-01-01`;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,6 +38,69 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+const escapeXml = (value: unknown) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
+const excelCell = (value: unknown, type: 'String' | 'Number' = 'String', style?: string) => {
+  const safeValue = type === 'Number' ? Math.round(Number(value || 0)) : escapeXml(value);
+  return `<Cell${style ? ` ss:StyleID="${style}"` : ''}><Data ss:Type="${type}">${safeValue}</Data></Cell>`;
+};
+
+const sheetName = (name: string) => escapeXml(name.slice(0, 31));
+const money = (value: unknown) => Math.round(Number(value || 0));
+
+function worksheetXml(name: string, columns: number[], rows: string, freezeRow = 4) {
+  return `
+  <Worksheet ss:Name="${sheetName(name)}">
+    <Table>
+      ${columns.map(width => `<Column ss:Width="${width}"/>`).join('')}
+      ${rows}
+    </Table>
+    <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+      <FreezePanes/><FrozenNoSplit/><SplitHorizontal>${freezeRow}</SplitHorizontal><TopRowBottomPane>${freezeRow}</TopRowBottomPane>
+      <ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios>
+    </WorksheetOptions>
+  </Worksheet>`;
+}
+
+function buildWorkbookXml(title: string, worksheets: string[]) {
+  return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="Title"><Font ss:Bold="1" ss:Size="16" ss:Color="#0f172a"/><Alignment ss:Vertical="Center"/></Style>
+    <Style ss:ID="Meta"><Font ss:Size="10" ss:Color="#64748b"/></Style>
+    <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#ffffff"/><Interior ss:Color="#b91c1c" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#7f1d1d"/></Borders></Style>
+    <Style ss:ID="Number"><NumberFormat ss:Format="#,##0"/></Style>
+    <Style ss:ID="Currency"><NumberFormat ss:Format="Rp #,##0"/></Style>
+    <Style ss:ID="Summary"><Font ss:Bold="1"/><Interior ss:Color="#fef2f2" ss:Pattern="Solid"/></Style>
+  </Styles>
+  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+    <Title>${escapeXml(title)}</Title>
+  </DocumentProperties>
+  ${worksheets.join('')}
+</Workbook>`;
+}
+
+function downloadExcelXml(filename: string, xml: string) {
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function KeuanganPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'offline' | 'interior'>('offline');
@@ -45,8 +108,9 @@ export default function KeuanganPage() {
   const [showInfo, setShowInfo] = useState(false);
 
   // Filter — default semua data
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(firstOfYear);
+  const [to, setTo] = useState(today);
+  const [exportLoading, setExportLoading] = useState<'offline' | 'interior' | 'gabungan' | null>(null);
 
   // Offline state
   const [offlineData, setOfflineData] = useState<any>(null);
@@ -113,11 +177,176 @@ export default function KeuanganPage() {
   };
 
   const handleReset = () => {
-    const f = firstOfMonth(), t = today();
+    const f = firstOfYear(), t = today();
     setFrom(f); setTo(t);
     setOfflinePage(1); setInteriorPage(1);
     fetchOffline(1, offlineSubTab, f, t);
     fetchInterior(1, f, t);
+  };
+
+  const fetchAllKeuangan = async (kind: 'offline' | 'interior', tab?: 'penjualan' | 'display') => {
+    const limit = 100;
+    let page = 1;
+    let totalPages = 1;
+    const rows: any[] = [];
+    let summary: any = null;
+
+    do {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        ...(kind === 'offline' && tab ? { tab } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+      });
+      const res = await api.get(`/keuangan/${kind}?${params}`);
+      summary = summary || res.data.summary;
+      rows.push(...(res.data.list || []));
+      totalPages = res.data.totalPages || 1;
+      page += 1;
+    } while (page <= totalPages);
+
+    return { summary, rows };
+  };
+
+  const filterLabel = `${from ? formatDate(from) : '...'} - ${to ? formatDate(to) : '...'}`;
+
+  const buildSummarySheet = (name: string, title: string, rows: Array<[string, number | string]>) => worksheetXml(
+    name,
+    [230, 150],
+    `
+      <Row ss:Height="26">${excelCell(title, 'String', 'Title')}</Row>
+      <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
+      <Row>${excelCell(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 'String', 'Meta')}</Row>
+      <Row>${excelCell('Metrik', 'String', 'Header')}${excelCell('Nilai', 'String', 'Header')}</Row>
+      ${rows.map(([label, value]) => `<Row>${excelCell(label)}${typeof value === 'number' ? excelCell(value, 'Number', 'Currency') : excelCell(value)}</Row>`).join('')}
+    `,
+  );
+
+  const buildOfflinePenjualanSheet = (rows: any[]) => {
+    const total = rows.reduce((sum, row) => sum + money(row.total), 0);
+    return worksheetXml('Offline Penjualan', [55, 92, 190, 95, 85, 125, 95, 120], `
+      <Row ss:Height="26">${excelCell('Penjualan Offline', 'String', 'Title')}</Row>
+      <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
+      <Row>${excelCell(`Total transaksi: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(total)}`, 'String', 'Summary')}</Row>
+      <Row>${['ID', 'Tanggal', 'Nama Penerima', 'Faktur', 'Status', 'Sumber', 'Pelunasan', 'Total'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
+      ${rows.map(row => `
+        <Row>
+          ${excelCell(row.id, 'Number', 'Number')}
+          ${excelCell(formatDate(row.tanggal))}
+          ${excelCell(row.nama_penerima)}
+          ${excelCell(row.faktur === 'FAKTUR' ? 'Faktur' : 'Non Faktur')}
+          ${excelCell(row.status)}
+          ${excelCell(row.from_display ? 'Dari Display' : 'Penjualan Langsung')}
+          ${excelCell(row.belumLunas ? 'Belum Lunas' : 'Lunas')}
+          ${excelCell(row.total, 'Number', 'Currency')}
+        </Row>`).join('')}
+    `);
+  };
+
+  const buildOfflineDisplaySheet = (rows: any[]) => {
+    const totalNilai = rows.reduce((sum, row) => sum + money(row.nilaiTotal), 0);
+    const totalSisa = rows.reduce((sum, row) => sum + money(row.nilaiSisa), 0);
+    const totalLaku = rows.reduce((sum, row) => sum + money(row.nilaiTerjual), 0);
+    const totalLakuBelumLunas = rows.reduce((sum, row) => sum + money(row.nilaiTerjualBelumLunas), 0);
+    return worksheetXml('Offline Display', [55, 92, 190, 85, 100, 120, 120, 120, 135], `
+      <Row ss:Height="26">${excelCell('Display / Piutang Offline', 'String', 'Title')}</Row>
+      <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
+      <Row>${excelCell(`Total display: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(totalNilai)}`, 'String', 'Summary')}${excelCell(`Sisa piutang: ${formatRupiah(totalSisa)}`, 'String', 'Summary')}${excelCell(`Sudah terjual: ${formatRupiah(totalLaku)}`, 'String', 'Summary')}${excelCell(`Laku belum lunas: ${formatRupiah(totalLakuBelumLunas)}`, 'String', 'Summary')}</Row>
+      <Row>${['ID', 'Tanggal', 'Nama Toko/Penerima', 'Status', 'Kondisi', 'Total Nilai', 'Sisa Piutang', 'Sudah Terjual', 'Laku Belum Lunas'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
+      ${rows.map(row => `
+        <Row>
+          ${excelCell(row.id, 'Number', 'Number')}
+          ${excelCell(formatDate(row.tanggal))}
+          ${excelCell(row.nama_penerima)}
+          ${excelCell(row.status)}
+          ${excelCell(row.adaSisa ? 'Ada Sisa' : 'Semua Terjual')}
+          ${excelCell(row.nilaiTotal, 'Number', 'Currency')}
+          ${excelCell(row.nilaiSisa, 'Number', 'Currency')}
+          ${excelCell(row.nilaiTerjual, 'Number', 'Currency')}
+          ${excelCell(row.nilaiTerjualBelumLunas, 'Number', 'Currency')}
+        </Row>`).join('')}
+    `);
+  };
+
+  const buildInteriorSheet = (rows: any[]) => {
+    const totalNilai = rows.reduce((sum, row) => sum + money(row.grandTotal), 0);
+    const totalBayar = rows.reduce((sum, row) => sum + money(row.terbayar), 0);
+    const totalSisa = rows.reduce((sum, row) => sum + money(row.sisa), 0);
+    return worksheetXml('Interior', [55, 92, 190, 105, 95, 85, 95, 120, 120, 120, 70], `
+      <Row ss:Height="26">${excelCell('Penjualan Interior', 'String', 'Title')}</Row>
+      <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
+      <Row>${excelCell(`Total proyek: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(totalNilai)}`, 'String', 'Summary')}${excelCell(`Terbayar: ${formatRupiah(totalBayar)}`, 'String', 'Summary')}${excelCell(`Outstanding: ${formatRupiah(totalSisa)}`, 'String', 'Summary')}</Row>
+      <Row>${['ID', 'Tanggal', 'Customer', 'No. PO', 'Faktur', 'Status', 'Pelunasan', 'Grand Total', 'Terbayar', 'Sisa', 'Progress'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
+      ${rows.map(row => `
+        <Row>
+          ${excelCell(row.id, 'Number', 'Number')}
+          ${excelCell(formatDate(row.tanggal))}
+          ${excelCell(row.nama_customer)}
+          ${excelCell(row.no_po || '-')}
+          ${excelCell(row.faktur || '-')}
+          ${excelCell(row.status)}
+          ${excelCell(row.lunas ? 'Lunas' : 'Belum Lunas')}
+          ${excelCell(row.grandTotal, 'Number', 'Currency')}
+          ${excelCell(row.terbayar, 'Number', 'Currency')}
+          ${excelCell(row.sisa, 'Number', 'Currency')}
+          ${excelCell(`${row.persen}%`)}
+        </Row>`).join('')}
+    `);
+  };
+
+  const handleExport = async (mode: 'offline' | 'interior' | 'gabungan') => {
+    setExportLoading(mode);
+    try {
+      const worksheets: string[] = [];
+      let offlinePenjualan: any = null;
+      let offlineDisplay: any = null;
+      let interior: any = null;
+
+      if (mode === 'offline' || mode === 'gabungan') {
+        [offlinePenjualan, offlineDisplay] = await Promise.all([
+          fetchAllKeuangan('offline', 'penjualan'),
+          fetchAllKeuangan('offline', 'display'),
+        ]);
+      }
+      if (mode === 'interior' || mode === 'gabungan') {
+        interior = await fetchAllKeuangan('interior');
+      }
+
+      if (mode === 'gabungan') {
+        worksheets.push(buildSummarySheet('Ringkasan Gabungan', 'Ringkasan Keuangan Gabungan', [
+          ['Omzet Offline', offlinePenjualan?.summary?.totalOmzet || 0],
+          ['Penjualan Offline Belum Lunas', offlinePenjualan?.summary?.totalBelumLunas || 0],
+          ['Piutang Display', offlinePenjualan?.summary?.totalPiutang || 0],
+          ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
+          ['Nilai Proyek Interior', interior?.summary?.totalNilaiProyek || 0],
+          ['Terbayar Interior', interior?.summary?.totalTerbayar || 0],
+          ['Outstanding Interior', interior?.summary?.totalOutstanding || 0],
+        ]));
+      } else if (mode === 'offline') {
+        worksheets.push(buildSummarySheet('Ringkasan Offline', 'Ringkasan Keuangan Offline', [
+          ['Total Omzet Penjualan', offlinePenjualan?.summary?.totalOmzet || 0],
+          ['Penjualan Belum Lunas', offlinePenjualan?.summary?.totalBelumLunas || 0],
+          ['Piutang Display', offlinePenjualan?.summary?.totalPiutang || 0],
+          ['Sudah Terjual dari Display', offlinePenjualan?.summary?.totalTerjualDisplay || 0],
+          ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
+        ]));
+      } else {
+        worksheets.push(buildSummarySheet('Ringkasan Interior', 'Ringkasan Keuangan Interior', [
+          ['Total Nilai Proyek', interior?.summary?.totalNilaiProyek || 0],
+          ['Total Terbayar', interior?.summary?.totalTerbayar || 0],
+          ['Total Outstanding', interior?.summary?.totalOutstanding || 0],
+        ]));
+      }
+
+      if (offlinePenjualan) worksheets.push(buildOfflinePenjualanSheet(offlinePenjualan.rows));
+      if (offlineDisplay) worksheets.push(buildOfflineDisplaySheet(offlineDisplay.rows));
+      if (interior) worksheets.push(buildInteriorSheet(interior.rows));
+
+      downloadExcelXml(`keuangan-${mode}-${from || 'awal'}_${to || 'akhir'}.xls`, buildWorkbookXml(`Export Keuangan ${mode}`, worksheets));
+    } finally {
+      setExportLoading(null);
+    }
   };
 
   const summary = offlineData?.summary;
@@ -167,8 +396,26 @@ export default function KeuanganPage() {
         <button onClick={handleReset}
           className="px-4 py-2 rounded-lg text-sm font-medium"
           style={{ background: '#f1f5f9', color: '#475569' }}>
-          Bulan Ini
+          Tahun Ini
         </button>
+        <div className="flex flex-wrap gap-2">
+          {([
+            ['offline', 'Export Offline'],
+            ['interior', 'Export Interior'],
+            ['gabungan', 'Export Gabungan'],
+          ] as const).map(([mode, label]) => (
+            <button
+              key={mode}
+              onClick={() => handleExport(mode)}
+              disabled={exportLoading !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-60"
+              style={{ background: '#0f172a', color: '#fff' }}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {exportLoading === mode ? 'Export...' : label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab utama */}
@@ -191,8 +438,14 @@ export default function KeuanganPage() {
       {activeTab === 'offline' && (
         <div className="space-y-5">
           {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <SummaryCard label="Total Omzet Penjualan" value={summary ? formatRupiah(summary.totalOmzet) : '-'} color="#0f172a" />
+            <SummaryCard
+              label="Penjualan Belum Lunas"
+              value={summary ? formatRupiah(summary.totalBelumLunas) : '-'}
+              sub={summary ? `Dari display: ${formatRupiah(summary.totalDisplayBelumLunas)}` : undefined}
+              color="#dc2626"
+            />
             <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Nilai barang masih di toko" color="#f97316" />
             <SummaryCard label="Sudah Terjual dari Display" value={summary ? formatRupiah(summary.totalTerjualDisplay) : '-'} color="#16a34a" />
           </div>
@@ -255,11 +508,17 @@ export default function KeuanganPage() {
                 <div style={{ borderTop: '1px solid #bae6fd' }} />
 
                 {/* Penjelasan tiap kartu */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
                     <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Total Omzet Penjualan</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
-                      Uang yang sudah masuk — dari penjualan langsung <em>dan</em> penjualan item display yang sudah terbeli pelanggan.
+                      Total nilai penjualan langsung <em>dan</em> penjualan item display yang sudah terbeli pelanggan.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Penjualan Belum Lunas</p>
+                    <p className="text-xs" style={{ color: '#64748b' }}>
+                      Nilai transaksi penjualan offline yang statusnya belum Selesai, termasuk barang display yang sudah laku.
                     </p>
                   </div>
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
@@ -370,7 +629,7 @@ export default function KeuanganPage() {
                       <ArrowRight className="h-3.5 w-3.5" style={{ color: '#94a3b8' }} />
                     </button>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     <div className="p-2.5 rounded-xl text-center" style={{ background: '#f8fafc' }}>
                       <p className="text-xs" style={{ color: '#94a3b8' }}>Total Nilai</p>
                       <p className="text-sm font-bold mt-0.5" style={{ color: '#1e293b' }}>{formatRupiah(row.nilaiTotal)}</p>
@@ -382,6 +641,10 @@ export default function KeuanganPage() {
                     <div className="p-2.5 rounded-xl text-center" style={{ background: '#f0fdf4' }}>
                       <p className="text-xs" style={{ color: '#16a34a' }}>Sudah Terjual</p>
                       <p className="text-sm font-bold mt-0.5" style={{ color: '#15803d' }}>{formatRupiah(row.nilaiTerjual)}</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl text-center" style={{ background: '#fef2f2' }}>
+                      <p className="text-xs" style={{ color: '#dc2626' }}>Laku Belum Lunas</p>
+                      <p className="text-sm font-bold mt-0.5" style={{ color: '#b91c1c' }}>{formatRupiah(row.nilaiTerjualBelumLunas)}</p>
                     </div>
                   </div>
                 </div>

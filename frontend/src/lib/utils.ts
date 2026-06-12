@@ -11,7 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export const formatRupiah = (num: number | string | null | undefined): string => {
   if (num === null || num === undefined) return 'Rp 0';
-  return 'Rp ' + Number(num).toLocaleString('id-ID', { minimumFractionDigits: 0 });
+  return 'Rp ' + Math.round(Number(num) || 0).toLocaleString('id-ID', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 };
 
 export const formatDate = (dateStr: string | null | undefined): string => {

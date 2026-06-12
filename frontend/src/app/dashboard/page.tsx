@@ -8,9 +8,10 @@ import { useListSync } from '@/hooks/useListSync';
 
 
 function fmtRp(n: number) {
+  n = Math.round(Number(n || 0));
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1).replace('.', ',')} M`;
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1).replace('.', ',')} jt`;
-  return `Rp ${n.toLocaleString('id-ID')}`;
+  return `Rp ${n.toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 }
 
 export default function DashboardPage() {
@@ -47,7 +48,7 @@ export default function DashboardPage() {
       ]);
       setFinance({
         omzet: offRes.data.summary?.totalOmzet || 0,
-        piutang: offRes.data.summary?.totalPiutang || 0,
+        piutang: (offRes.data.summary?.totalPiutang || 0) + (offRes.data.summary?.totalDisplayBelumLunas || 0),
         outstanding: intRes.data.summary?.totalOutstanding || 0,
       });
     } catch {
@@ -286,7 +287,7 @@ export default function DashboardPage() {
             ) : (
               <div className="text-2xl font-extrabold tracking-tight text-slate-900">{fmtRp(finance.piutang)}</div>
             )}
-            <div className="text-sm sm:text-xs text-slate-500 mt-1">Barang display belum terjual</div>
+            <div className="text-sm sm:text-xs text-slate-500 mt-1">Sisa display + laku belum lunas</div>
           </div>
 
           {/* Outstanding Interior */}
