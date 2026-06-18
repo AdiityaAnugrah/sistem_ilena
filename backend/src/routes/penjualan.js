@@ -132,10 +132,49 @@ router.get('/semua', authenticate, async (req, res) => {
     const countUnionSQL = countParts.join(' UNION ALL ');
     const countSQL = `SELECT COUNT(*) AS total FROM (${countUnionSQL}) AS combined`;
 
+    const summaryParts = [];
+    const summaryReplacements = [];
+
+    if (includeOffline) {
+      summaryParts.push(`
+        SELECT COALESCE(SUM((
+          SELECT COALESCE(SUM(subtotal), 0)
+          FROM penjualan_offline_items
+          WHERE penjualan_offline_id = po.id
+        )), 0) AS totalNilai
+        FROM penjualan_offline po
+        ${offlineWhereClause}
+      `);
+      summaryReplacements.push(...offlineReplacements);
+    }
+
+    if (includeInterior) {
+      summaryParts.push(`
+        SELECT COALESCE(SUM((
+          SELECT COALESCE(SUM(subtotal), 0)
+          FROM penjualan_interior_items
+          WHERE penjualan_interior_id = pi.id
+        ) * (
+          CASE
+            WHEN pi.pakai_ppn = 1 AND pi.ppn_persen IS NOT NULL
+            THEN 1 + (pi.ppn_persen / 100)
+            ELSE 1
+          END
+        )), 0) AS totalNilai
+        FROM penjualan_interior pi
+        ${interiorWhereClause}
+      `);
+      summaryReplacements.push(...interiorReplacements);
+    }
+
+    const summaryUnionSQL = summaryParts.join(' UNION ALL ');
+    const summarySQL = `SELECT COALESCE(SUM(totalNilai), 0) AS totalNilai FROM (${summaryUnionSQL}) AS summary_combined`;
+
     // Execute both queries
-    const [rows, countResult] = await Promise.all([
+    const [rows, countResult, summaryResult] = await Promise.all([
       sequelize.query(mainSQL, { replacements: mainReplacements, type: QueryTypes.SELECT }),
       sequelize.query(countSQL, { replacements: countReplacements, type: QueryTypes.SELECT }),
+      sequelize.query(summarySQL, { replacements: summaryReplacements, type: QueryTypes.SELECT }),
     ]);
 
     const total = parseInt(countResult[0].total, 10);
@@ -146,6 +185,9 @@ router.get('/semua', authenticate, async (req, res) => {
       total,
       page: pageNum,
       totalPages,
+      summary: {
+        totalNilai: Math.round(Number(summaryResult[0]?.totalNilai || 0)),
+      },
     });
 
   } catch (err) {

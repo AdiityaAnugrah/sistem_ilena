@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatRupiah } from '@/lib/utils';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Chip, TextField, InputAdornment,
@@ -36,12 +36,19 @@ interface OfflineRow {
   invoices?: OfflineDoc[];
 }
 
+type PenjualanSummary = {
+  totalNilai: number;
+};
+
+const emptySummary: PenjualanSummary = { totalNilai: 0 };
+
 export default function PenjualanOfflinePage() {
   const [data, setData] = useState<OfflineRow[]>([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<PenjualanSummary>(emptySummary);
   const [loading, setLoading] = useState(false);
   const [tipeFilter, setTipeFilter] = useState('PENJUALAN');
   const [statusFilter, setStatusFilter] = useState('');
@@ -66,7 +73,9 @@ export default function PenjualanOfflinePage() {
       setData(res.data.data);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
+      setSummary(res.data.summary || emptySummary);
     } catch {
+      setSummary(emptySummary);
       toast.error('Gagal memuat data');
     } finally {
       setLoading(false);
@@ -246,7 +255,10 @@ export default function PenjualanOfflinePage() {
 
         {/* Footer */}
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, bgcolor: 'rgba(248,250,252,0.5)' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} transaksi</Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} transaksi</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total harga keseluruhan: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>
+          </Box>
           <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
         </Box>
       </Paper>

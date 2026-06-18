@@ -120,10 +120,15 @@ router.post('/', authenticate, async (req, res) => {
 // GET /api/penjualan-interior
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { faktur, status, search, page = 1, limit = 20 } = req.query;
+    const { faktur, status, search, tanggal_dari, tanggal_sampai, page = 1, limit = 20 } = req.query;
     const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
     if (faktur) where.faktur = faktur;
     if (status) where.status = status;
+    if (tanggal_dari || tanggal_sampai) {
+      where.tanggal = {};
+      if (tanggal_dari) where.tanggal[Op.gte] = tanggal_dari;
+      if (tanggal_sampai) where.tanggal[Op.lte] = tanggal_sampai;
+    }
     if (search) {
       where[Op.or] = [
         { nama_customer: { [Op.like]: `%${search}%` } },
@@ -133,6 +138,16 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    const summaryRows = await PenjualanInterior.findAll({
+      where,
+      attributes: ['id', 'pakai_ppn', 'ppn_persen'],
+      include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] }],
+    });
+    const totalNilai = summaryRows.reduce((sum, penjualan) => {
+      const subtotal = (penjualan.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0);
+      const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen || 0) / 100) : 0;
+      return sum + money(subtotal + ppn);
+    }, 0);
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
       include: [{ model: PenjualanInteriorItem, as: 'items' }],
@@ -147,6 +162,9 @@ router.get('/', authenticate, async (req, res) => {
       total: count,
       page: parseInt(page),
       totalPages: Math.ceil(count / parseInt(limit)),
+      summary: {
+        totalNilai: money(totalNilai),
+      },
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
