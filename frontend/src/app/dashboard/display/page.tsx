@@ -417,7 +417,6 @@ export default function DisplayPage() {
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Typography variant="caption" color="text.secondary">Total: <strong>{total}</strong> display</Typography>
                 <Typography variant="caption" color="text.secondary">Qty: <strong>{displaySummary.totalQty}</strong> pcs</Typography>
-                <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(displaySummary.totalNilai)}</strong></Typography>
               </Box>
               <Typography variant="caption" color="text.secondary">Export mengikuti filter yang sedang aktif.</Typography>
             </Box>
@@ -469,7 +468,10 @@ export default function DisplayPage() {
               </Table>
             </TableContainer>
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'rgba(248,250,252,0.5)' }}>
-              <Typography variant="caption" color="text.secondary">Total {total} display</Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="caption" color="text.secondary">Total {total} display</Typography>
+                <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(displaySummary.totalNilai)}</strong></Typography>
+              </Box>
               <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
             </Box>
           </>
@@ -481,7 +483,6 @@ export default function DisplayPage() {
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                 <Typography variant="caption" color="text.secondary">Total: <strong>{lakuTotal}</strong> penjualan dari display</Typography>
                 <Typography variant="caption" color="text.secondary">Qty: <strong>{lakuSummary.totalQty}</strong> pcs</Typography>
-                <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(lakuSummary.totalNilai)}</strong></Typography>
               </Box>
               <Button size="small" variant="outlined" startIcon={<RefreshCw size={14} className={lakuLoading ? 'animate-spin' : ''} />} onClick={fetchLaku} disabled={lakuLoading} sx={{ borderRadius: '8px', fontWeight: 700 }}>
                 Refresh
@@ -532,6 +533,9 @@ export default function DisplayPage() {
                 </TableBody>
               </Table>
             </TableContainer>
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-start', bgcolor: 'rgba(248,250,252,0.5)' }}>
+              <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(lakuSummary.totalNilai)}</strong></Typography>
+            </Box>
           </>
         )}
       </Paper>
