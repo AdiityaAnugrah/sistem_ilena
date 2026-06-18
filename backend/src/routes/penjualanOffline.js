@@ -181,6 +181,20 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
+    const summaryRow = await PenjualanOfflineItem.findOne({
+      attributes: [
+        [sequelize.fn('SUM', sequelize.col('penjualan_offline_items.qty')), 'totalQty'],
+        [sequelize.fn('SUM', sequelize.col('penjualan_offline_items.subtotal')), 'totalNilai'],
+      ],
+      include: [{
+        model: PenjualanOffline,
+        as: 'penjualan',
+        attributes: [],
+        required: true,
+        where,
+      }],
+      raw: true,
+    });
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where,
       include: [
@@ -200,6 +214,10 @@ router.get('/', authenticate, async (req, res) => {
       total: count,
       page: parseInt(page),
       totalPages: Math.ceil(count / parseInt(limit)),
+      summary: {
+        totalQty: Number(summaryRow?.totalQty || 0),
+        totalNilai: money(summaryRow?.totalNilai),
+      },
     });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });

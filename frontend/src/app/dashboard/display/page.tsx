@@ -66,6 +66,12 @@ interface DisplayRow {
 }
 
 type QueryParams = Record<string, string | number>;
+type DisplaySummary = {
+  totalQty: number;
+  totalNilai: number;
+};
+
+const emptySummary: DisplaySummary = { totalQty: 0, totalNilai: 0 };
 
 const getItems = (row: DisplayRow) => Array.isArray(row?.items) ? row.items : [];
 const getQty = (items: ProductItem[]) => items.reduce((s, i) => s + Number(i.qty || 0), 0);
@@ -240,10 +246,13 @@ export default function DisplayPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [displaySummary, setDisplaySummary] = useState<DisplaySummary>(emptySummary);
   const [loading, setLoading] = useState(false);
 
   // Sudah Laku
   const [lakuData, setLakuData] = useState<DisplayRow[]>([]);
+  const [lakuTotal, setLakuTotal] = useState(0);
+  const [lakuSummary, setLakuSummary] = useState<DisplaySummary>(emptySummary);
   const [lakuLoading, setLakuLoading] = useState(false);
 
   const buildParams = (mode: 'display' | 'laku', p = page, exportAll = false) => {
@@ -266,6 +275,7 @@ export default function DisplayPage() {
       setData(res.data.data);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
+      setDisplaySummary(res.data.summary || emptySummary);
     } catch {
       toast.error('Gagal memuat data display');
     } finally {
@@ -278,8 +288,12 @@ export default function DisplayPage() {
     try {
       const res = await api.get('/penjualan-offline', { params: buildParams('laku', 1, true) });
       setLakuData(res.data.data || []);
+      setLakuTotal(res.data.total || 0);
+      setLakuSummary(res.data.summary || emptySummary);
     } catch {
       setLakuData([]);
+      setLakuTotal(0);
+      setLakuSummary(emptySummary);
     } finally {
       setLakuLoading(false);
     }
@@ -400,7 +414,11 @@ export default function DisplayPage() {
         {tab === 0 && (
           <>
             <Box sx={{ px: 3, py: 1.5, bgcolor: '#fff', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">Total: <strong>{total}</strong> display</Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="caption" color="text.secondary">Total: <strong>{total}</strong> display</Typography>
+                <Typography variant="caption" color="text.secondary">Qty: <strong>{displaySummary.totalQty}</strong> pcs</Typography>
+                <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(displaySummary.totalNilai)}</strong></Typography>
+              </Box>
               <Typography variant="caption" color="text.secondary">Export mengikuti filter yang sedang aktif.</Typography>
             </Box>
             <TableContainer>
@@ -460,7 +478,11 @@ export default function DisplayPage() {
         {tab === 1 && (
           <>
             <Box sx={{ px: 3, py: 1.5, bgcolor: '#fff', borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-              <Typography variant="caption" color="text.secondary">Total: <strong>{lakuData.length}</strong> penjualan dari display</Typography>
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Typography variant="caption" color="text.secondary">Total: <strong>{lakuTotal}</strong> penjualan dari display</Typography>
+                <Typography variant="caption" color="text.secondary">Qty: <strong>{lakuSummary.totalQty}</strong> pcs</Typography>
+                <Typography variant="caption" color="text.secondary">Total harga keseluruhan: <strong>{formatRupiah(lakuSummary.totalNilai)}</strong></Typography>
+              </Box>
               <Button size="small" variant="outlined" startIcon={<RefreshCw size={14} className={lakuLoading ? 'animate-spin' : ''} />} onClick={fetchLaku} disabled={lakuLoading} sx={{ borderRadius: '8px', fontWeight: 700 }}>
                 Refresh
               </Button>
