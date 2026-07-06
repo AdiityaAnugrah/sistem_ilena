@@ -38,8 +38,12 @@ interface ProductItem {
   barang_id?: string;
   varian_nama?: string | null;
   qty?: number | string;
+  qty_retur_total?: number | string;
+  qty_net?: number | string;
   harga_satuan?: number | string;
   subtotal?: number | string;
+  subtotal_net?: number | string;
+  nilai_retur?: number | string;
   barang?: {
     nama?: string | null;
   } | null;
@@ -74,8 +78,10 @@ type DisplaySummary = {
 const emptySummary: DisplaySummary = { totalQty: 0, totalNilai: 0 };
 
 const getItems = (row: DisplayRow) => Array.isArray(row?.items) ? row.items : [];
-const getQty = (items: ProductItem[]) => items.reduce((s, i) => s + Number(i.qty || 0), 0);
-const getTotal = (items: ProductItem[]) => items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+const itemQtyNet = (item: ProductItem) => Number(item.qty_net ?? item.qty ?? 0);
+const itemSubtotalNet = (item: ProductItem) => Number(item.subtotal_net ?? item.subtotal ?? 0);
+const getQty = (items: ProductItem[]) => items.reduce((s, i) => s + itemQtyNet(i), 0);
+const getTotal = (items: ProductItem[]) => items.reduce((s, i) => s + itemSubtotalNet(i), 0);
 
 function ProductSummary({ items }: { items: ProductItem[] }) {
   if (!items.length) {
@@ -90,9 +96,9 @@ function ProductSummary({ items }: { items: ProductItem[] }) {
       {visible.map((item: ProductItem, idx) => (
         <Box key={item.id || `${item.barang_id}-${item.varian_nama || idx}`} sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
           <Chip
-            label={`${item.qty || 0} pcs`}
+            label={`${itemQtyNet(item)} pcs`}
             size="small"
-            sx={{ height: 20, borderRadius: '6px', fontSize: 10, fontWeight: 800, bgcolor: '#f1f5f9', color: '#475569', flexShrink: 0 }}
+            sx={{ height: 20, borderRadius: '6px', fontSize: 10, fontWeight: 800, bgcolor: Number(item.qty_retur_total || 0) > 0 ? '#fff7ed' : '#f1f5f9', color: Number(item.qty_retur_total || 0) > 0 ? '#c2410c' : '#475569', flexShrink: 0 }}
           />
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b', lineHeight: 1.25 }}>
@@ -101,6 +107,11 @@ function ProductSummary({ items }: { items: ProductItem[] }) {
             <Typography variant="caption" sx={{ color: item.varian_nama ? '#6d28d9' : '#94a3b8', fontWeight: item.varian_nama ? 700 : 500, display: 'block', lineHeight: 1.2 }}>
               {item.varian_nama || 'Tanpa varian'}
             </Typography>
+            {Number(item.qty_retur_total || 0) > 0 && (
+              <Typography variant="caption" sx={{ color: '#c2410c', fontWeight: 700, display: 'block', lineHeight: 1.2 }}>
+                Retur {item.qty_retur_total} pcs
+              </Typography>
+            )}
           </Box>
         </Box>
       ))}
@@ -159,9 +170,9 @@ function buildExcelXml({
       docs || '-',
       item.barang?.nama || item.barang_id || '-',
       item.varian_nama || 'Tanpa varian',
-      Number(item.qty || 0),
+      itemQtyNet(item),
       Number(item.harga_satuan || 0),
-      Number(item.subtotal || 0),
+      itemSubtotalNet(item),
       row.status,
       displayTotal,
     ]);
