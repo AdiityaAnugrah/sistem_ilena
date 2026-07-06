@@ -15,6 +15,12 @@ import { useRoomPresence } from '@/hooks/useRoomPresence';
 import EmailDokumenModal from '@/components/EmailDokumenModal';
 import AlamatForm from '@/components/forms/AlamatForm';
 
+
+const num = (v: any) => Number(v || 0);
+const qtyNet = (item: any) => num(item.qty_net ?? item.qty);
+const qtySisaRetur = (item: any) => num(item.qty_sisa_retur ?? item.qty);
+const subtotalNet = (item: any) => num(item.subtotal_net ?? item.subtotal);
+
 function parseDimensi(deskripsi: any): string {
   try {
     const d = typeof deskripsi === 'string' ? JSON.parse(deskripsi) : deskripsi;
@@ -323,16 +329,16 @@ const JualMultipleModal = ({
                     <div className="w-28 flex-shrink-0">
                       <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Qty Terjual</label>
                       <input
-                        type="number" min={0} max={item.qty} step={1}
+                        type="number" min={0} max={qtySisaRetur(item)} step={1}
                         value={f.qty === 0 ? '' : f.qty}
                         onBeforeInput={(e: any) => { if (e.data && !/^\d+$/.test(e.data)) e.preventDefault(); }}
                         onChange={e => {
-                          const v = Math.min(item.qty, Math.max(0, Math.floor(Number(e.target.value) || 0)));
+                          const v = Math.min(qtySisaRetur(item), Math.max(0, Math.floor(Number(e.target.value) || 0)));
                           updateForm(item.id, 'qty', v);
                         }}
                         className="w-full px-2 py-1.5 text-sm rounded-lg outline-none text-center font-bold transition-all"
                         style={{ border: `1px solid ${isSelected ? '#86efac' : '#cbd5e1'}`, background: '#fff' }}
-                        placeholder={`maks ${item.qty}`}
+                        placeholder={`maks ${qtySisaRetur(item)}`}
                       />
                     </div>
                     <div className="flex-1">
@@ -465,7 +471,7 @@ export default function PenjualanOfflineDetail() {
 
   const openJualModal = () => {
     const initForm: any = {};
-    data.items.filter((it: any) => it.qty > 0).forEach((it: any) => {
+    data.items.filter((it: any) => qtyNet(it) > 0).forEach((it: any) => {
       initForm[it.id] = { qty: 0, harga: '' };
     });
     setJualForm(initForm);
@@ -553,7 +559,7 @@ export default function PenjualanOfflineDetail() {
 
   const openReturModal = () => {
     const initItems: Record<number, number | ''> = {};
-    data.items?.forEach((item: any) => { initItems[item.id] = ''; });
+    data.items?.filter((item: any) => qtySisaRetur(item) > 0).forEach((item: any) => { initItems[item.id] = ''; });
     setReturForm({ tanggal: new Date().toISOString().split('T')[0], catatan: '', items: initItems });
     setReturModal(true);
   };
@@ -581,6 +587,18 @@ export default function PenjualanOfflineDetail() {
       toast.error(err.response?.data?.message || 'Gagal mencatat retur');
     } finally {
       setReturLoading(false);
+    }
+  };
+
+  const handleDeleteRetur = async (retur: any) => {
+    const ok = window.confirm(`Hapus retur ${retur.qty_retur} pcs tanggal ${formatDate(retur.tanggal)}? Stok akan dikoreksi kembali.`);
+    if (!ok) return;
+    try {
+      await api.delete(`/penjualan-offline/${id}/retur/${retur.id}`);
+      toast.success('Retur berhasil dihapus dan stok dikoreksi');
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus retur');
     }
   };
 
@@ -753,7 +771,9 @@ export default function PenjualanOfflineDetail() {
   }
 
   const isPenjualan = data.tipe === 'PENJUALAN';
-  const total = data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0) || 0;
+  const totalGross = num(data.total_gross ?? data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0));
+  const totalRetur = num(data.total_retur);
+  const total = num(data.total_net ?? totalGross);
 
   return (
     <div className="space-y-6">
@@ -898,7 +918,7 @@ export default function PenjualanOfflineDetail() {
                 )}
               {!isPenjualan && (
                 (data.suratPengantars?.length ?? 0) > 0 ? (
-                  data.items?.some((it: any) => it.qty > 0) && (
+                  data.items?.some((it: any) => qtyNet(it) > 0) && (
                     <button
                       onClick={openJualModal}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
@@ -922,7 +942,7 @@ export default function PenjualanOfflineDetail() {
               <table className="w-full">
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                    {['Produk', 'Qty', 'Harga Satuan', 'Diskon', 'Subtotal'].map(h => (
+                    {['Produk', 'Qty Awal', 'Retur', 'Sisa', 'Harga Satuan', 'Diskon', 'Subtotal Net'].map(h => (
                       <th key={h} className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-left" style={{ color: '#94a3b8' }}>
                         {h}
                       </th>
@@ -963,6 +983,12 @@ export default function PenjualanOfflineDetail() {
                       <td className="px-5 py-3.5 text-sm text-center" style={{ color: '#475569' }}>
                         {item.qty}
                       </td>
+                      <td className="px-5 py-3.5 text-sm text-center font-semibold" style={{ color: num(item.qty_retur_total) > 0 ? '#c2410c' : '#94a3b8' }}>
+                        {num(item.qty_retur_total) > 0 ? `-${item.qty_retur_total}` : '-'}
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-center font-bold" style={{ color: qtyNet(item) > 0 ? '#059669' : '#94a3b8' }}>
+                        {qtyNet(item)}
+                      </td>
                       <td className="px-5 py-3.5 text-sm" style={{ color: '#475569' }}>
                         {formatRupiah(item.harga_satuan)}
                       </td>
@@ -970,15 +996,17 @@ export default function PenjualanOfflineDetail() {
                         {item.diskon ? `${item.diskon}%` : '-'}
                       </td>
                       <td className="px-5 py-3.5 text-sm font-bold text-right">
-                        <div style={{ color: '#1e293b' }}>{formatRupiah(item.subtotal)}</div>
+                        <div style={{ color: '#1e293b' }}>{formatRupiah(subtotalNet(item))}</div>
+                        {num(item.nilai_retur) > 0 && <div className="text-[10px] font-medium" style={{ color: '#c2410c' }}>Retur {formatRupiah(item.nilai_retur)}</div>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3.5 text-sm font-bold text-right" style={{ color: '#475569' }}>
-                      Total
+                    <td colSpan={6} className="px-5 py-3.5 text-sm font-bold text-right" style={{ color: '#475569' }}>
+                      Total Net
+                      {totalRetur > 0 && <div className="text-[10px] font-medium" style={{ color: '#c2410c' }}>Gross {formatRupiah(totalGross)} - Retur {formatRupiah(totalRetur)}</div>}
                     </td>
                     <td className="px-5 py-3.5 text-base font-black text-right" style={{ color: '#FA2F2F' }}>
                       {formatRupiah(total)}
@@ -1091,14 +1119,27 @@ export default function PenjualanOfflineDetail() {
                   <div className="mt-3 space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Riwayat Retur</p>
                     {data.returs.map((r: any) => (
-                      <div key={r.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
-                        <div>
-                          <div className="text-xs font-medium" style={{ color: '#c2410c' }}>
+                      <div key={r.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium truncate" style={{ color: '#c2410c' }}>
                             {r.item?.barang_id || `Item #${r.penjualan_offline_item_id}`}
                           </div>
                           <div className="text-xs" style={{ color: '#9a3412' }}>{formatDate(r.tanggal)}</div>
                         </div>
-                        <span className="text-xs font-bold" style={{ color: '#c2410c' }}>-{r.qty_retur} pcs</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold" style={{ color: '#c2410c' }}>-{r.qty_retur} pcs</span>
+                          {canEditIdentitas && (
+                            <button
+                              onClick={() => handleDeleteRetur(r)}
+                              disabled={isLocked}
+                              title="Hapus/koreksi retur"
+                              className="p-1 rounded-md transition-all disabled:opacity-50"
+                              style={{ background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa' }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1290,7 +1331,7 @@ export default function PenjualanOfflineDetail() {
         catatan={docCatatan} setCatatan={setDocCatatan}
       />
       <JualMultipleModal
-        show={jualModal} items={data.items.filter((it: any) => it.qty > 0)}
+        show={jualModal} items={data.items.filter((it: any) => qtyNet(it) > 0)}
         onClose={() => setJualModal(false)}
         onSubmit={prosesJualItem} loading={jualLoading}
         form={jualForm} setForm={setJualForm}
@@ -1458,23 +1499,23 @@ export default function PenjualanOfflineDetail() {
             </div>
 
             <div className="space-y-3 mb-4">
-              {data.items?.map((item: any) => (
+              {data.items?.filter((item: any) => qtySisaRetur(item) > 0).map((item: any) => (
                 <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold truncate" style={{ color: '#1e293b' }}>{item.barang?.nama || item.barang_id}</div>
                     {item.varian_nama && <div className="text-xs" style={{ color: '#6d28d9' }}>{item.varian_nama}</div>}
-                    <div className="text-xs" style={{ color: '#94a3b8' }}>Qty beli: {item.qty}</div>
+                    <div className="text-xs" style={{ color: '#94a3b8' }}>Qty beli: {item.qty} · sudah retur: {num(item.qty_retur_total)} · sisa bisa retur: {qtySisaRetur(item)}</div>
                   </div>
                   <div className="flex-shrink-0 w-24">
                     <input
                       type="number"
                       min={0}
-                      max={item.qty}
+                      max={qtySisaRetur(item)}
                       placeholder="0"
                       value={returForm.items[item.id] === '' ? '' : returForm.items[item.id] ?? ''}
                       onChange={e => setReturForm(prev => ({
                         ...prev,
-                        items: { ...prev.items, [item.id]: e.target.value === '' ? '' : Math.min(item.qty, Math.max(0, Number(e.target.value))) }
+                        items: { ...prev.items, [item.id]: e.target.value === '' ? '' : Math.min(qtySisaRetur(item), Math.max(0, Number(e.target.value))) }
                       }))}
                       className="w-full px-3 py-2 rounded-lg text-sm text-center outline-none"
                       style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }}

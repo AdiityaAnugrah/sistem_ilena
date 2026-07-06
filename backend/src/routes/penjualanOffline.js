@@ -90,6 +90,67 @@ const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
 
+function itemNetSubtotal(item, returQty = 0) {
+  const qty = Number(item.qty || 0);
+  const subtotal = money(item.subtotal);
+  if (qty <= 0 || returQty <= 0) return subtotal;
+  const hargaNetPerUnit = subtotal / qty;
+  return Math.max(0, money(subtotal - (Number(returQty || 0) * hargaNetPerUnit)));
+}
+
+function applyOfflineReturSummary(penjualan) {
+  const data = typeof penjualan.toJSON === 'function' ? penjualan.toJSON() : penjualan;
+  const returByItemId = {};
+  for (const retur of (data.returs || [])) {
+    const itemId = Number(retur.penjualan_offline_item_id);
+    returByItemId[itemId] = (returByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
+  }
+
+  let totalGross = 0;
+  let totalRetur = 0;
+  let totalNet = 0;
+  let qtyGross = 0;
+  let qtyRetur = 0;
+  let qtyNet = 0;
+
+  data.items = (data.items || []).map((item) => {
+    const qty = Number(item.qty || 0);
+    const subtotal = money(item.subtotal);
+    const returQtyRaw = Number(returByItemId[item.id] || 0);
+    const returQty = Math.max(0, returQtyRaw);
+    const netQty = Math.max(0, qty - returQty);
+    const netSubtotal = itemNetSubtotal(item, returQty);
+    const returSubtotal = Math.max(0, subtotal - netSubtotal);
+
+    totalGross += subtotal;
+    totalRetur += returSubtotal;
+    totalNet += netSubtotal;
+    qtyGross += qty;
+    qtyRetur += returQty;
+    qtyNet += netQty;
+
+    return {
+      ...item,
+      qty_retur_total: returQty,
+      qty_sisa_retur: Math.max(0, qty - returQty),
+      qty_net: netQty,
+      nilai_retur: returSubtotal,
+      subtotal_net: netSubtotal,
+      retur_over_qty: returQty > qty,
+    };
+  });
+
+  return {
+    ...data,
+    total_gross: money(totalGross),
+    total_retur: money(totalRetur),
+    total_net: money(totalNet),
+    qty_gross: qtyGross,
+    qty_retur: qtyRetur,
+    qty_net: qtyNet,
+  };
+}
+
 const fullInclude = [
   { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
   { model: SuratJalan, as: 'suratJalans' },
@@ -181,27 +242,37 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const summaryRow = await PenjualanOfflineItem.findOne({
-      attributes: [
-        [sequelize.fn('SUM', sequelize.col('penjualan_offline_items.qty')), 'totalQty'],
-        [sequelize.fn('SUM', sequelize.col('penjualan_offline_items.subtotal')), 'totalNilai'],
+    const summaryRows = await PenjualanOffline.findAll({
+      where,
+      attributes: ['id'],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'], separate: true },
+        { model: ReturOffline, as: 'returs', attributes: ['penjualan_offline_item_id', 'qty_retur'], separate: true },
       ],
-      include: [{
-        model: PenjualanOffline,
-        as: 'penjualan',
-        attributes: [],
-        required: true,
-        where,
-      }],
-      raw: true,
+    });
+    const summary = summaryRows.map(applyOfflineReturSummary).reduce((acc, row) => ({
+      totalQty: acc.totalQty + Number(row.qty_net || 0),
+      totalQtyGross: acc.totalQtyGross + Number(row.qty_gross || 0),
+      totalQtyRetur: acc.totalQtyRetur + Number(row.qty_retur || 0),
+      totalNilai: acc.totalNilai + money(row.total_net),
+      totalNilaiGross: acc.totalNilaiGross + money(row.total_gross),
+      totalNilaiRetur: acc.totalNilaiRetur + money(row.total_retur),
+    }), {
+      totalQty: 0,
+      totalQtyGross: 0,
+      totalQtyRetur: 0,
+      totalNilai: 0,
+      totalNilaiGross: 0,
+      totalNilaiRetur: 0,
     });
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where,
       include: [
-        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+        { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }], separate: true },
         { model: SuratJalan, as: 'suratJalans', attributes: ['nomor_surat', 'tanggal'] },
         { model: Invoice, as: 'invoices', attributes: ['nomor_invoice', 'tanggal'] },
         { model: SuratPengantar, as: 'suratPengantars', attributes: ['nomor_sp', 'tanggal'] },
+        { model: ReturOffline, as: 'returs', attributes: ['penjualan_offline_item_id', 'qty_retur'], separate: true },
       ],
       limit: parseInt(limit),
       offset,
@@ -210,13 +281,17 @@ router.get('/', authenticate, async (req, res) => {
     });
 
     return res.json({
-      data: rows,
+      data: rows.map(applyOfflineReturSummary),
       total: count,
       page: parseInt(page),
       totalPages: Math.ceil(count / parseInt(limit)),
       summary: {
-        totalQty: Number(summaryRow?.totalQty || 0),
-        totalNilai: money(summaryRow?.totalNilai),
+        totalQty: summary.totalQty,
+        totalQtyGross: summary.totalQtyGross,
+        totalQtyRetur: summary.totalQtyRetur,
+        totalNilai: money(summary.totalNilai),
+        totalNilaiGross: money(summary.totalNilaiGross),
+        totalNilaiRetur: money(summary.totalNilaiRetur),
       },
     });
   } catch (err) {
@@ -229,7 +304,7 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const penjualan = await PenjualanOffline.findByPk(req.params.id, { include: fullInclude });
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
-    return res.json(penjualan);
+    return res.json(applyOfflineReturSummary(penjualan));
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -410,8 +485,13 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
         if (!itemDisplay) {
           throw new Error(`Item ID ${reqItem.item_id} tidak ditemukan.`);
         }
-        if (qtyJualInt > itemDisplay.qty) {
-          throw new Error(`Qty jual melebihi qty display untuk item ID ${reqItem.item_id}.`);
+        const returnedQty = await ReturOffline.sum('qty_retur', {
+          where: { penjualan_offline_item_id: itemDisplay.id },
+          transaction: t,
+        }) || 0;
+        const sisaDisplay = Math.max(0, Number(itemDisplay.qty || 0) - Number(returnedQty || 0));
+        if (qtyJualInt > sisaDisplay) {
+          throw new Error(`Qty jual melebihi sisa display untuk item ID ${reqItem.item_id}. Sisa tersedia: ${sisaDisplay}.`);
         }
 
         validItemsToProcess.push({
@@ -713,13 +793,39 @@ router.post('/:id/retur', authenticate, async (req, res) => {
       }
     }
 
-    const returItems = [];
+    const requestReturByItemId = {};
     for (const item of items) {
-      const { penjualan_offline_item_id, qty_retur } = item;
-      if (!qty_retur || qty_retur <= 0) {
+      const itemId = Number(item.penjualan_offline_item_id);
+      const qtyRetur = Number(item.qty_retur);
+      if (!itemId || !Number.isInteger(itemId)) {
         await t.rollback();
-        return res.status(400).json({ message: 'Qty retur harus lebih dari 0' });
+        return res.status(400).json({ message: 'Item retur tidak valid' });
       }
+      if (!qtyRetur || qtyRetur <= 0 || !Number.isInteger(qtyRetur)) {
+        await t.rollback();
+        return res.status(400).json({ message: 'Qty retur harus bilangan bulat lebih dari 0' });
+      }
+      requestReturByItemId[itemId] = (requestReturByItemId[itemId] || 0) + qtyRetur;
+    }
+
+    const existingReturs = await ReturOffline.findAll({
+      where: { penjualan_offline_id: req.params.id },
+      attributes: [
+        'penjualan_offline_item_id',
+        [sequelize.fn('SUM', sequelize.col('qty_retur')), 'total_retur'],
+      ],
+      group: ['penjualan_offline_item_id'],
+      raw: true,
+      transaction: t,
+    });
+    const existingReturByItemId = {};
+    for (const retur of existingReturs) {
+      existingReturByItemId[Number(retur.penjualan_offline_item_id)] = Number(retur.total_retur || 0);
+    }
+
+    const returItems = [];
+    for (const [itemIdRaw, requestQty] of Object.entries(requestReturByItemId)) {
+      const penjualan_offline_item_id = Number(itemIdRaw);
 
       const offlineItem = await PenjualanOfflineItem.findOne({
         where: { id: penjualan_offline_item_id, penjualan_offline_id: req.params.id },
@@ -729,22 +835,26 @@ router.post('/:id/retur', authenticate, async (req, res) => {
         await t.rollback();
         return res.status(400).json({ message: `Item #${penjualan_offline_item_id} tidak ditemukan pada penjualan ini` });
       }
-      if (qty_retur > offlineItem.qty) {
+      const existingQty = Number(existingReturByItemId[penjualan_offline_item_id] || 0);
+      const sisaRetur = Math.max(0, Number(offlineItem.qty || 0) - existingQty);
+      if (requestQty > sisaRetur) {
         await t.rollback();
-        return res.status(400).json({ message: `Qty retur melebihi qty pembelian (${offlineItem.qty})` });
+        return res.status(400).json({
+          message: `Qty retur ${offlineItem.barang_id || `item #${penjualan_offline_item_id}`} melebihi sisa yang boleh diretur (${sisaRetur}). Total retur sebelumnya: ${existingQty}, qty beli: ${offlineItem.qty}.`,
+        });
       }
 
       await ReturOffline.create({
         penjualan_offline_id: req.params.id,
         surat_jalan_id: surat_jalan_id || null,
         penjualan_offline_item_id,
-        qty_retur,
+        qty_retur: requestQty,
         tanggal,
         catatan: catatan || null,
         created_by: req.user.id,
       }, { transaction: t });
 
-      returItems.push({ ...offlineItem.dataValues, qty_retur });
+      returItems.push({ ...offlineItem.dataValues, qty_retur: requestQty });
     }
 
     await t.commit();
@@ -757,6 +867,57 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     emitDataUpdated(`penjualan-offline:${req.params.id}`, { updatedBy: req.user.id });
 
     return res.status(201).json({ message: 'Retur berhasil dicatat' });
+  } catch (err) {
+    await t.rollback();
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// DELETE /api/penjualan-offline/:id/retur/:retur_id
+router.delete('/:id/retur/:retur_id', authenticate, async (req, res) => {
+  if (!['DEV', 'SUPER_ADMIN', 'ADMIN', 'TEST'].includes(req.user.role)) {
+    return res.status(403).json({ message: 'Akses ditolak.' });
+  }
+
+  const t = await sequelize.transaction();
+  try {
+    const penjualan = await PenjualanOffline.findByPk(req.params.id, { transaction: t });
+    if (!penjualan) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Penjualan tidak ditemukan' });
+    }
+
+    const retur = await ReturOffline.findOne({
+      where: { id: req.params.retur_id, penjualan_offline_id: req.params.id },
+      include: [{ model: PenjualanOfflineItem, as: 'item' }],
+      transaction: t,
+    });
+    if (!retur) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Retur tidak ditemukan' });
+    }
+    if (!retur.item) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Item retur tidak ditemukan' });
+    }
+
+    const rollbackStockItem = {
+      ...retur.item.dataValues,
+      qty: Number(retur.qty_retur || 0),
+    };
+
+    await retur.destroy({ transaction: t });
+    await t.commit();
+
+    // Hapus retur berarti stok yang dulu dipulihkan harus dikurangi lagi.
+    await deductStok([rollbackStockItem], req.user.role === 'TEST');
+
+    await logAction(req.user.id, 'HAPUS_RETUR_OFFLINE',
+      `Hapus retur #${req.params.retur_id} dari Penjualan Offline #${req.params.id}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${req.params.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
+
+    return res.json({ message: 'Retur berhasil dihapus dan stok dikoreksi' });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Server error', error: err.message });
