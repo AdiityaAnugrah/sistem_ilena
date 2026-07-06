@@ -5,12 +5,21 @@ const {
   PenjualanOffline, PenjualanInterior,
   PenjualanOfflineItem, PenjualanInteriorItem,
   PembayaranInterior,
+  ReturOffline,
   SuratJalan, SuratPengantar, SuratPengantarSub,
   ProformaInvoice, SuratJalanInterior,
   SuratPengantarInterior,
 } = require('../models');
 
 const router = express.Router();
+
+const itemNetSubtotal = (item, returQty = 0) => {
+  const qty = Number(item.qty || 0);
+  const subtotal = Number(item.subtotal || 0);
+  if (qty <= 0 || subtotal <= 0) return 0;
+  const unitPrice = subtotal / qty;
+  return Math.max(0, subtotal - (Number(returQty || 0) * unitPrice));
+};
 
 // GET /api/public/surat — list semua dokumen (SJ, Invoice, SP, Proforma — OFFLINE + INTERIOR)
 router.get('/', async (req, res) => {
@@ -92,10 +101,14 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
       });
       if (!penjualan || penjualan.is_test) return res.status(404).json({ message: 'Tidak ditemukan' });
 
-      const [items, invoices, suratJalans, suratPengantars] = await Promise.all([
+      const [items, returs, invoices, suratJalans, suratPengantars] = await Promise.all([
         PenjualanOfflineItem.findAll({
           where: { penjualan_offline_id: penjualanId },
-          attributes: ['qty', 'harga_satuan', 'diskon', 'subtotal'],
+          attributes: ['id', 'qty', 'harga_satuan', 'diskon', 'subtotal'],
+        }),
+        ReturOffline.findAll({
+          where: { penjualan_offline_id: penjualanId },
+          attributes: ['penjualan_offline_item_id', 'qty_retur'],
         }),
         Invoice.findAll({
           where: { penjualan_offline_id: penjualanId },
@@ -115,11 +128,15 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
         }),
       ]);
 
-      const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
+      const returByItemId = {};
+      for (const retur of returs) {
+        returByItemId[retur.penjualan_offline_item_id] = (returByItemId[retur.penjualan_offline_item_id] || 0) + Number(retur.qty_retur || 0);
+      }
+      const subtotal = items.reduce((s, i) => s + itemNetSubtotal(i, returByItemId[i.id] || 0), 0);
       const ppnPersen = invoices[0]?.ppn_persen || 0;
       const ppn = subtotal * (ppnPersen / 100);
       const totalNilai = subtotal + ppn;
-      const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
+      const totalQty = items.reduce((s, i) => s + Math.max(0, Number(i.qty || 0) - Number(returByItemId[i.id] || 0)), 0);
 
       return res.json({
         penjualan: penjualan.toJSON(),

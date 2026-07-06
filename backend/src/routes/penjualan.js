@@ -157,7 +157,7 @@ router.get('/semua', authenticate, async (req, res) => {
         ) * (
           CASE
             WHEN pi.pakai_ppn = 1 AND pi.ppn_persen IS NOT NULL
-            THEN 1 + (pi.ppn_persen / 100)
+            THEN 1 + (CAST(CAST(pi.ppn_persen AS CHAR) AS DECIMAL(5,2)) / 100)
             ELSE 1
           END
         )), 0) AS totalNilai
