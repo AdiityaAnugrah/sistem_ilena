@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
+  ReturOffline,
   sequelize,
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
@@ -11,6 +12,48 @@ const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
 const sumItems = (items = []) => items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+const itemNetSubtotal = (item, returQty = 0) => {
+  const qty = Number(item.qty || 0);
+  const subtotal = Number(item.subtotal || 0);
+  if (qty <= 0 || subtotal <= 0) return 0;
+  const unitPrice = subtotal / qty;
+  return Math.max(0, subtotal - (Number(returQty || 0) * unitPrice));
+};
+const sumItemsNetAfterRetur = (items = [], returQtyMap = {}) =>
+  items.reduce((sum, item) => sum + itemNetSubtotal(item, returQtyMap[item.id] || 0), 0);
+
+const getReturQtyMap = async (itemIds = []) => {
+  const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
+  if (ids.length === 0) return {};
+  const rows = await ReturOffline.findAll({
+    where: { penjualan_offline_item_id: { [Op.in]: ids } },
+    attributes: [
+      'penjualan_offline_item_id',
+      [sequelize.fn('SUM', sequelize.col('qty_retur')), 'total_retur'],
+    ],
+    group: ['penjualan_offline_item_id'],
+    raw: true,
+  });
+  return rows.reduce((map, row) => {
+    map[row.penjualan_offline_item_id] = Number(row.total_retur || 0);
+    return map;
+  }, {});
+};
+
+const sumOfflineItemsNetByPenjualanWhere = async (penjualanWhere) => {
+  const items = await PenjualanOfflineItem.findAll({
+    include: [{
+      model: PenjualanOffline, as: 'penjualan',
+      where: penjualanWhere,
+      attributes: [],
+      required: true,
+    }],
+    attributes: ['id', 'qty', 'subtotal'],
+  });
+  const returQtyMap = await getReturQtyMap(items.map(i => i.id));
+  return money(sumItemsNetAfterRetur(items, returQtyMap));
+};
+
 const getOfflineProgress = (penjualan) => {
   if (penjualan.status === 'COMPLETED') return { label: 'Lunas / Selesai', level: 100 };
   if (penjualan.invoices?.length > 0) return { label: 'Invoice Dibuat', level: 75 };
@@ -34,86 +77,54 @@ router.get('/offline', authenticate, async (req, res) => {
 
     // ── Summary cards (tidak terpengaruh pagination/tab) ─────────────────────
 
-    // Total omzet penjualan langsung
-    const penjualanItems = await PenjualanOfflineItem.findAll({
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        where: { tipe: 'PENJUALAN', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) },
-        attributes: [],
-        required: true,
-      }],
-      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
-      raw: true,
+    // Total omzet penjualan langsung — NET setelah retur
+    const totalOmzet = await sumOfflineItemsNetByPenjualanWhere({
+      tipe: 'PENJUALAN',
+      is_test: isTest,
+      ...(from || to ? { tanggal: dateWhere } : {}),
     });
-    const totalOmzet = money(penjualanItems[0]?.total);
 
-    // Total penjualan offline yang belum ditandai selesai/lunas
-    const belumLunasItems = await PenjualanOfflineItem.findAll({
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        where: {
-          tipe: 'PENJUALAN',
-          status: { [Op.ne]: 'COMPLETED' },
-          is_test: isTest,
-          ...(from || to ? { tanggal: dateWhere } : {}),
-        },
-        attributes: [],
-        required: true,
-      }],
-      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
-      raw: true,
+    // Total penjualan offline yang belum ditandai selesai/lunas — NET setelah retur
+    const totalBelumLunas = await sumOfflineItemsNetByPenjualanWhere({
+      tipe: 'PENJUALAN',
+      status: { [Op.ne]: 'COMPLETED' },
+      is_test: isTest,
+      ...(from || to ? { tanggal: dateWhere } : {}),
     });
-    const totalBelumLunas = money(belumLunasItems[0]?.total);
 
-    // Total nilai display masih aktif (sisa item qty > 0)
+    // Total nilai display masih aktif — NET setelah retur
     const displayAktif = await PenjualanOffline.findAll({
       where: { tipe: 'DISPLAY', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) },
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['qty', 'subtotal'] }],
+      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] }],
       attributes: ['id'],
     });
+    const displayReturQtyMap = await getReturQtyMap(
+      displayAktif.flatMap(d => (d.items || []).map(item => item.id))
+    );
     let totalPiutang = 0;
     for (const d of displayAktif) {
       for (const item of d.items) {
-        if (item.qty > 0) totalPiutang += Number(item.subtotal || 0);
+        if (item.qty > 0) totalPiutang += itemNetSubtotal(item, displayReturQtyMap[item.id] || 0);
       }
     }
     totalPiutang = money(totalPiutang);
 
-    // Total sudah terjual dari display (penjualan dengan display_source_id)
-    const terjualItems = await PenjualanOfflineItem.findAll({
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        where: {
-          tipe: 'PENJUALAN', is_test: isTest,
-          display_source_id: { [Op.not]: null },
-          ...(from || to ? { tanggal: dateWhere } : {}),
-        },
-        attributes: [],
-        required: true,
-      }],
-      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
-      raw: true,
+    // Total sudah terjual dari display — NET setelah retur
+    const totalTerjualDisplay = await sumOfflineItemsNetByPenjualanWhere({
+      tipe: 'PENJUALAN',
+      is_test: isTest,
+      display_source_id: { [Op.not]: null },
+      ...(from || to ? { tanggal: dateWhere } : {}),
     });
-    const totalTerjualDisplay = money(terjualItems[0]?.total);
 
-    // Total display yang sudah laku tetapi transaksi penjualannya belum selesai/lunas
-    const displayBelumLunasItems = await PenjualanOfflineItem.findAll({
-      include: [{
-        model: PenjualanOffline, as: 'penjualan',
-        where: {
-          tipe: 'PENJUALAN',
-          status: { [Op.ne]: 'COMPLETED' },
-          is_test: isTest,
-          display_source_id: { [Op.not]: null },
-          ...(from || to ? { tanggal: dateWhere } : {}),
-        },
-        attributes: [],
-        required: true,
-      }],
-      attributes: [[sequelize.fn('SUM', sequelize.col('subtotal')), 'total']],
-      raw: true,
+    // Total display yang sudah laku tetapi belum selesai/lunas — NET setelah retur
+    const totalDisplayBelumLunas = await sumOfflineItemsNetByPenjualanWhere({
+      tipe: 'PENJUALAN',
+      status: { [Op.ne]: 'COMPLETED' },
+      is_test: isTest,
+      display_source_id: { [Op.not]: null },
+      ...(from || to ? { tanggal: dateWhere } : {}),
     });
-    const totalDisplayBelumLunas = money(displayBelumLunasItems[0]?.total);
 
     const summary = { totalOmzet, totalBelumLunas, totalPiutang, totalTerjualDisplay, totalDisplayBelumLunas };
 
@@ -124,7 +135,7 @@ router.get('/offline', authenticate, async (req, res) => {
       const { count, rows } = await PenjualanOffline.findAndCountAll({
         where,
         include: [
-          { model: PenjualanOfflineItem, as: 'items', attributes: ['subtotal'] },
+          { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
           { model: SuratJalan, as: 'suratJalans', attributes: ['id'] },
           { model: Invoice, as: 'invoices', attributes: ['id'] },
         ],
@@ -133,6 +144,7 @@ router.get('/offline', authenticate, async (req, res) => {
         offset,
         distinct: true,
       });
+      const returQtyMap = await getReturQtyMap(rows.flatMap(p => (p.items || []).map(item => item.id)));
       const list = rows.map(p => {
         const progress = getOfflineProgress(p);
         return {
@@ -146,7 +158,7 @@ router.get('/offline', authenticate, async (req, res) => {
           lunas: p.status === 'COMPLETED',
           progressLabel: progress.label,
           progressLevel: progress.level,
-          total: money(sumItems(p.items)),
+          total: money(sumItemsNetAfterRetur(p.items, returQtyMap)),
         };
       });
       return res.json({
@@ -162,7 +174,7 @@ router.get('/offline', authenticate, async (req, res) => {
     const whereDisplay = { tipe: 'DISPLAY', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where: whereDisplay,
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['qty', 'subtotal', 'barang_id', 'varian_nama'] }],
+      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id', 'varian_nama'] }],
       order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
       limit: limitInt,
       offset,
@@ -173,14 +185,19 @@ router.get('/offline', authenticate, async (req, res) => {
     // Hitung total yang sudah terjual per display
     const terjualPerDisplay = await PenjualanOffline.findAll({
       where: { display_source_id: { [Op.in]: displayIds.length ? displayIds : [0] }, is_test: isTest },
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['subtotal', 'barang_id'] }],
+      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id'] }],
       attributes: ['id', 'display_source_id', 'status'],
     });
+    const allDisplayListItemIds = [
+      ...rows.flatMap(d => (d.items || []).map(item => item.id)),
+      ...terjualPerDisplay.flatMap(p => (p.items || []).map(item => item.id)),
+    ];
+    const returQtyMap = await getReturQtyMap(allDisplayListItemIds);
     const terjualMap = {};
     const terjualBelumLunasMap = {};
     for (const p of terjualPerDisplay) {
       const srcId = p.display_source_id;
-      const totalPenjualan = sumItems(p.items);
+      const totalPenjualan = sumItemsNetAfterRetur(p.items, returQtyMap);
       terjualMap[srcId] = (terjualMap[srcId] || 0) + totalPenjualan;
       if (p.status !== 'COMPLETED') {
         terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + totalPenjualan;
@@ -188,7 +205,9 @@ router.get('/offline', authenticate, async (req, res) => {
     }
 
     const list = rows.map(d => {
-      const nilaiSisa = d.items.filter(i => i.qty > 0).reduce((s, i) => s + Number(i.subtotal || 0), 0);
+      const nilaiSisa = d.items
+        .filter(i => i.qty > 0)
+        .reduce((s, i) => s + itemNetSubtotal(i, returQtyMap[i.id] || 0), 0);
       const nilaiTerjual = terjualMap[d.id] || 0;
       const nilaiTerjualBelumLunas = terjualBelumLunasMap[d.id] || 0;
       return {
@@ -200,7 +219,7 @@ router.get('/offline', authenticate, async (req, res) => {
         nilaiTerjual: money(nilaiTerjual),
         nilaiTerjualBelumLunas: money(nilaiTerjualBelumLunas),
         nilaiTotal: money(nilaiSisa + nilaiTerjual),
-        adaSisa: d.items.some(i => i.qty > 0),
+        adaSisa: money(nilaiSisa) > 0,
       };
     });
 
