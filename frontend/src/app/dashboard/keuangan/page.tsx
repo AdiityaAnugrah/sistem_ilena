@@ -460,7 +460,7 @@ export default function KeuanganPage() {
               sub={summary ? `Dari display: ${formatRupiah(summary.totalDisplayBelumLunas)}` : undefined}
               color="#dc2626"
             />
-            <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Nilai barang masih di toko" color="#f97316" />
+            <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Display belum selesai, net retur" color="#f97316" />
             <SummaryCard label="Sudah Terjual dari Display" value={summary ? formatRupiah(summary.totalTerjualDisplay) : '-'} color="#16a34a" />
           </div>
 
@@ -538,7 +538,7 @@ export default function KeuanganPage() {
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
                     <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Piutang Display</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
-                      Nilai barang yang masih ada di toko (display) dan belum terjual. Ini belum dihitung sebagai omzet.
+                      Nilai barang display yang belum selesai dan masih ada sisa net setelah retur. Ini belum dihitung sebagai omzet.
                     </p>
                   </div>
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>

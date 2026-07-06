@@ -92,9 +92,14 @@ router.get('/offline', authenticate, async (req, res) => {
       ...(from || to ? { tanggal: dateWhere } : {}),
     });
 
-    // Total nilai display masih aktif — NET setelah retur
+    // Total nilai display masih aktif/belum selesai — NET setelah retur
     const displayAktif = await PenjualanOffline.findAll({
-      where: { tipe: 'DISPLAY', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) },
+      where: {
+        tipe: 'DISPLAY',
+        status: { [Op.ne]: 'COMPLETED' },
+        is_test: isTest,
+        ...(from || to ? { tanggal: dateWhere } : {}),
+      },
       include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] }],
       attributes: ['id'],
     });
@@ -205,9 +210,11 @@ router.get('/offline', authenticate, async (req, res) => {
     }
 
     const list = rows.map(d => {
-      const nilaiSisa = d.items
-        .filter(i => i.qty > 0)
-        .reduce((s, i) => s + itemNetSubtotal(i, returQtyMap[i.id] || 0), 0);
+      const nilaiSisa = d.status === 'COMPLETED'
+        ? 0
+        : d.items
+          .filter(i => i.qty > 0)
+          .reduce((s, i) => s + itemNetSubtotal(i, returQtyMap[i.id] || 0), 0);
       const nilaiTerjual = terjualMap[d.id] || 0;
       const nilaiTerjualBelumLunas = terjualBelumLunasMap[d.id] || 0;
       return {
