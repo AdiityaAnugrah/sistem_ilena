@@ -67,6 +67,7 @@ app.use('/api/public/surat', require('./routes/publicSurat'));
 app.use('/api/tutorial-video', require('./routes/tutorialVideo'));
 app.use('/api/log-activity', require('./routes/logActivity'));
 app.use('/api/keuangan', require('./routes/keuangan'));
+app.use('/api/transaksi', require('./routes/transaksi'));
 app.use('/api/search', require('./routes/search'));
 app.use('/api/dev', require('./routes/dev'));
 

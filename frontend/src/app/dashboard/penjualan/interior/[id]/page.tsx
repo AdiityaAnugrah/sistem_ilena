@@ -7,7 +7,7 @@ import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, CreditCard, Truck,
-  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown, Mail, Trash2,
+  Package, User, Phone, Hash, Printer, FilePlus, RotateCcw, Pencil, AlertTriangle, Lock, ChevronDown, Mail, Trash2, Upload, Paperclip,
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { useRoomPresence } from '@/hooks/useRoomPresence';
@@ -253,6 +253,7 @@ export default function PenjualanInteriorDetail() {
   const [bayarJumlah, setBayarJumlah] = useState('');
   const [bayarTanggal, setBayarTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [bayarCatatan, setBayarCatatan] = useState('');
+  const [bayarBukti, setBayarBukti] = useState<File | null>(null);
   const [sjTanggal, setSjTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [sjCatatan, setSjCatatan] = useState('');
   const [sjItems, setSjItems] = useState<Record<number, number>>({});
@@ -438,14 +439,44 @@ export default function PenjualanInteriorDetail() {
     if (!bayarJumlah) { toast.error('Jumlah wajib diisi'); return; }
     setDocLoading(true);
     try {
-      await api.post(`/penjualan-interior/${id}/pembayaran`, {
-        tipe: bayarTipe, jumlah: bayarJumlah, tanggal: bayarTanggal, catatan: bayarCatatan,
+      const formData = new FormData();
+      formData.append('tipe', bayarTipe);
+      formData.append('jumlah', bayarJumlah);
+      formData.append('tanggal', bayarTanggal);
+      formData.append('catatan', bayarCatatan);
+      if (bayarBukti) formData.append('bukti_bayar', bayarBukti);
+
+      await api.post(`/penjualan-interior/${id}/pembayaran`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       toast.success('Pembayaran berhasil!');
-      setModal(null); setBayarJumlah(''); fetchData();
+      setModal(null); setBayarJumlah(''); setBayarBukti(null); fetchData();
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal');
     } finally { setDocLoading(false); }
+  };
+
+  const openPembayaranGlobal = () => {
+    setBayarProforma(null);
+    setBayarTipe('DP');
+    setBayarJumlah('');
+    setBayarTanggal(new Date().toISOString().split('T')[0]);
+    setBayarCatatan('');
+    setBayarBukti(null);
+    setModal('pembayaran');
+  };
+
+  const openBuktiPembayaran = async (pembayaranId: number) => {
+    try {
+      const res = await api.get(`/penjualan-interior/${id}/pembayaran/${pembayaranId}/bukti`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast.error('Gagal membuka bukti pembayaran');
+    }
   };
 
   const createSJ = async () => {
@@ -758,7 +789,7 @@ export default function PenjualanInteriorDetail() {
                   label: <><CreditCard className="h-3 w-3" /><span>Bayar</span></>,
                   title: 'Tambah Pembayaran',
                   hoverBg: '#f0fdf4', hoverColor: '#16a34a', hoverBorder: '#bbf7d0',
-                  onClick: () => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setModal('pembayaran'); },
+                  onClick: () => { setBayarProforma(p); setBayarTipe(''); setBayarJumlah(''); setBayarBukti(null); setModal('pembayaran'); },
                 },
                 {
                   label: <><FileText className="h-3 w-3" /><span>Sub</span></>,
@@ -1121,10 +1152,60 @@ export default function PenjualanInteriorDetail() {
             </div>
             <div className="p-4 space-y-2">
               <ActionButton onClick={() => setModal('proforma')} icon={FileText} label="Proforma Invoice" desc="Tagihan awal ke customer" />
+              <ActionButton onClick={openPembayaranGlobal} icon={CreditCard} label="Pembayaran" desc="Catat pembayaran langsung tanpa wajib proforma" />
               {data.items?.some((i: any) => i.qty - i.sudah_kirim > 0) && (
                 <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Kirim barang ke customer" />
               )}
               <ActionButton onClick={() => setModal('invoice-interior')} icon={Receipt} label="Invoice Interior" desc="Tagihan berdasarkan pengiriman" />
+            </div>
+          </div>
+
+          {/* Riwayat Pembayaran */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #f1f5f9' }}>
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" style={{ color: '#16a34a' }} />
+                <h2 className="text-sm font-bold" style={{ color: '#1e293b' }}>Pembayaran</h2>
+              </div>
+              <button
+                onClick={openPembayaranGlobal}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
+              >
+                + Bayar
+              </button>
+            </div>
+            <div className="p-4 space-y-2">
+              {(data.pembayarans || []).length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: '#94a3b8' }}>Belum ada pembayaran</p>
+              ) : (
+                (data.pembayarans || []).map((p: any) => (
+                  <div key={p.id} className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold" style={{ color: '#1e293b' }}>
+                          {PEMBAYARAN_TIPE.find((t: any) => t.value === p.tipe)?.label || p.tipe}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(p.tanggal)}</div>
+                        {p.catatan && <div className="text-xs mt-1" style={{ color: '#64748b' }}>{p.catatan}</div>}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs font-black" style={{ color: '#059669' }}>{formatRupiah(p.jumlah)}</div>
+                        {p.bukti_bayar && (
+                          <button
+                            onClick={() => openBuktiPembayaran(p.id)}
+                            className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                            style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            Bukti
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -1298,7 +1379,7 @@ export default function PenjualanInteriorDetail() {
               onSubmit={createProforma}
               loading={docLoading}
               label="Buat Proforma"
-              disabled={termOver || proformaTerms.length === 0 || hasZeroTerms}
+              disabled={termOver || hasZeroTerms}
             />
           </ModalWrapper>
         );
@@ -1400,7 +1481,7 @@ export default function PenjualanInteriorDetail() {
 
       {/* ── Modal Pembayaran ── */}
       {modal === 'pembayaran' && (() => {
-        const closeBayar = () => { setModal(null); setBayarProforma(null); setBayarTipe(''); setBayarJumlah(''); };
+        const closeBayar = () => { setModal(null); setBayarProforma(null); setBayarTipe(''); setBayarJumlah(''); setBayarBukti(null); };
         let terms: { tipe: string; jumlah: number }[] = [];
         try { terms = bayarProforma?.terms ? JSON.parse(bayarProforma.terms) : []; } catch { terms = []; }
 
@@ -1432,7 +1513,7 @@ export default function PenjualanInteriorDetail() {
           tipeUsedCount[tipe]++;
         });
         const TIPE_LABEL: Record<string, string> = {
-          DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir',
+          DP: 'DP', TERMIN_1: 'Termin 1', TERMIN_2: 'Termin 2', TERMIN_3: 'Termin 3', PELUNASAN_AKHIR: 'Pelunasan Akhir', PELUNASAN_PENUH: 'Pelunasan Penuh',
         };
         const hasTerms = terms.length > 0;
         return (
@@ -1492,6 +1573,27 @@ export default function PenjualanInteriorDetail() {
               )}
               <ModalInput label="Tanggal Pembayaran" type="date" value={bayarTanggal} onChange={(e: any) => setBayarTanggal(e.target.value)} />
               <ModalInput label="Catatan (opsional)" value={bayarCatatan} onChange={(e: any) => setBayarCatatan(e.target.value)} />
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Upload Bukti Pembayaran (opsional)</label>
+                <label
+                  className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all"
+                  style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', color: '#475569' }}
+                >
+                  <Upload className="h-4 w-4 flex-shrink-0" style={{ color: '#94a3b8' }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold truncate" style={{ color: '#334155' }}>
+                      {bayarBukti ? bayarBukti.name : 'Pilih file JPG, PNG, WEBP, atau PDF'}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Maksimal 10MB</div>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => setBayarBukti(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
             </div>
             <ModalFooter onClose={closeBayar} onSubmit={createPembayaran} loading={docLoading} label="Simpan"
               disabled={!bayarTipe || !bayarJumlah} />

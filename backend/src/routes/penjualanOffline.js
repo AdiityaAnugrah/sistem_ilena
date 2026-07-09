@@ -1,7 +1,10 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
+  PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
   Provinsi, Kabupaten, Kecamatan, Kelurahan, ReturOffline, sequelize,
 } = require('../models');
 const BarangTest = require('../models/BarangTest');
@@ -90,6 +93,33 @@ const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
 
+const BUKTI_OFFLINE_DIR = path.join(__dirname, '../../uploads/bukti-pembayaran-offline');
+if (!fs.existsSync(BUKTI_OFFLINE_DIR)) fs.mkdirSync(BUKTI_OFFLINE_DIR, { recursive: true });
+
+const buktiOfflineStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, BUKTI_OFFLINE_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'].includes(ext) ? ext : '.jpg';
+    cb(null, `bukti_offline_${Date.now()}_${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+
+const uploadBuktiOffline = multer({
+  storage: buktiOfflineStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.mimetype)) return cb(new Error('Format bukti harus JPG, PNG, WEBP, atau PDF'));
+    cb(null, true);
+  },
+});
+
+function cleanupUploadedBuktiOffline(req) {
+  if (!req.file?.path) return;
+  try { fs.unlinkSync(req.file.path); } catch { /* ignore cleanup failure */ }
+}
+
 function itemNetSubtotal(item, returQty = 0) {
   const qty = Number(item.qty || 0);
   const subtotal = money(item.subtotal);
@@ -151,10 +181,27 @@ function applyOfflineReturSummary(penjualan) {
   };
 }
 
+function applyOfflinePaymentSummary(penjualan) {
+  const data = applyOfflineReturSummary(penjualan);
+  const ppnPersen = Number(data.invoices?.[data.invoices.length - 1]?.ppn_persen || 0);
+  const ppn = money(Number(data.total_net || 0) * ppnPersen / 100);
+  const totalTagihan = money(Number(data.total_net || 0) + ppn);
+  const totalBayar = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
+  return {
+    ...data,
+    ppn_persen_pembayaran: ppnPersen,
+    ppn_pembayaran: ppn,
+    total_tagihan: totalTagihan,
+    total_bayar: totalBayar,
+    sisa_tagihan: Math.max(0, totalTagihan - totalBayar),
+  };
+}
+
 const fullInclude = [
   { model: PenjualanOfflineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
   { model: SuratJalan, as: 'suratJalans' },
   { model: Invoice, as: 'invoices' },
+  { model: PembayaranOffline, as: 'pembayarans' },
   { model: SuratPengantar, as: 'suratPengantars', include: [{ model: SuratPengantarSub, as: 'subs', include: [{ model: PenjualanOfflineItem, as: 'item', include: [{ model: Barang, as: 'barang' }] }] }] },
   { model: ReturOffline, as: 'returs', include: [{ model: PenjualanOfflineItem, as: 'item' }] },
   ...includeAlamat,
@@ -304,7 +351,124 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const penjualan = await PenjualanOffline.findByPk(req.params.id, { include: fullInclude });
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
-    return res.json(applyOfflineReturSummary(penjualan));
+    return res.json(applyOfflinePaymentSummary(penjualan));
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+async function recalculateStatusOffline(penjualanId) {
+  const penjualan = await PenjualanOffline.findByPk(penjualanId, {
+    include: [
+      { model: PenjualanOfflineItem, as: 'items' },
+      { model: ReturOffline, as: 'returs' },
+      { model: Invoice, as: 'invoices' },
+      { model: PembayaranOffline, as: 'pembayarans' },
+    ],
+  });
+  if (!penjualan || penjualan.tipe !== 'PENJUALAN') return;
+
+  const summary = applyOfflinePaymentSummary(penjualan);
+  const lunas = Number(summary.total_tagihan || 0) > 0 && Number(summary.total_bayar || 0) >= Number(summary.total_tagihan || 0);
+  const newStatus = lunas ? 'COMPLETED' : 'ACTIVE';
+  if (penjualan.status !== newStatus) {
+    await penjualan.update({ status: newStatus });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: penjualan.created_by });
+  }
+}
+
+// POST /api/penjualan-offline/:id/pembayaran
+router.post('/:id/pembayaran', authenticate, uploadBuktiOffline.single('bukti_bayar'), async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const penjualan = await PenjualanOffline.findByPk(req.params.id, {
+      include: [
+        { model: PenjualanOfflineItem, as: 'items' },
+        { model: ReturOffline, as: 'returs' },
+        { model: Invoice, as: 'invoices' },
+        { model: PembayaranOffline, as: 'pembayarans' },
+      ],
+      transaction: t,
+    });
+    if (!penjualan) {
+      await t.rollback();
+      cleanupUploadedBuktiOffline(req);
+      return res.status(404).json({ message: 'Penjualan tidak ditemukan' });
+    }
+    if (penjualan.tipe !== 'PENJUALAN') {
+      await t.rollback();
+      cleanupUploadedBuktiOffline(req);
+      return res.status(400).json({ message: 'Pembayaran hanya untuk tipe PENJUALAN. DISPLAY diproses menjadi penjualan dulu.' });
+    }
+
+    const { metode, jumlah, tanggal, catatan } = req.body;
+    const metodeFinal = String(metode || '').toUpperCase();
+    const validMetode = ['TRANSFER', 'TUNAI', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA'];
+    if (!validMetode.includes(metodeFinal)) {
+      await t.rollback();
+      cleanupUploadedBuktiOffline(req);
+      return res.status(400).json({ message: 'Metode pembayaran tidak valid' });
+    }
+    if (metodeFinal === 'TRANSFER' && !req.file) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Bukti transfer wajib diupload untuk metode TRANSFER' });
+    }
+
+    const jumlahNum = Number(jumlah);
+    if (!jumlahNum || jumlahNum <= 0 || jumlahNum > 999999999.99) {
+      await t.rollback();
+      cleanupUploadedBuktiOffline(req);
+      return res.status(400).json({ message: 'Jumlah pembayaran harus lebih dari 0 dan maksimal 999999999.99' });
+    }
+
+    const summary = applyOfflinePaymentSummary(penjualan);
+    if (summary.total_bayar + jumlahNum > summary.total_tagihan + 0.01) {
+      await t.rollback();
+      cleanupUploadedBuktiOffline(req);
+      return res.status(400).json({ message: `Jumlah pembayaran melebihi tagihan. Sisa yang harus dibayar: Rp ${money(summary.sisa_tagihan).toLocaleString('id-ID')}` });
+    }
+
+    const pembayaran = await PembayaranOffline.create({
+      penjualan_offline_id: penjualan.id,
+      metode: metodeFinal,
+      jumlah: jumlahNum,
+      tanggal: tanggal || new Date().toISOString().split('T')[0],
+      bukti_bayar: req.file ? req.file.filename : null,
+      catatan: catatan || null,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    await t.commit();
+    await recalculateStatusOffline(penjualan.id);
+
+    await logAction(req.user.id, 'BUAT_PEMBAYARAN_OFFLINE', `Penjualan Offline #${penjualan.id}, Metode: ${metodeFinal}, Jumlah: ${jumlahNum}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
+
+    return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil dicatat' });
+  } catch (err) {
+    await t.rollback();
+    cleanupUploadedBuktiOffline(req);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/penjualan-offline/:id/pembayaran/:pembayaranId/bukti
+router.get('/:id/pembayaran/:pembayaranId/bukti', authenticate, async (req, res) => {
+  try {
+    const pembayaran = await PembayaranOffline.findOne({
+      where: { id: req.params.pembayaranId, penjualan_offline_id: req.params.id },
+    });
+    if (!pembayaran || !pembayaran.bukti_bayar) {
+      return res.status(404).json({ message: 'Bukti pembayaran tidak ditemukan' });
+    }
+
+    const filePath = path.join(BUKTI_OFFLINE_DIR, path.basename(pembayaran.bukti_bayar));
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'File bukti pembayaran tidak ditemukan' });
+    }
+
+    return res.sendFile(filePath);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -705,6 +869,20 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     const { status } = req.body;
     if (!['DRAFT', 'ACTIVE', 'COMPLETED'].includes(status)) {
       return res.status(400).json({ message: 'Status tidak valid. Gunakan DRAFT, ACTIVE, atau COMPLETED.' });
+    }
+    if (status === 'COMPLETED' && penjualan.tipe === 'PENJUALAN') {
+      const withPayment = await PenjualanOffline.findByPk(req.params.id, {
+        include: [
+          { model: PenjualanOfflineItem, as: 'items' },
+          { model: ReturOffline, as: 'returs' },
+          { model: Invoice, as: 'invoices' },
+          { model: PembayaranOffline, as: 'pembayarans' },
+        ],
+      });
+      const summary = applyOfflinePaymentSummary(withPayment);
+      if (Number(summary.total_bayar || 0) < Number(summary.total_tagihan || 0)) {
+        return res.status(400).json({ message: 'Penjualan belum bisa ditandai selesai/lunas. Catat pembayaran sampai lunas terlebih dahulu.' });
+      }
     }
 
     await penjualan.update({ status });

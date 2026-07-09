@@ -8,6 +8,7 @@ const Kecamatan = require('./Kecamatan');
 const Kelurahan = require('./Kelurahan');
 const PenjualanOffline = require('./PenjualanOffline');
 const PenjualanOfflineItem = require('./PenjualanOfflineItem');
+const PembayaranOffline = require('./PembayaranOffline');
 const SuratJalan = require('./SuratJalan');
 const Invoice = require('./Invoice');
 const SuratPengantar = require('./SuratPengantar');
@@ -27,6 +28,7 @@ const HargaKhusus = require('./HargaKhusus');
 const SuratPengantarInterior = require('./SuratPengantarInterior');
 const SuratPengantarInteriorItem = require('./SuratPengantarInteriorItem');
 const AppSetting = require('./AppSetting');
+const ChartOfAccount = require('./ChartOfAccount');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -61,6 +63,9 @@ SuratJalan.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as:
 
 PenjualanOffline.hasMany(Invoice, { foreignKey: 'penjualan_offline_id', as: 'invoices' });
 Invoice.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'penjualan' });
+
+PenjualanOffline.hasMany(PembayaranOffline, { foreignKey: 'penjualan_offline_id', as: 'pembayarans' });
+PembayaranOffline.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'penjualan' });
 
 PenjualanOffline.hasMany(SuratPengantar, { foreignKey: 'penjualan_offline_id', as: 'suratPengantars' });
 SuratPengantar.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id', as: 'penjualan' });
@@ -137,6 +142,7 @@ module.exports = {
   Kelurahan,
   PenjualanOffline,
   PenjualanOfflineItem,
+  PembayaranOffline,
   SuratJalan,
   Invoice,
   SuratPengantar,
@@ -156,4 +162,5 @@ module.exports = {
   SuratPengantarInterior,
   SuratPengantarInteriorItem,
   AppSetting,
+  ChartOfAccount,
 };

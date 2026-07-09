@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import {
   ArrowLeft, FileText, Receipt, FilePlus, Printer,
   User, Phone, MapPin, Hash, Package, ShoppingCart, Pencil, AlertTriangle, Lock, X, RotateCcw, Mail,
+  CreditCard, Upload, Paperclip,
 } from 'lucide-react';
 
 import useAuthStore from '@/store/authStore';
@@ -437,6 +438,15 @@ export default function PenjualanOfflineDetail() {
   const [docLoading, setDocLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
 
+  // States for Pembayaran
+  const [bayarModal, setBayarModal] = useState(false);
+  const [bayarMetode, setBayarMetode] = useState('TRANSFER');
+  const [bayarJumlah, setBayarJumlah] = useState('');
+  const [bayarTanggal, setBayarTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [bayarCatatan, setBayarCatatan] = useState('');
+  const [bayarBukti, setBayarBukti] = useState<File | null>(null);
+  const [bayarLoading, setBayarLoading] = useState(false);
+
   // States for Jual Multiple Items Display
   const [jualModal, setJualModal] = useState(false);
   const [jualFaktur, setJualFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
@@ -734,6 +744,61 @@ export default function PenjualanOfflineDetail() {
     }
   };
 
+  const openBayarModal = () => {
+    setBayarMetode('TRANSFER');
+    setBayarJumlah(String(Math.max(0, Number(data?.sisa_tagihan ?? data?.total_net ?? 0))));
+    setBayarTanggal(new Date().toISOString().split('T')[0]);
+    setBayarCatatan('');
+    setBayarBukti(null);
+    setBayarModal(true);
+  };
+
+  const submitPembayaran = async () => {
+    if (!bayarJumlah || Number(bayarJumlah) <= 0) {
+      toast.error('Jumlah pembayaran wajib lebih dari 0');
+      return;
+    }
+    if (bayarMetode === 'TRANSFER' && !bayarBukti) {
+      toast.error('Bukti transfer wajib diupload');
+      return;
+    }
+
+    setBayarLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('metode', bayarMetode);
+      formData.append('jumlah', bayarJumlah);
+      formData.append('tanggal', bayarTanggal);
+      formData.append('catatan', bayarCatatan);
+      if (bayarBukti) formData.append('bukti_bayar', bayarBukti);
+
+      await api.post(`/penjualan-offline/${id}/pembayaran`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success('Pembayaran berhasil dicatat');
+      setBayarModal(false);
+      setBayarBukti(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal mencatat pembayaran');
+    } finally {
+      setBayarLoading(false);
+    }
+  };
+
+  const openBuktiPembayaran = async (pembayaranId: number) => {
+    try {
+      const res = await api.get(`/penjualan-offline/${id}/pembayaran/${pembayaranId}/bukti`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast.error('Gagal membuka bukti pembayaran');
+    }
+  };
+
   const handleUpdateStatus = async (newStatus: string) => {
     setStatusLoading(true);
     try {
@@ -774,6 +839,9 @@ export default function PenjualanOfflineDetail() {
   const totalGross = num(data.total_gross ?? data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0));
   const totalRetur = num(data.total_retur);
   const total = num(data.total_net ?? totalGross);
+  const totalTagihan = num(data.total_tagihan ?? total);
+  const totalBayar = num(data.total_bayar);
+  const sisaTagihan = Math.max(0, num(data.sisa_tagihan ?? (totalTagihan - totalBayar)));
 
   return (
     <div className="space-y-6">
@@ -845,6 +913,23 @@ export default function PenjualanOfflineDetail() {
           )}
         </div>
       </div>
+
+      {isPenjualan && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="text-xs font-medium mb-1" style={{ color: '#94a3b8' }}>Total Tagihan</div>
+            <div className="text-base font-black" style={{ color: '#1e293b' }}>{formatRupiah(totalTagihan)}</div>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="text-xs font-medium mb-1" style={{ color: '#6ee7b7' }}>Total Terbayar</div>
+            <div className="text-base font-black" style={{ color: '#059669' }}>{formatRupiah(totalBayar)}</div>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: sisaTagihan > 0 ? '#fff7ed' : '#ecfdf5', border: `1px solid ${sisaTagihan > 0 ? '#fed7aa' : '#a7f3d0'}`, boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+            <div className="text-xs font-medium mb-1" style={{ color: sisaTagihan > 0 ? '#f97316' : '#6ee7b7' }}>Sisa Tagihan</div>
+            <div className="text-base font-black" style={{ color: sisaTagihan > 0 ? '#c2410c' : '#059669' }}>{formatRupiah(sisaTagihan)}</div>
+          </div>
+        </div>
+      )}
 
       {/* Content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -1068,6 +1153,27 @@ export default function PenjualanOfflineDetail() {
                       <div className="text-xs opacity-60 mt-0.5">Tagihan ke customer</div>
                     </div>
                   </button>
+                  <button
+                    onClick={openBayarModal}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all"
+                    style={{ background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0', textAlign: 'left' }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = '#f0fdf4';
+                      (e.currentTarget as HTMLElement).style.border = '1px solid #bbf7d0';
+                      (e.currentTarget as HTMLElement).style.color = '#16a34a';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = '#f8fafc';
+                      (e.currentTarget as HTMLElement).style.border = '1px solid #e2e8f0';
+                      (e.currentTarget as HTMLElement).style.color = '#334155';
+                    }}
+                  >
+                    <CreditCard className="h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold">Pembayaran</div>
+                      <div className="text-xs opacity-60 mt-0.5">Catat bayar + bukti transfer</div>
+                    </div>
+                  </button>
                 </>
               ) : (
                 <button
@@ -1094,6 +1200,55 @@ export default function PenjualanOfflineDetail() {
               )}
             </div>
           </div>
+
+          {/* Pembayaran */}
+          {isPenjualan && (
+            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e8edf5', boxShadow: '0 1px 4px rgba(15,23,42,0.04)' }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-3.5 w-3.5" style={{ color: '#16a34a' }} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#94a3b8' }}>Pembayaran</h3>
+                </div>
+                <button
+                  onClick={openBayarModal}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
+                >
+                  + Bayar
+                </button>
+              </div>
+              {(data.pembayarans || []).length === 0 ? (
+                <p className="text-xs text-center py-3" style={{ color: '#94a3b8' }}>Belum ada pembayaran</p>
+              ) : (
+                <div className="space-y-2">
+                  {(data.pembayarans || []).map((p: any) => (
+                    <div key={p.id} className="p-3 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold" style={{ color: '#1e293b' }}>{p.metode}</div>
+                          <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{formatDate(p.tanggal)}</div>
+                          {p.catatan && <div className="text-xs mt-1 truncate" style={{ color: '#64748b' }}>{p.catatan}</div>}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-xs font-black" style={{ color: '#059669' }}>{formatRupiah(p.jumlah)}</div>
+                          {p.bukti_bayar && (
+                            <button
+                              onClick={() => openBuktiPembayaran(p.id)}
+                              className="mt-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}
+                            >
+                              <Paperclip className="h-3 w-3" />
+                              Bukti
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Retur */}
           {canEditIdentitas && (
@@ -1330,6 +1485,107 @@ export default function PenjualanOfflineDetail() {
         loading={docLoading} tanggal={docTanggal} setTanggal={setDocTanggal}
         catatan={docCatatan} setCatatan={setDocCatatan}
       />
+
+      {/* Modal Pembayaran */}
+      {bayarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f0fdf4' }}>
+                <CreditCard className="h-5 w-5" style={{ color: '#16a34a' }} />
+              </div>
+              <div>
+                <h3 className="font-bold" style={{ color: '#0f172a' }}>Catat Pembayaran</h3>
+                <p className="text-xs" style={{ color: '#94a3b8' }}>Transfer wajib upload bukti. Sisa: {formatRupiah(sisaTagihan)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Metode Pembayaran</label>
+                <select
+                  value={bayarMetode}
+                  onChange={e => setBayarMetode(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                >
+                  <option value="TRANSFER">Transfer</option>
+                  <option value="TUNAI">Tunai</option>
+                  <option value="QRIS">QRIS</option>
+                  <option value="EDC">EDC</option>
+                  <option value="MARKETPLACE">Marketplace</option>
+                  <option value="LAINNYA">Lainnya</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Jumlah Pembayaran</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={bayarJumlah}
+                  onChange={e => setBayarJumlah(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tanggal Pembayaran</label>
+                <DateInput
+                  value={bayarTanggal}
+                  onChange={e => setBayarTanggal(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Upload Bukti {bayarMetode === 'TRANSFER' ? <span style={{ color: '#dc2626' }}>*wajib</span> : <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opsional)</span>}</label>
+                <label className="flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer" style={{ background: '#f8fafc', border: '1px dashed #cbd5e1', color: '#475569' }}>
+                  <Upload className="h-4 w-4 flex-shrink-0" style={{ color: '#94a3b8' }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold truncate" style={{ color: '#334155' }}>
+                      {bayarBukti ? bayarBukti.name : 'Pilih file JPG, PNG, WEBP, atau PDF'}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>Maksimal 10MB</div>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={e => setBayarBukti(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan <span style={{ color: '#94a3b8', fontWeight: 400 }}>(opsional)</span></label>
+                <textarea
+                  value={bayarCatatan}
+                  onChange={e => setBayarCatatan(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none"
+                  style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }}
+                  placeholder="Referensi transfer / catatan pembayaran..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setBayarModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
+                Batal
+              </button>
+              <button
+                onClick={submitPembayaran}
+                disabled={bayarLoading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
+              >
+                {bayarLoading ? 'Menyimpan...' : 'Simpan Pembayaran'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <JualMultipleModal
         show={jualModal} items={data.items.filter((it: any) => qtyNet(it) > 0)}
         onClose={() => setJualModal(false)}

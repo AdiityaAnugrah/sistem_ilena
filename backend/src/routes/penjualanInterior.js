@@ -1,4 +1,7 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { Op, Transaction } = require('sequelize');
 const {
   sequelize,
@@ -16,6 +19,33 @@ const { emitDataUpdated } = require('../socket');
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
+
+const BUKTI_DIR = path.join(__dirname, '../../uploads/bukti-pembayaran');
+if (!fs.existsSync(BUKTI_DIR)) fs.mkdirSync(BUKTI_DIR, { recursive: true });
+
+const buktiStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, BUKTI_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const safeExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'].includes(ext) ? ext : '.jpg';
+    cb(null, `bukti_${Date.now()}_${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+
+const uploadBukti = multer({
+  storage: buktiStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.mimetype)) return cb(new Error('Format bukti harus JPG, PNG, WEBP, atau PDF'));
+    cb(null, true);
+  },
+});
+
+function cleanupUploadedBukti(req) {
+  if (!req.file?.path) return;
+  try { fs.unlinkSync(req.file.path); } catch { /* ignore cleanup failure */ }
+}
 
 // ── Auto-recalculate status interior ──────────────────────────────────────────
 async function recalculateStatusInterior(penjualanId) {
@@ -269,7 +299,7 @@ async function detectPaymentFlow(penjualanId, transaction) {
 }
 
 // POST /api/penjualan-interior/:id/pembayaran
-router.post('/:id/pembayaran', authenticate, async (req, res) => {
+router.post('/:id/pembayaran', authenticate, uploadBukti.single('bukti_bayar'), async (req, res) => {
   // Use transaction with READ COMMITTED isolation level to prevent race conditions
   const transaction = await sequelize.transaction({
     isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
@@ -284,6 +314,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     });
     if (!penjualan) {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(404).json({ message: 'Data tidak ditemukan' });
     }
 
@@ -293,6 +324,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     const validTypes = ['DP', 'TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR', 'PELUNASAN_PENUH'];
     if (!validTypes.includes(tipe)) {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ message: 'Tipe pembayaran tidak valid' });
     }
 
@@ -300,6 +332,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     const jumlahNum = parseFloat(jumlah);
     if (isNaN(jumlahNum) || jumlahNum <= 0 || jumlahNum > 999999999.99) {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ message: 'Jumlah pembayaran harus lebih dari 0 dan maksimal 999999999.99' });
     }
 
@@ -309,18 +342,21 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     // Rule: If PELUNASAN_PENUH exists, reject DP
     if (hasPelunasanPenuh && tipe === 'DP') {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ message: 'Tidak dapat menambah DP setelah pelunasan penuh' });
     }
 
     // Rule: If PELUNASAN_PENUH exists, reject TERMIN/PELUNASAN_AKHIR
     if (hasPelunasanPenuh && ['TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR'].includes(tipe)) {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ message: 'Pembayaran sudah lunas penuh, tidak dapat menambah pembayaran lagi' });
     }
 
     // Rule: If PELUNASAN_PENUH exists, reject another PELUNASAN_PENUH
     if (hasPelunasanPenuh && tipe === 'PELUNASAN_PENUH') {
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ message: 'Pembayaran sudah lunas penuh, tidak dapat menambah pembayaran lagi' });
     }
 
@@ -328,6 +364,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     if (['TERMIN_1', 'TERMIN_2', 'TERMIN_3', 'PELUNASAN_AKHIR'].includes(tipe)) {
       if (!hasDP) {
         await transaction.rollback();
+        cleanupUploadedBukti(req);
         return res.status(400).json({ message: 'Wajib ada pembayaran DP sebelum termin/pelunasan' });
       }
     }
@@ -348,6 +385,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
           }).format(Math.round(Number(num || 0)));
         };
         await transaction.rollback();
+        cleanupUploadedBukti(req);
         return res.status(400).json({ 
           message: `Jumlah pelunasan penuh harus sama dengan grand total (Rp ${formatRupiah(grandTotal)})` 
         });
@@ -368,6 +406,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
         }).format(Math.round(Number(num || 0)));
       };
       await transaction.rollback();
+      cleanupUploadedBukti(req);
       return res.status(400).json({ 
         message: `Jumlah pembayaran melebihi total. Sisa yang harus dibayar: Rp ${formatRupiah(remaining)}` 
       });
@@ -378,6 +417,7 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
       tipe,
       jumlah,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
+      bukti_bayar: req.file ? req.file.filename : null,
       catatan: catatan || null,
       created_by: req.user.id,
     }, { transaction });
@@ -390,6 +430,28 @@ router.post('/:id/pembayaran', authenticate, async (req, res) => {
     return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil ditambahkan' });
   } catch (err) {
     await transaction.rollback();
+    cleanupUploadedBukti(req);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/penjualan-interior/:id/pembayaran/:pembayaranId/bukti
+router.get('/:id/pembayaran/:pembayaranId/bukti', authenticate, async (req, res) => {
+  try {
+    const pembayaran = await PembayaranInterior.findOne({
+      where: { id: req.params.pembayaranId, penjualan_interior_id: req.params.id },
+    });
+    if (!pembayaran || !pembayaran.bukti_bayar) {
+      return res.status(404).json({ message: 'Bukti pembayaran tidak ditemukan' });
+    }
+
+    const filePath = path.join(BUKTI_DIR, path.basename(pembayaran.bukti_bayar));
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'File bukti pembayaran tidak ditemukan' });
+    }
+
+    return res.sendFile(filePath);
+  } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

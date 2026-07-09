@@ -49,4 +49,5 @@ export const PEMBAYARAN_TIPE = [
   { value: 'TERMIN_2', label: 'Termin 2' },
   { value: 'TERMIN_3', label: 'Termin 3' },
   { value: 'PELUNASAN_AKHIR', label: 'Pelunasan Akhir' },
+  { value: 'PELUNASAN_PENUH', label: 'Pelunasan Penuh' },
 ];
