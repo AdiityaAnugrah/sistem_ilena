@@ -325,6 +325,9 @@ export default function PenjualanInteriorDetail() {
     try {
       await api.patch(`/penjualan-interior/${id}/identitas`, {
         ...identitasForm,
+        nama_pt_npwp: identitasForm.nama_pt_npwp.trim() || null,
+        no_hp: identitasForm.no_hp.trim() || null,
+        no_npwp: identitasForm.no_npwp.trim() || null,
         alamat_provinsi_id: alamatForm.provinsi_id,
         alamat_kabupaten_id: alamatForm.kabupaten_id,
         alamat_kecamatan_id: alamatForm.kecamatan_id,
@@ -1065,8 +1068,8 @@ export default function PenjualanInteriorDetail() {
             </div>
             <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
               <InfoRow label="Nama Customer" value={data.nama_customer} />
-              <InfoRow label="PT / NPWP" value={data.nama_pt_npwp} />
-              <InfoRow label="No. HP" value={data.no_hp} />
+              {data.nama_pt_npwp && <InfoRow label="PT / NPWP" value={data.nama_pt_npwp} />}
+              {data.no_hp && <InfoRow label="No. HP" value={data.no_hp} />}
               <InfoRow label="Faktur" value={data.faktur === 'FAKTUR' ? 'Faktur Pajak' : 'Non Faktur'} />
               {data.no_npwp && <InfoRow label="No. NPWP" value={data.no_npwp} />}
               {!!data.pakai_ppn && <InfoRow label="PPN" value={`${data.ppn_persen}%`} />}

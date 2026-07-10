@@ -19,6 +19,11 @@ const { emitDataUpdated } = require('../socket');
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
+const optionalText = (value) => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
+};
 
 const BUKTI_DIR = path.join(__dirname, '../../uploads/bukti-pembayaran');
 if (!fs.existsSync(BUKTI_DIR)) fs.mkdirSync(BUKTI_DIR, { recursive: true });
@@ -113,7 +118,12 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     const penjualan = await PenjualanInterior.create({
-      faktur, no_po, nama_customer, nama_pt_npwp, no_hp, no_npwp,
+      faktur,
+      no_po,
+      nama_customer,
+      nama_pt_npwp: optionalText(nama_pt_npwp),
+      no_hp: optionalText(no_hp),
+      no_npwp: optionalText(no_npwp),
       pakai_ppn: pakai_ppn ? 1 : 0,
       ppn_persen: pakai_ppn ? ppn_persen : null,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
@@ -714,10 +724,10 @@ router.patch('/:id/identitas', authenticate, async (req, res) => {
 
     const updates = {};
     if (nama_customer !== undefined) updates.nama_customer = nama_customer;
-    if (nama_pt_npwp !== undefined) updates.nama_pt_npwp = nama_pt_npwp;
-    if (no_hp !== undefined) updates.no_hp = no_hp;
+    if (nama_pt_npwp !== undefined) updates.nama_pt_npwp = optionalText(nama_pt_npwp);
+    if (no_hp !== undefined) updates.no_hp = optionalText(no_hp);
     if (no_po !== undefined) updates.no_po = no_po;
-    if (no_npwp !== undefined) updates.no_npwp = no_npwp;
+    if (no_npwp !== undefined) updates.no_npwp = optionalText(no_npwp);
     if (alamat_provinsi_id !== undefined) updates.alamat_provinsi_id = alamat_provinsi_id || null;
     if (alamat_kabupaten_id !== undefined) updates.alamat_kabupaten_id = alamat_kabupaten_id || null;
     if (alamat_kecamatan_id !== undefined) updates.alamat_kecamatan_id = alamat_kecamatan_id || null;

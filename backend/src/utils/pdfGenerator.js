@@ -420,8 +420,10 @@ const generatePDFProforma = (res, data) => {
     doc.font('Helvetica').fontSize(9).fillColor('#333').text(penjualan.nama_pt_npwp, 40, addrY);
     addrY = doc.y + 2;
   }
-  doc.font('Helvetica').fontSize(9).fillColor('#333')
-    .text(`No. HP: ${penjualan.no_hp || '-'}`, 40, addrY);
+  if (penjualan.no_hp) {
+    doc.font('Helvetica').fontSize(9).fillColor('#333')
+      .text(`No. HP: ${penjualan.no_hp}`, 40, addrY);
+  }
   if (penjualan.no_npwp) {
     doc.text(`NPWP: ${penjualan.no_npwp}`, 40, doc.y + 2);
   }

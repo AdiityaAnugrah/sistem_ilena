@@ -71,9 +71,9 @@ export default function PenjualanInteriorBaru() {
         faktur,
         no_po: formData.no_po,
         nama_customer: formData.nama_customer,
-        nama_pt_npwp: formData.nama_pt_npwp,
-        no_hp: formData.no_hp,
-        no_npwp: formData.no_npwp || null,
+        nama_pt_npwp: formData.nama_pt_npwp?.trim() || null,
+        no_hp: formData.no_hp?.trim() || null,
+        no_npwp: formData.no_npwp?.trim() || null,
         pakai_ppn: pakaiPPN,
         ppn_persen: pakaiPPN ? ppnPersen : null,
         tanggal: formData.tanggal,
@@ -225,11 +225,10 @@ export default function PenjualanInteriorBaru() {
               {errors.nama_customer && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_customer.message as string}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor WhatsApp *</Label>
+              <Label className="text-xs font-bold text-slate-500 ml-1">Nomor WhatsApp</Label>
               <Input
                 {...register('no_hp', {
-                  required: 'Nomor HP wajib diisi',
-                  pattern: { value: /^0\d{9,12}$/, message: 'Mulai dengan 0, 10–13 digit' },
+                  validate: (value) => !value || /^0\d{9,12}$/.test(value) || 'Mulai dengan 0, 10–13 digit',
                 })}
                 inputMode="numeric"
                 maxLength={13}
@@ -240,13 +239,12 @@ export default function PenjualanInteriorBaru() {
               {errors.no_hp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.no_hp.message as string}</p>}
             </div>
             <div className="space-y-1.5 lg:col-span-1">
-              <Label className="text-xs font-bold text-slate-500 ml-1">Perusahaan / Nama PT *</Label>
+              <Label className="text-xs font-bold text-slate-500 ml-1">Perusahaan / Nama PT</Label>
               <Input
                 {...register('nama_pt_npwp', {
-                  required: 'Nama PT / NPWP wajib diisi',
-                  minLength: { value: 2, message: 'Minimal 2 karakter' },
+                  validate: (value) => !value || value.trim().length >= 2 || 'Minimal 2 karakter',
                 })}
-                placeholder="Nama Perusahaan"
+                placeholder="Nama Perusahaan (Opsional)"
                 className="bg-slate-50/50 border-slate-200 focus:bg-white focus:ring-red-100 transition-all font-medium text-sm h-11 rounded-xl"
               />
               {errors.nama_pt_npwp && <p className="text-red-500 text-[10px] font-bold mt-1 ml-1">{errors.nama_pt_npwp.message as string}</p>}
