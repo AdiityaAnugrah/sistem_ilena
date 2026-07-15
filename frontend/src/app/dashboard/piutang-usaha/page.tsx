@@ -65,7 +65,16 @@ function PiutangUsahaContent() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<{ key: string; name: string } | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{
+    key: string;
+    name: string;
+    sumber?: string;
+    debit?: number;
+    kredit?: number;
+    piutang?: number;
+    lebih_bayar?: number;
+    saldo_akhir?: number;
+  } | null>(null);
   const [rekapPage, setRekapPage] = useState(1);
   const [detailPage, setDetailPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -130,7 +139,16 @@ function PiutangUsahaContent() {
   };
 
   const openCustomerDetail = (row: RekapRow) => {
-    setSelectedCustomer({ key: row.customer_key, name: row.nama_customer });
+    setSelectedCustomer({
+      key: row.customer_key,
+      name: row.nama_customer,
+      sumber: row.sumber,
+      debit: row.debit,
+      kredit: row.kredit,
+      piutang: row.piutang,
+      lebih_bayar: row.lebih_bayar,
+      saldo_akhir: row.saldo_akhir,
+    });
     setDetailPage(1);
     setTab('detail');
   };
@@ -228,11 +246,48 @@ function PiutangUsahaContent() {
         </div>
 
         {tab === 'detail' && selectedCustomer && (
-          <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2" style={{ background: '#fff7ed', borderBottom: '1px solid #fed7aa' }}>
-            <div className="text-sm font-bold" style={{ color: '#9a3412' }}>Detail customer: {selectedCustomer.name}</div>
-            <button onClick={() => { setSelectedCustomer(null); setDetailPage(1); }} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff', color: '#c2410c', border: '1px solid #fed7aa' }}>
-              Lihat Semua Detail
-            </button>
+          <div className="px-4 py-4" style={{ background: '#fff7ed', borderBottom: '1px solid #fed7aa' }}>
+            <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: '#c2410c' }}>
+                  Rincian dari baris rekap yang dipilih
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedCustomer.sumber && <Badge tone={selectedCustomer.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{selectedCustomer.sumber}</Badge>}
+                  <div className="text-sm font-black" style={{ color: '#9a3412' }}>{selectedCustomer.name}</div>
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#b45309' }}>
+                  Detail di bawah menjelaskan asal angka debit, kredit, dan saldo pada rekap customer ini.
+                </div>
+              </div>
+              <button onClick={() => { setSelectedCustomer(null); setDetailPage(1); }} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff', color: '#c2410c', border: '1px solid #fed7aa' }}>
+                Lihat Semua Detail
+              </button>
+            </div>
+            {selectedCustomer.debit !== undefined && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
+                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
+                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Debit Rekap</div>
+                  <div className="text-sm font-black tabular-nums" style={{ color: '#2563eb' }}>{formatRupiah(selectedCustomer.debit)}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
+                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Kredit Rekap</div>
+                  <div className="text-sm font-black tabular-nums" style={{ color: '#16a34a' }}>{formatRupiah(selectedCustomer.kredit || 0)}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
+                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Status Saldo</div>
+                  <div className="text-sm font-black" style={{ color: (selectedCustomer.saldo_akhir || 0) >= 0 ? '#dc2626' : '#c2410c' }}>
+                    {(selectedCustomer.saldo_akhir || 0) >= 0 ? 'Piutang' : 'Lebih Bayar'}
+                  </div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
+                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>{(selectedCustomer.saldo_akhir || 0) >= 0 ? 'Piutang Rekap' : 'Lebih Bayar Rekap'}</div>
+                  <div className="text-sm font-black tabular-nums" style={{ color: (selectedCustomer.saldo_akhir || 0) >= 0 ? '#dc2626' : '#c2410c' }}>
+                    {formatRupiah((selectedCustomer.saldo_akhir || 0) >= 0 ? (selectedCustomer.piutang || 0) : (selectedCustomer.lebih_bayar || 0))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
