@@ -196,6 +196,7 @@ async function collectPiutangEntries() {
       customer,
       normalized_customer: norm(customer),
       source_customer_key: `${entry.sumber}:${norm(customer)}`,
+      is_test: Number(entry.is_test || 0),
       debit: money(entry.debit),
       kredit: money(entry.kredit),
       net: money(Number(entry.debit || 0) - Number(entry.kredit || 0)),
@@ -215,33 +216,33 @@ async function collectPiutangEntries() {
   for (const inv of offlineInvoices) {
     const amount = offlineInvoiceTotal(inv.penjualan, inv);
     if (amount <= 0) continue;
-    push({ sumber: 'OFFLINE', jenis: 'INVOICE', tanggal: inv.tanggal, reference_no: inv.nomor_invoice, customer: inv.penjualan?.nama_penerima, no_po: inv.penjualan?.no_po, debit: amount, kredit: 0 });
+    push({ sumber: 'OFFLINE', jenis: 'INVOICE', tanggal: inv.tanggal, reference_no: inv.nomor_invoice, customer: inv.penjualan?.nama_penerima, no_po: inv.penjualan?.no_po, is_test: inv.penjualan?.is_test, debit: amount, kredit: 0 });
   }
   for (const p of offlinePayments) {
     const amount = money(p.jumlah);
     if (amount <= 0) continue;
-    push({ sumber: 'OFFLINE', jenis: 'PEMBAYARAN', tanggal: p.tanggal, reference_no: p.metode, customer: p.penjualan?.nama_penerima, no_po: p.penjualan?.no_po, debit: 0, kredit: amount });
+    push({ sumber: 'OFFLINE', jenis: 'PEMBAYARAN', tanggal: p.tanggal, reference_no: p.metode, customer: p.penjualan?.nama_penerima, no_po: p.penjualan?.no_po, is_test: p.penjualan?.is_test, debit: 0, kredit: amount });
   }
   for (const r of offlineReturs) {
     const amount = offlineReturTotal(r);
     if (amount <= 0) continue;
-    push({ sumber: 'OFFLINE', jenis: 'RETUR', tanggal: r.tanggal, reference_no: `Retur #${r.id}`, customer: r.penjualan?.nama_penerima, no_po: r.penjualan?.no_po, debit: 0, kredit: amount });
+    push({ sumber: 'OFFLINE', jenis: 'RETUR', tanggal: r.tanggal, reference_no: `Retur #${r.id}`, customer: r.penjualan?.nama_penerima, no_po: r.penjualan?.no_po, is_test: r.penjualan?.is_test, debit: 0, kredit: amount });
   }
   for (const inv of interiorInvoices) {
     const amount = await invoiceInteriorAmount(inv);
     if (amount <= 0) continue;
-    push({ sumber: 'INTERIOR', jenis: 'INVOICE', tanggal: inv.tanggal, reference_no: inv.nomor_invoice, customer: inv.penjualan?.nama_customer, no_po: inv.penjualan?.no_po, debit: amount, kredit: 0 });
+    push({ sumber: 'INTERIOR', jenis: 'INVOICE', tanggal: inv.tanggal, reference_no: inv.nomor_invoice, customer: inv.penjualan?.nama_customer, no_po: inv.penjualan?.no_po, is_test: inv.penjualan?.is_test, debit: amount, kredit: 0 });
   }
   for (const p of interiorPayments) {
     const amount = money(p.jumlah);
     if (amount <= 0) continue;
-    push({ sumber: 'INTERIOR', jenis: 'PEMBAYARAN', tanggal: p.tanggal, reference_no: p.tipe, customer: p.penjualan?.nama_customer, no_po: p.penjualan?.no_po, debit: 0, kredit: amount });
+    push({ sumber: 'INTERIOR', jenis: 'PEMBAYARAN', tanggal: p.tanggal, reference_no: p.tipe, customer: p.penjualan?.nama_customer, no_po: p.penjualan?.no_po, is_test: p.penjualan?.is_test, debit: 0, kredit: amount });
   }
   for (const r of interiorReturs) {
     const amount = interiorReturTotal(r);
     if (amount <= 0) continue;
     const penjualan = r.item?.penjualan;
-    push({ sumber: 'INTERIOR', jenis: 'RETUR', tanggal: r.tanggal, reference_no: `Retur SJ #${r.surat_jalan_interior_id}`, customer: penjualan?.nama_customer, no_po: penjualan?.no_po, debit: 0, kredit: amount });
+    push({ sumber: 'INTERIOR', jenis: 'RETUR', tanggal: r.tanggal, reference_no: `Retur SJ #${r.surat_jalan_interior_id}`, customer: penjualan?.nama_customer, no_po: penjualan?.no_po, is_test: penjualan?.is_test, debit: 0, kredit: amount });
   }
 
   return entries;
@@ -262,8 +263,34 @@ function summarizePiutang(entries) {
     }
   }
   return {
-    bySourceCustomer: Object.values(bySourceCustomer).map(x => ({ ...x, debit: money(x.debit), kredit: money(x.kredit), saldo: money(x.saldo) })).sort((a, b) => b.saldo - a.saldo),
-    byNormalizedCustomer: Object.values(byNormalizedCustomer).map(x => ({ ...x, sumber_list: [...x.sumber_list], debit: money(x.debit), kredit: money(x.kredit), saldo: money(x.saldo) })).sort((a, b) => b.saldo - a.saldo),
+    bySourceCustomer: Object.values(bySourceCustomer).map(x => {
+      const saldo = money(x.saldo);
+      return { ...x, debit: money(x.debit), kredit: money(x.kredit), saldo, piutang: Math.max(0, saldo), lebih_bayar: Math.max(0, -saldo) };
+    }).sort((a, b) => b.saldo - a.saldo),
+    byNormalizedCustomer: Object.values(byNormalizedCustomer).map(x => {
+      const saldo = money(x.saldo);
+      return { ...x, sumber_list: [...x.sumber_list], debit: money(x.debit), kredit: money(x.kredit), saldo, piutang: Math.max(0, saldo), lebih_bayar: Math.max(0, -saldo) };
+    }).sort((a, b) => b.saldo - a.saldo),
+  };
+}
+
+function summarizeEntries(label, entries) {
+  const totalDebit = money(entries.reduce((s, e) => s + e.debit, 0));
+  const totalKredit = money(entries.reduce((s, e) => s + e.kredit, 0));
+  const net = money(totalDebit - totalKredit);
+  const piutang = summarizePiutang(entries);
+  return {
+    label,
+    entry_count: entries.length,
+    total_debit: totalDebit,
+    total_kredit: totalKredit,
+    net_saldo: net,
+    total_piutang: money(piutang.bySourceCustomer.reduce((s, x) => s + x.piutang, 0)),
+    total_lebih_bayar: money(piutang.bySourceCustomer.reduce((s, x) => s + x.lebih_bayar, 0)),
+    customers_with_piutang: piutang.bySourceCustomer.filter(x => x.piutang > 0).length,
+    customers_with_lebih_bayar: piutang.bySourceCustomer.filter(x => x.lebih_bayar > 0).length,
+    bySourceCustomer: piutang.bySourceCustomer,
+    byNormalizedCustomer: piutang.byNormalizedCustomer,
   };
 }
 
@@ -285,6 +312,11 @@ function writeCsv(file, rows, columns) {
     const nameStats = await collectNameStats();
     const entries = await collectPiutangEntries();
     const piutang = summarizePiutang(entries);
+    const productionEntries = entries.filter(e => Number(e.is_test || 0) === 0);
+    const testingEntries = entries.filter(e => Number(e.is_test || 0) === 1);
+    const productionPiutang = summarizeEntries('PRODUKSI_ONLY_IS_TEST_0', productionEntries);
+    const testingPiutang = summarizeEntries('TESTING_ONLY_IS_TEST_1', testingEntries);
+    const combinedPiutang = summarizeEntries('GABUNGAN_DIAGNOSTIK', entries);
 
     const summary = {
       generated_at: startedAt,
@@ -294,11 +326,34 @@ function writeCsv(file, rows, columns) {
       exact_duplicate_groups: nameStats.exactDuplicates.length,
       normalized_duplicate_groups: nameStats.normalizedDuplicates.length,
       similar_pairs: nameStats.similarPairs.length,
-      piutang_entry_count: entries.length,
-      total_debit: money(entries.reduce((s, e) => s + e.debit, 0)),
-      total_kredit: money(entries.reduce((s, e) => s + e.kredit, 0)),
-      total_saldo: money(entries.reduce((s, e) => s + e.debit - e.kredit, 0)),
-      customers_with_open_balance_by_source: piutang.bySourceCustomer.filter(x => x.saldo !== 0).length,
+      production: {
+        piutang_entry_count: productionPiutang.entry_count,
+        total_debit: productionPiutang.total_debit,
+        total_kredit: productionPiutang.total_kredit,
+        net_saldo: productionPiutang.net_saldo,
+        total_piutang: productionPiutang.total_piutang,
+        total_lebih_bayar: productionPiutang.total_lebih_bayar,
+        customers_with_piutang: productionPiutang.customers_with_piutang,
+        customers_with_lebih_bayar: productionPiutang.customers_with_lebih_bayar,
+      },
+      testing: {
+        piutang_entry_count: testingPiutang.entry_count,
+        total_debit: testingPiutang.total_debit,
+        total_kredit: testingPiutang.total_kredit,
+        net_saldo: testingPiutang.net_saldo,
+        total_piutang: testingPiutang.total_piutang,
+        total_lebih_bayar: testingPiutang.total_lebih_bayar,
+        customers_with_piutang: testingPiutang.customers_with_piutang,
+        customers_with_lebih_bayar: testingPiutang.customers_with_lebih_bayar,
+      },
+      combined_diagnostic: {
+        piutang_entry_count: combinedPiutang.entry_count,
+        total_debit: combinedPiutang.total_debit,
+        total_kredit: combinedPiutang.total_kredit,
+        net_saldo: combinedPiutang.net_saldo,
+        total_piutang: combinedPiutang.total_piutang,
+        total_lebih_bayar: combinedPiutang.total_lebih_bayar,
+      },
     };
 
     const report = {
@@ -307,10 +362,21 @@ function writeCsv(file, rows, columns) {
       exact_duplicates: nameStats.exactDuplicates,
       normalized_duplicates: nameStats.normalizedDuplicates,
       similar_pairs: nameStats.similarPairs.slice(0, 200),
-      piutang_by_source_customer: piutang.bySourceCustomer,
-      piutang_by_normalized_customer_preview: piutang.byNormalizedCustomer,
-      piutang_entries_preview: entries.slice(0, 500),
-      note: 'Audit read-only. Tidak ada perubahan database. by_normalized_customer hanya preview risiko penggabungan nama, bukan sumber kebenaran final.',
+      production: {
+        piutang_by_source_customer: productionPiutang.bySourceCustomer,
+        piutang_by_normalized_customer_preview: productionPiutang.byNormalizedCustomer,
+        piutang_entries_preview: productionEntries.slice(0, 500),
+      },
+      testing: {
+        piutang_by_source_customer: testingPiutang.bySourceCustomer,
+        piutang_by_normalized_customer_preview: testingPiutang.byNormalizedCustomer,
+        piutang_entries_preview: testingEntries.slice(0, 500),
+      },
+      combined_diagnostic: {
+        piutang_by_source_customer: piutang.bySourceCustomer,
+        piutang_by_normalized_customer_preview: piutang.byNormalizedCustomer,
+      },
+      note: 'Audit read-only. Tidak ada perubahan database. Gunakan bagian production untuk laporan produksi. Saldo negatif dipisahkan sebagai lebih_bayar/uang_muka, bukan piutang minus.',
     };
 
     const docsDir = path.resolve(__dirname, '../../docs');
@@ -319,12 +385,14 @@ function writeCsv(file, rows, columns) {
     const csvPath = path.join(docsDir, 'audit-piutang-production-summary.csv');
     const namesCsvPath = path.join(docsDir, 'audit-piutang-production-names.csv');
     fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2));
-    writeCsv(csvPath, piutang.bySourceCustomer, [
+    writeCsv(csvPath, productionPiutang.bySourceCustomer, [
       { key: 'sumber', label: 'Sumber' },
       { key: 'customer', label: 'Customer' },
       { key: 'debit', label: 'Debit' },
       { key: 'kredit', label: 'Kredit' },
-      { key: 'saldo', label: 'Saldo' },
+      { key: 'saldo', label: 'Net Saldo' },
+      { key: 'piutang', label: 'Piutang' },
+      { key: 'lebih_bayar', label: 'Lebih Bayar/Uang Muka' },
       { key: 'count', label: 'Jumlah Mutasi' },
     ]);
     writeCsv(namesCsvPath, nameStats.allNames, [

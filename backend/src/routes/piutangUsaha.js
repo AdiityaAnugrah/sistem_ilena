@@ -287,6 +287,8 @@ router.get('/rekap', authenticate, async (req, res) => {
         debit: money(row.debit),
         kredit: money(row.kredit),
         saldo_akhir: money(row.saldo_awal + row.debit - row.kredit),
+        piutang: Math.max(0, money(row.saldo_awal + row.debit - row.kredit)),
+        lebih_bayar: Math.max(0, -money(row.saldo_awal + row.debit - row.kredit)),
       }))
       .filter(row => row.saldo_awal !== 0 || row.debit !== 0 || row.kredit !== 0 || row.saldo_akhir !== 0)
       .sort((a, b) => b.saldo_akhir - a.saldo_akhir || a.nama_customer.localeCompare(b.nama_customer));
@@ -296,8 +298,10 @@ router.get('/rekap', authenticate, async (req, res) => {
       acc.debit += row.debit;
       acc.kredit += row.kredit;
       acc.saldoAkhir += row.saldo_akhir;
+      acc.piutang += row.piutang;
+      acc.lebihBayar += row.lebih_bayar;
       return acc;
-    }, { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
+    }, { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
 
     const pageInt = Math.max(1, parseInt(page));
     const limitInt = Math.min(100, Math.max(1, parseInt(limit)));

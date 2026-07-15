@@ -19,6 +19,8 @@ interface RekapRow {
   debit: number;
   kredit: number;
   saldo_akhir: number;
+  piutang: number;
+  lebih_bayar: number;
   jumlah_transaksi: number;
 }
 
@@ -69,7 +71,7 @@ function PiutangUsahaContent() {
   const [loading, setLoading] = useState(true);
   const [rekapRows, setRekapRows] = useState<RekapRow[]>([]);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
-  const [rekapSummary, setRekapSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
+  const [rekapSummary, setRekapSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
   const [detailSummary, setDetailSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
   const [rekapTotalPages, setRekapTotalPages] = useState(1);
   const [detailTotalPages, setDetailTotalPages] = useState(1);
@@ -93,7 +95,7 @@ function PiutangUsahaContent() {
   const fetchRekap = useCallback(async (page = rekapPage) => {
     const res = await api.get('/piutang-usaha/rekap', { params: { ...baseParams, page, limit: limitRekap } });
     setRekapRows(res.data.data || []);
-    setRekapSummary(res.data.summary || { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
+    setRekapSummary(res.data.summary || { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
     setRekapTotalPages(res.data.totalPages || 1);
   }, [baseParams, rekapPage]);
 
@@ -171,7 +173,7 @@ function PiutangUsahaContent() {
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Usaha</h1>
           <p className="text-sm mt-1 max-w-2xl" style={{ color: '#64748b' }}>
-            Pantau saldo piutang dari invoice, pembayaran, dan retur. Untuk menjaga data produksi tetap aman, rekap sementara dipisah per sumber Offline/Interior dan nama customer.
+            Pantau piutang dari invoice, pembayaran, dan retur. Saldo positif ditampilkan sebagai piutang, sedangkan saldo negatif ditampilkan sebagai lebih bayar/uang muka agar tidak membingungkan.
           </p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
@@ -179,12 +181,13 @@ function PiutangUsahaContent() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         {([
-          ['Saldo Awal', rekapSummary.saldoAwal, '#f8fafc', '#0f172a'],
           ['Debit / Invoice', rekapSummary.debit, '#eff6ff', '#2563eb'],
           ['Kredit / Bayar + Retur', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
-          ['Saldo Akhir', rekapSummary.saldoAkhir, '#fff1f1', '#dc2626'],
+          ['Total Piutang', rekapSummary.piutang, '#fff1f1', '#dc2626'],
+          ['Lebih Bayar / Uang Muka', rekapSummary.lebihBayar, '#fff7ed', '#c2410c'],
+          ['Net Saldo', rekapSummary.saldoAkhir, '#f8fafc', '#0f172a'],
         ] as SummaryCard[]).map(([label, value, bg, fg]) => (
           <div key={label} className="rounded-2xl p-4" style={{ background: bg, border: '1px solid #e2e8f0' }}>
             <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>{label}</div>
@@ -196,8 +199,8 @@ function PiutangUsahaContent() {
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data</div>
         <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
-          Laporan ini read-only dan tidak mengubah data produksi. Karena sistem belum punya master customer tunggal,
-          customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong>. Penggabungan final sebaiknya dilakukan nanti lewat master customer agar tidak ada data yang salah gabung.
+          Laporan ini read-only dan tidak mengubah data produksi. Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
+          Jika kredit lebih besar dari debit, sistem menandainya sebagai <strong>Lebih Bayar / Uang Muka</strong>, bukan piutang minus.
         </div>
       </div>
 
@@ -238,7 +241,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Sumber', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir', 'Aksi'].map(h => (
+                  {['No', 'Sumber', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Status Saldo', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -259,7 +262,19 @@ function PiutangUsahaContent() {
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#475569' }}>{formatRupiah(row.saldo_awal)}</td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#2563eb' }}>{formatRupiah(row.debit)}</td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#16a34a' }}>{formatRupiah(row.kredit)}</td>
-                    <td className="px-4 py-3 text-sm font-black tabular-nums" style={{ color: row.saldo_akhir > 0 ? '#dc2626' : '#0f172a' }}>{formatRupiah(row.saldo_akhir)}</td>
+                    <td className="px-4 py-3">
+                      {row.saldo_akhir >= 0 ? (
+                        <div>
+                          <div className="text-xs font-bold" style={{ color: '#dc2626' }}>Piutang</div>
+                          <div className="text-sm font-black tabular-nums" style={{ color: '#dc2626' }}>{formatRupiah(row.piutang)}</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="text-xs font-bold" style={{ color: '#c2410c' }}>Lebih Bayar / Uang Muka</div>
+                          <div className="text-sm font-black tabular-nums" style={{ color: '#c2410c' }}>{formatRupiah(row.lebih_bayar)}</div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <button className="inline-flex items-center gap-1 min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff1f1', color: '#dc2626', border: '1px solid #fecaca' }}>
                         Detail <ArrowRight className="h-3 w-3" />
@@ -303,7 +318,14 @@ function PiutangUsahaContent() {
                     </td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#2563eb' }}>{row.debit ? formatRupiah(row.debit) : '-'}</td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#16a34a' }}>{row.kredit ? formatRupiah(row.kredit) : '-'}</td>
-                    <td className="px-4 py-3 text-sm font-black tabular-nums" style={{ color: row.saldo > 0 ? '#dc2626' : '#0f172a' }}>{formatRupiah(row.saldo)}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-xs font-bold" style={{ color: row.saldo >= 0 ? '#dc2626' : '#c2410c' }}>
+                        {row.saldo >= 0 ? 'Piutang' : 'Lebih Bayar'}
+                      </div>
+                      <div className="text-sm font-black tabular-nums" style={{ color: row.saldo >= 0 ? '#dc2626' : '#c2410c' }}>
+                        {formatRupiah(Math.abs(row.saldo))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {row.bukti_endpoint && (
@@ -343,7 +365,7 @@ function PiutangUsahaContent() {
             <div><span style={{ color: '#94a3b8' }}>Saldo Awal</span><div className="font-black" style={{ color: '#0f172a' }}>{formatRupiah(detailSummary.saldoAwal)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>Debit</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>Kredit</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
-            <div><span style={{ color: '#94a3b8' }}>Saldo Akhir</span><div className="font-black" style={{ color: '#dc2626' }}>{formatRupiah(detailSummary.saldoAkhir)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>{detailSummary.saldoAkhir >= 0 ? 'Saldo Piutang' : 'Lebih Bayar / Uang Muka'}</span><div className="font-black" style={{ color: detailSummary.saldoAkhir >= 0 ? '#dc2626' : '#c2410c' }}>{formatRupiah(Math.abs(detailSummary.saldoAkhir))}</div></div>
           </div>
         </div>
       )}
