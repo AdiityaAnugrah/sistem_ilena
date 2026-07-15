@@ -81,7 +81,7 @@ function inPeriod(date, from, to) {
 }
 
 function entryMatches(entry, { search, customer_key }) {
-  if (customer_key && entry.customer_key !== customer_key) return false;
+  if (customer_key && entry.piutang_key !== customer_key && entry.customer_key !== customer_key) return false;
   if (search) {
     const q = String(search).toLowerCase();
     const text = [
@@ -104,6 +104,7 @@ async function buildPiutangEntries(isTest) {
       ...entry,
       customer,
       customer_key: customerKey(customer),
+      piutang_key: `${entry.sumber}:${customerKey(customer)}`,
       debit: money(entry.debit),
       kredit: money(entry.kredit),
       nilai: money(Number(entry.debit || 0) - Number(entry.kredit || 0)),
@@ -256,9 +257,11 @@ router.get('/rekap', authenticate, async (req, res) => {
 
     const map = new Map();
     for (const entry of entries) {
-      if (!map.has(entry.customer_key)) {
-        map.set(entry.customer_key, {
-          customer_key: entry.customer_key,
+      if (!map.has(entry.piutang_key)) {
+        map.set(entry.piutang_key, {
+          customer_key: entry.piutang_key,
+          nama_key: entry.customer_key,
+          sumber: entry.sumber,
           nama_customer: entry.customer,
           saldo_awal: 0,
           debit: 0,
@@ -267,7 +270,7 @@ router.get('/rekap', authenticate, async (req, res) => {
           jumlah_transaksi: 0,
         });
       }
-      const row = map.get(entry.customer_key);
+      const row = map.get(entry.piutang_key);
       if (from && entry.tanggal < from) {
         row.saldo_awal += entry.debit - entry.kredit;
       } else if (inPeriod(entry.tanggal, from, to)) {
@@ -332,6 +335,7 @@ router.get('/detail', authenticate, async (req, res) => {
         referensi: '-',
         customer: customer_key ? (allEntries[0]?.customer || '-') : 'Semua Customer',
         customer_key: customer_key || '',
+        piutang_key: customer_key || '',
         no_po: '',
         keterangan: 'Saldo Awal',
         debit: 0,

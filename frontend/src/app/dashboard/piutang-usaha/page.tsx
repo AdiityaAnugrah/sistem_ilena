@@ -12,6 +12,8 @@ type Tab = 'rekap' | 'detail';
 
 interface RekapRow {
   customer_key: string;
+  nama_key?: string;
+  sumber: 'OFFLINE' | 'INTERIOR';
   nama_customer: string;
   saldo_awal: number;
   debit: number;
@@ -28,6 +30,7 @@ interface DetailRow {
   referensi: string;
   customer: string;
   customer_key: string;
+  piutang_key?: string;
   no_po?: string;
   keterangan: string;
   debit: number;
@@ -168,7 +171,7 @@ function PiutangUsahaContent() {
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Usaha</h1>
           <p className="text-sm mt-1 max-w-2xl" style={{ color: '#64748b' }}>
-            Pantau saldo piutang per customer dari invoice, pembayaran, dan retur. Rekap dihitung langsung dari detail mutasi.
+            Pantau saldo piutang dari invoice, pembayaran, dan retur. Untuk menjaga data produksi tetap aman, rekap sementara dipisah per sumber Offline/Interior dan nama customer.
           </p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
@@ -188,6 +191,14 @@ function PiutangUsahaContent() {
             <div className="text-lg font-black tabular-nums" style={{ color: fg }}>{formatRupiah(value || 0)}</div>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
+        <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data</div>
+        <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
+          Laporan ini read-only dan tidak mengubah data produksi. Karena sistem belum punya master customer tunggal,
+          customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong>. Penggabungan final sebaiknya dilakukan nanti lewat master customer agar tidak ada data yang salah gabung.
+        </div>
       </div>
 
       <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
@@ -227,19 +238,20 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir', 'Aksi'].map(h => (
+                  {['No', 'Sumber', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat rekap piutang...</td></tr>
+                  <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat rekap piutang...</td></tr>
                 ) : rekapRows.length === 0 ? (
-                  <tr><td colSpan={7} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada piutang pada filter ini</td></tr>
+                  <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada piutang pada filter ini</td></tr>
                 ) : rekapRows.map((row, idx) => (
                   <tr key={row.customer_key} onClick={() => openCustomerDetail(row)} className="cursor-pointer" style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (rekapPage - 1) * limitRekap}</td>
+                    <td className="px-4 py-3"><Badge tone={row.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{row.sumber}</Badge></td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-black" style={{ color: '#1e293b' }}>{row.nama_customer}</div>
                       <div className="text-xs" style={{ color: '#94a3b8' }}>{row.jumlah_transaksi} transaksi periode ini</div>
