@@ -265,27 +265,10 @@ function PiutangUsahaContent() {
               </button>
             </div>
             {selectedCustomer.debit !== undefined && (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
-                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
-                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Debit Rekap</div>
-                  <div className="text-sm font-black tabular-nums" style={{ color: '#2563eb' }}>{formatRupiah(selectedCustomer.debit)}</div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
-                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Kredit Rekap</div>
-                  <div className="text-sm font-black tabular-nums" style={{ color: '#16a34a' }}>{formatRupiah(selectedCustomer.kredit || 0)}</div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
-                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>Status Saldo</div>
-                  <div className="text-sm font-black" style={{ color: (selectedCustomer.saldo_akhir || 0) >= 0 ? '#dc2626' : '#c2410c' }}>
-                    {(selectedCustomer.saldo_akhir || 0) >= 0 ? 'Piutang' : 'Lebih Bayar'}
-                  </div>
-                </div>
-                <div className="rounded-xl p-3" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
-                  <div className="text-[11px] font-bold" style={{ color: '#b45309' }}>{(selectedCustomer.saldo_akhir || 0) >= 0 ? 'Piutang Rekap' : 'Lebih Bayar Rekap'}</div>
-                  <div className="text-sm font-black tabular-nums" style={{ color: (selectedCustomer.saldo_akhir || 0) >= 0 ? '#dc2626' : '#c2410c' }}>
-                    {formatRupiah((selectedCustomer.saldo_akhir || 0) >= 0 ? (selectedCustomer.piutang || 0) : (selectedCustomer.lebih_bayar || 0))}
-                  </div>
-                </div>
+              <div className="mt-3 text-xs leading-relaxed" style={{ color: '#b45309' }}>
+                Rumus detail: <strong>Saldo berjalan = Saldo sebelumnya + Debit - Kredit</strong>. 
+                Saldo terakhir di detail harus menjelaskan status pada rekap:
+                <strong> {(selectedCustomer.saldo_akhir || 0) >= 0 ? `Piutang ${formatRupiah(selectedCustomer.piutang || 0)}` : `Lebih Bayar / Uang Muka ${formatRupiah(selectedCustomer.lebih_bayar || 0)}`}</strong>.
               </div>
             )}
           </div>
@@ -340,12 +323,29 @@ function PiutangUsahaContent() {
               </tbody>
             </table>
           </div>
+        ) : !selectedCustomer ? (
+          <div className="p-8 sm:p-12 text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: '#fff1f1', color: '#dc2626' }}>
+              <WalletCards className="h-6 w-6" />
+            </div>
+            <h2 className="text-lg font-black" style={{ color: '#0f172a' }}>Pilih customer dari Rekap dulu</h2>
+            <p className="text-sm mt-2 max-w-xl mx-auto" style={{ color: '#64748b' }}>
+              Detail bukan ringkasan lagi. Detail dipakai untuk melihat mutasi invoice, pembayaran, retur, dan saldo berjalan dari satu customer yang dipilih.
+            </p>
+            <button
+              onClick={() => setTab('rekap')}
+              className="mt-5 min-h-[44px] px-4 rounded-xl text-sm font-black"
+              style={{ background: '#FA2F2F', color: '#fff' }}
+            >
+              Buka Rekap dan Pilih Customer
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Tanggal', 'Customer', 'Keterangan / Deskripsi', 'Debit', 'Kredit', 'Saldo', 'Aksi'].map(h => (
+                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Debit', 'Kredit', 'Saldo Berjalan', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -360,14 +360,13 @@ function PiutangUsahaContent() {
                     <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (detailPage - 1) * limitDetail}</td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{row.tanggal ? formatDate(row.tanggal) : '-'}</td>
                     <td className="px-4 py-3">
-                      <div className="text-sm font-bold" style={{ color: '#1e293b' }}>{row.customer || '-'}</div>
-                      <div className="text-xs" style={{ color: '#94a3b8' }}>{row.no_po || '-'}</div>
-                    </td>
-                    <td className="px-4 py-3 min-w-[260px]">
                       <div className="flex flex-wrap gap-1 mb-1">
                         {row.sumber !== '-' && <Badge tone={row.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{row.sumber}</Badge>}
                         <Badge tone={jenisTone(row.jenis)}>{row.jenis === 'SALDO_AWAL' ? 'SALDO AWAL' : row.jenis}</Badge>
                       </div>
+                      <div className="text-xs" style={{ color: '#94a3b8' }}>{row.no_po || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3 min-w-[300px]">
                       <div className="text-sm font-semibold" style={{ color: '#334155' }}>{row.keterangan}</div>
                       {row.referensi && row.referensi !== '-' && <div className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>{row.referensi}</div>}
                     </td>
@@ -413,7 +412,7 @@ function PiutangUsahaContent() {
         </div>
       </div>
 
-      {tab === 'detail' && (
+      {tab === 'detail' && selectedCustomer && (
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>Ringkasan Detail</div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
