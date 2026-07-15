@@ -200,6 +200,20 @@ function PiutangUsahaContent() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+          <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Saldo Awal</div>
+          {from ? (
+            <>
+              <div className="text-lg font-black tabular-nums" style={{ color: '#0f172a' }}>{formatRupiah(rekapSummary.saldoAwal || 0)}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>Sebelum {formatDate(from)}</div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-black" style={{ color: '#0f172a' }}>Dari awal data</div>
+              <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>Bukan saldo periode, semua mutasi dihitung dari awal</div>
+            </>
+          )}
+        </div>
         {([
           ['Debit / Invoice', rekapSummary.debit, '#eff6ff', '#2563eb'],
           ['Kredit / Bayar + Retur', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
@@ -217,7 +231,8 @@ function PiutangUsahaContent() {
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data</div>
         <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
-          Laporan ini read-only dan tidak mengubah data produksi. Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
+          Laporan ini read-only dan tidak mengubah data produksi. Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga saldo awal ditampilkan sebagai <strong>Dari awal data</strong>.
+          Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
           Jika kredit lebih besar dari debit, sistem menandainya sebagai <strong>Lebih Bayar / Uang Muka</strong>, bukan piutang minus.
         </div>
       </div>
@@ -297,7 +312,7 @@ function PiutangUsahaContent() {
                       <div className="text-sm font-black" style={{ color: '#1e293b' }}>{row.nama_customer}</div>
                       <div className="text-xs" style={{ color: '#94a3b8' }}>{row.jumlah_transaksi} transaksi periode ini</div>
                     </td>
-                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#475569' }}>{formatRupiah(row.saldo_awal)}</td>
+                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#475569' }}>{from ? formatRupiah(row.saldo_awal) : '-'}</td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#2563eb' }}>{formatRupiah(row.debit)}</td>
                     <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#16a34a' }}>{formatRupiah(row.kredit)}</td>
                     <td className="px-4 py-3">
@@ -416,7 +431,7 @@ function PiutangUsahaContent() {
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>Ringkasan Detail</div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
-            <div><span style={{ color: '#94a3b8' }}>Saldo Awal</span><div className="font-black" style={{ color: '#0f172a' }}>{formatRupiah(detailSummary.saldoAwal)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Saldo Awal</span><div className="font-black" style={{ color: '#0f172a' }}>{from ? formatRupiah(detailSummary.saldoAwal) : 'Dari awal data'}</div></div>
             <div><span style={{ color: '#94a3b8' }}>Debit</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>Kredit</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>{detailSummary.saldoAkhir >= 0 ? 'Saldo Piutang' : 'Lebih Bayar / Uang Muka'}</span><div className="font-black" style={{ color: detailSummary.saldoAkhir >= 0 ? '#dc2626' : '#c2410c' }}>{formatRupiah(Math.abs(detailSummary.saldoAkhir))}</div></div>
