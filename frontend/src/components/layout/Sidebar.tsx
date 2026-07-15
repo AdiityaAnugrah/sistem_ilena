@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Master Barang', href: '/dashboard/master/barang', icon: Package },
   { label: 'Semua Surat', href: '/dashboard/surat', icon: Folder },
   { label: 'Keuangan', href: '/dashboard/keuangan', icon: Wallet },
-  { label: 'Transaksi', href: '/dashboard/transaksi', icon: ClipboardList },
+  { label: 'Piutang Usaha', href: '/dashboard/piutang-usaha', icon: Wallet },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
   { label: 'Pengaturan', href: '/dashboard/pengaturan', icon: Settings, devOnly: true },
