@@ -177,11 +177,11 @@ function PiutangUsahaContent() {
   const exportCsv = () => {
     const rows = tab === 'rekap'
       ? [
-          ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir'],
+          ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Sisa Sebelum Periode', 'Invoice Periode Ini', 'Bayar + Retur', 'Saldo Akhir'],
           ...rekapRows.map((r, i) => [i + 1 + (rekapPage - 1) * limitRekap, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
-          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Debit', 'Kredit', 'Saldo'],
+          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Invoice', 'Bayar + Retur', 'Sisa Berjalan'],
           ...detailRows.map((r, i) => [i + 1 + (detailPage - 1) * limitDetail, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
     const csv = rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -249,11 +249,11 @@ function PiutangUsahaContent() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-          <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Saldo Awal</div>
+          <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Sisa Sebelum Periode</div>
           {from ? (
             <>
               <div className="text-lg font-black tabular-nums" style={{ color: '#0f172a' }}>{formatRupiah(rekapSummary.saldoAwal || 0)}</div>
-              <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>Sebelum {formatDate(from)}</div>
+              <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>Sisa piutang sebelum {formatDate(from)}</div>
             </>
           ) : (
             <>
@@ -263,8 +263,8 @@ function PiutangUsahaContent() {
           )}
         </div>
         {([
-          ['Debit / Invoice', rekapSummary.debit, '#eff6ff', '#2563eb'],
-          ['Kredit / Bayar + Retur', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
+          ['Invoice Periode Ini', rekapSummary.debit, '#eff6ff', '#2563eb'],
+          ['Bayar + Retur', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
           ['Total Piutang', rekapSummary.piutang, '#fff1f1', '#dc2626'],
           ['Lebih Bayar / Uang Muka', rekapSummary.lebihBayar, '#fff7ed', '#c2410c'],
           ['Net Saldo', rekapSummary.saldoAkhir, '#f8fafc', '#0f172a'],
@@ -279,7 +279,8 @@ function PiutangUsahaContent() {
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data invoice</div>
         <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
-          Laporan ini read-only dan tidak mengubah data produksi. Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga saldo awal ditampilkan sebagai <strong>Dari awal data</strong>.
+          Laporan ini read-only dan tidak mengubah data produksi. Angka <strong>Sisa Sebelum Periode</strong> adalah sisa piutang customer sebelum tanggal <strong>Dari</strong>.
+          Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga kolom itu ditampilkan sebagai <strong>Dari awal data</strong>.
           Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
           Kategori <strong>Faktur</strong> dan <strong>Non Faktur</strong> mengikuti field faktur di transaksi penjualan asal invoice.
           <strong> Display tidak masuk laporan ini</strong> karena Display memakai dasar Surat Pengantar, bukan Invoice.
@@ -346,7 +347,7 @@ function PiutangUsahaContent() {
                   <div className="text-sm font-black" style={{ color: '#9a3412' }}>{selectedCustomer.name}</div>
                 </div>
                 <div className="text-xs mt-1" style={{ color: '#b45309' }}>
-                  Detail di bawah menjelaskan asal angka debit, kredit, dan saldo pada rekap customer ini.
+                  Detail di bawah menjelaskan asal angka invoice, bayar/retur, dan sisa piutang pada rekap customer ini.
                 </div>
               </div>
               <button onClick={() => { setSelectedCustomer(null); setDetailPage(1); }} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff', color: '#c2410c', border: '1px solid #fed7aa' }}>
@@ -355,7 +356,7 @@ function PiutangUsahaContent() {
             </div>
             {selectedCustomer.debit !== undefined && (
               <div className="mt-3 text-xs leading-relaxed" style={{ color: '#b45309' }}>
-                Rumus detail: <strong>Saldo berjalan = Saldo sebelumnya + Debit - Kredit</strong>. 
+                Rumus detail: <strong>Sisa berjalan = Sisa sebelumnya + Invoice - Bayar/Retur</strong>. 
                 Saldo terakhir di detail harus menjelaskan status pada rekap:
                 <strong> {(selectedCustomer.saldo_akhir || 0) >= 0 ? `Piutang ${formatRupiah(selectedCustomer.piutang || 0)}` : `Lebih Bayar / Uang Muka ${formatRupiah(selectedCustomer.lebih_bayar || 0)}`}</strong>.
               </div>
@@ -368,7 +369,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Status Saldo', 'Aksi'].map(h => (
+                  {['No', 'Sumber', 'Faktur', 'Nama Customer', 'Sisa Sebelum Periode', 'Invoice Periode Ini', 'Bayar + Retur', 'Status Saldo', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -420,7 +421,7 @@ function PiutangUsahaContent() {
             </div>
             <h2 className="text-lg font-black" style={{ color: '#0f172a' }}>Pilih customer dari Rekap dulu</h2>
             <p className="text-sm mt-2 max-w-xl mx-auto" style={{ color: '#64748b' }}>
-              Detail bukan ringkasan lagi. Detail dipakai untuk melihat mutasi invoice, pembayaran, retur, dan saldo berjalan dari satu customer yang dipilih.
+              Detail dipakai untuk melihat urutan invoice, pembayaran, retur, dan sisa piutang berjalan dari satu customer yang dipilih.
             </p>
             <button
               onClick={() => setTab('rekap')}
@@ -435,7 +436,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Debit', 'Kredit', 'Saldo Berjalan', 'Aksi'].map(h => (
+                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Invoice', 'Bayar + Retur', 'Sisa Berjalan', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -453,7 +454,7 @@ function PiutangUsahaContent() {
                       <div className="flex flex-wrap gap-1 mb-1">
                         {row.sumber !== '-' && <Badge tone={row.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{row.sumber}</Badge>}
                         {row.faktur && row.faktur !== '-' && <Badge tone={row.faktur === 'FAKTUR' ? 'green' : 'orange'}>{fakturLabel(row.faktur)}</Badge>}
-                        <Badge tone={jenisTone(row.jenis)}>{row.jenis === 'SALDO_AWAL' ? 'SALDO AWAL' : row.jenis}</Badge>
+                        <Badge tone={jenisTone(row.jenis)}>{row.jenis === 'SALDO_AWAL' ? 'SISA AWAL' : row.jenis}</Badge>
                       </div>
                       <div className="text-xs" style={{ color: '#94a3b8' }}>{row.no_po || '-'}</div>
                     </td>
@@ -507,9 +508,9 @@ function PiutangUsahaContent() {
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>Ringkasan Detail</div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
-            <div><span style={{ color: '#94a3b8' }}>Saldo Awal</span><div className="font-black" style={{ color: '#0f172a' }}>{from ? formatRupiah(detailSummary.saldoAwal) : 'Dari awal data'}</div></div>
-            <div><span style={{ color: '#94a3b8' }}>Debit</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
-            <div><span style={{ color: '#94a3b8' }}>Kredit</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Sisa Sebelum Periode</span><div className="font-black" style={{ color: '#0f172a' }}>{from ? formatRupiah(detailSummary.saldoAwal) : 'Dari awal data'}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Invoice</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Bayar + Retur</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>{detailSummary.saldoAkhir >= 0 ? 'Saldo Piutang' : 'Lebih Bayar / Uang Muka'}</span><div className="font-black" style={{ color: detailSummary.saldoAkhir >= 0 ? '#dc2626' : '#c2410c' }}>{formatRupiah(Math.abs(detailSummary.saldoAkhir))}</div></div>
           </div>
         </div>

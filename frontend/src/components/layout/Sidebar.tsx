@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import {
   Folder,
   Settings,
   Wallet,
+  ReceiptText,
 } from 'lucide-react';
 
 interface NavItem {
@@ -43,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Semua Surat', href: '/dashboard/surat', icon: Folder },
   { label: 'Keuangan', href: '/dashboard/keuangan', icon: Wallet },
   { label: 'Piutang Usaha', href: '/dashboard/piutang-usaha', icon: Wallet },
+  { label: 'Piutang Display', href: '/dashboard/piutang-display', icon: ReceiptText },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
   { label: 'Pengaturan', href: '/dashboard/pengaturan', icon: Settings, devOnly: true },
@@ -53,10 +55,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan']);
-  const [mounted, setMounted] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   const handleLogout = () => {
     logout();
@@ -75,8 +74,6 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     }
     return item.children?.some((c) => pathname.startsWith(c.href)) ?? false;
   };
-
-  if (!mounted) return null;
 
   return (
     <>
@@ -246,7 +243,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
 
-      {logoutConfirm && mounted && createPortal(
+      {logoutConfirm && createPortal(
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
