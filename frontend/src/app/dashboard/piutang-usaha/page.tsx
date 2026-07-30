@@ -9,7 +9,7 @@ import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 
 type Tab = 'rekap' | 'detail';
-type SumberFilter = 'ALL' | 'OFFLINE' | 'INTERIOR';
+type ViewPage = 'ringkasan' | 'offline' | 'interior';
 type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
 
 interface RekapRow {
@@ -68,7 +68,7 @@ const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone 
 function PiutangUsahaContent() {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || 'rekap');
-  const [sumberFilter, setSumberFilter] = useState<SumberFilter>('ALL');
+  const [viewPage, setViewPage] = useState<ViewPage>('ringkasan');
   const [fakturFilter, setFakturFilter] = useState<FakturFilter>('ALL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -108,10 +108,11 @@ function PiutangUsahaContent() {
     if (from) p.from = from;
     if (to) p.to = to;
     if (search.trim()) p.search = search.trim();
-    if (sumberFilter !== 'ALL') p.sumber = sumberFilter;
+    if (viewPage === 'offline') p.sumber = 'OFFLINE';
+    else if (viewPage === 'interior') p.sumber = 'INTERIOR';
     if (fakturFilter !== 'ALL') p.faktur = fakturFilter;
     return p;
-  }, [from, to, search, sumberFilter, fakturFilter]);
+  }, [from, to, search, fakturFilter, viewPage]);
 
   const fetchRekap = useCallback(async (page = rekapPage) => {
     const res = await api.get('/piutang-usaha/rekap', { params: { ...baseParams, page, limit: limitRekap } });
@@ -149,6 +150,13 @@ function PiutangUsahaContent() {
   const resetPaging = () => {
     setRekapPage(1);
     setDetailPage(1);
+  };
+
+  const openViewPage = (page: ViewPage) => {
+    setViewPage(page);
+    setSelectedCustomer(null);
+    setTab('rekap');
+    resetPaging();
   };
 
   const openCustomerDetail = (row: RekapRow) => {
@@ -205,6 +213,8 @@ function PiutangUsahaContent() {
       ['Non Faktur', b?.NON_FAKTUR?.piutang || 0, b?.NON_FAKTUR?.customers || 0],
     ] as const;
   };
+  const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : 'Ringkasan Semua Piutang';
+  const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : 'red';
 
   return (
     <div className="space-y-6">
@@ -222,6 +232,26 @@ function PiutangUsahaContent() {
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
           <FileDown className="h-4 w-4" /> Export CSV
         </button>
+      </div>
+
+      <div className="rounded-2xl p-2" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {([
+            ['ringkasan', '1. Ringkasan', 'Lihat total Offline dan Interior sebelum masuk detail'],
+            ['offline', '2. Piutang Offline', 'Invoice dari Penjualan Offline saja'],
+            ['interior', '3. Piutang Interior', 'Invoice dari Penjualan Interior saja'],
+          ] as [ViewPage, string, string][]).map(([page, title, desc]) => (
+            <button
+              key={page}
+              onClick={() => openViewPage(page)}
+              className="min-h-[72px] rounded-xl px-4 py-3 text-left transition-all"
+              style={viewPage === page ? { background: '#FA2F2F', color: '#fff', boxShadow: '0 8px 20px rgba(250,47,47,0.18)' } : { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' }}
+            >
+              <div className="text-sm font-black">{title}</div>
+              <div className="text-xs mt-1 leading-relaxed" style={{ color: viewPage === page ? 'rgba(255,255,255,0.82)' : '#64748b' }}>{desc}</div>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -243,11 +273,18 @@ function PiutangUsahaContent() {
                 </div>
               ))}
             </div>
+            <button
+              onClick={() => openViewPage(sumber === 'OFFLINE' ? 'offline' : 'interior')}
+              className="mt-3 min-h-[40px] w-full rounded-xl text-xs font-black"
+              style={{ background: sumber === 'OFFLINE' ? '#eff6ff' : '#f5f3ff', color: sumber === 'OFFLINE' ? '#2563eb' : '#7c3aed', border: `1px solid ${sumber === 'OFFLINE' ? '#bfdbfe' : '#ddd6fe'}` }}
+            >
+              Buka Halaman {sumber === 'OFFLINE' ? 'Offline' : 'Interior'}
+            </button>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      {viewPage !== 'ringkasan' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Sisa Sebelum Periode</div>
           {from ? (
@@ -274,7 +311,7 @@ function PiutangUsahaContent() {
             <div className="text-lg font-black tabular-nums" style={{ color: fg }}>{formatRupiah(value || 0)}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data invoice</div>
@@ -288,8 +325,29 @@ function PiutangUsahaContent() {
         </div>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+      {viewPage === 'ringkasan' ? (
+        <div className="rounded-2xl p-6" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+          <div className="text-lg font-black mb-2" style={{ color: '#0f172a' }}>Mulai dari mana?</div>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: '#64748b' }}>
+            Halaman ini sekarang dipisah supaya tidak membingungkan. Pilih <strong>Piutang Offline</strong> untuk customer dari penjualan offline,
+            atau pilih <strong>Piutang Interior</strong> untuk customer proyek interior. Setelah masuk salah satu halaman, baru pilih customer untuk melihat detail mutasinya.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button onClick={() => openViewPage('offline')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
+              <div className="text-base font-black">Buka Piutang Offline</div>
+              <div className="text-sm mt-1" style={{ color: '#2563eb' }}>Invoice, pembayaran, retur dari Penjualan Offline.</div>
+            </button>
+            <button onClick={() => openViewPage('interior')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#6d28d9' }}>
+              <div className="text-base font-black">Buka Piutang Interior</div>
+              <div className="text-sm mt-1" style={{ color: '#7c3aed' }}>Invoice, pembayaran, retur dari Penjualan Interior.</div>
+            </button>
+          </div>
+        </div>
+      ) : <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
         <div className="p-4 flex flex-col xl:flex-row xl:items-center gap-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
+          <div className="flex items-center gap-2 min-w-fit">
+            <Badge tone={currentSourceTone}>{currentSourceLabel}</Badge>
+          </div>
           <div className="inline-flex p-1 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
             {(['rekap', 'detail'] as Tab[]).map(t => (
               <button
@@ -299,18 +357,6 @@ function PiutangUsahaContent() {
                 style={tab === t ? { background: '#FA2F2F', color: '#fff' } : { color: '#64748b' }}
               >
                 {t === 'rekap' ? 'Rekap / Summary' : 'Detail'}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {([
-              ['ALL', 'Semua Sumber'],
-              ['OFFLINE', 'Offline'],
-              ['INTERIOR', 'Interior'],
-            ] as [SumberFilter, string][]).map(([value, label]) => (
-              <button key={value} onClick={() => { setSumberFilter(value); setSelectedCustomer(null); resetPaging(); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={filterButton(sumberFilter === value)}>
-                {label}
               </button>
             ))}
           </div>
@@ -502,7 +548,7 @@ function PiutangUsahaContent() {
             <button disabled={(tab === 'rekap' ? rekapPage >= rekapTotalPages : detailPage >= detailTotalPages)} onClick={() => tab === 'rekap' ? setRekapPage(p => Math.min(rekapTotalPages, p + 1)) : setDetailPage(p => Math.min(detailTotalPages, p + 1))} className="min-h-[36px] px-3 rounded-lg text-xs font-bold disabled:opacity-40" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}>Berikutnya</button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {tab === 'detail' && selectedCustomer && (
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
