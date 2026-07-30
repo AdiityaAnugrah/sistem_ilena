@@ -80,7 +80,9 @@ function inPeriod(date, from, to) {
   return true;
 }
 
-function entryMatches(entry, { search, customer_key }) {
+function entryMatches(entry, { search, customer_key, sumber, faktur }) {
+  if (sumber && entry.sumber !== sumber) return false;
+  if (faktur && entry.faktur !== faktur) return false;
   if (customer_key && entry.piutang_key !== customer_key && entry.customer_key !== customer_key) return false;
   if (search) {
     const q = String(search).toLowerCase();
@@ -104,7 +106,8 @@ async function buildPiutangEntries(isTest) {
       ...entry,
       customer,
       customer_key: customerKey(customer),
-      piutang_key: `${entry.sumber}:${customerKey(customer)}`,
+      faktur: entry.faktur || 'NON_FAKTUR',
+      piutang_key: `${entry.sumber}:${entry.faktur || 'NON_FAKTUR'}:${customerKey(customer)}`,
       debit: money(entry.debit),
       kredit: money(entry.kredit),
       nilai: money(Number(entry.debit || 0) - Number(entry.kredit || 0)),
@@ -145,6 +148,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'INVOICE',
       referensi: inv.nomor_invoice,
       customer: inv.penjualan?.nama_penerima,
+      faktur: inv.penjualan?.faktur,
       no_po: inv.penjualan?.no_po,
       keterangan: `Invoice Offline ${inv.nomor_invoice}`,
       debit: amount.total,
@@ -163,6 +167,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'PEMBAYARAN',
       referensi: p.metode,
       customer: p.penjualan?.nama_penerima,
+      faktur: p.penjualan?.faktur,
       no_po: p.penjualan?.no_po,
       keterangan: `Pembayaran Offline ${p.metode}${p.catatan ? ` - ${p.catatan}` : ''}`,
       debit: 0,
@@ -182,6 +187,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'RETUR',
       referensi: `Retur #${r.id}`,
       customer: r.penjualan?.nama_penerima,
+      faktur: r.penjualan?.faktur,
       no_po: r.penjualan?.no_po,
       keterangan: `Retur Offline${r.catatan ? ` - ${r.catatan}` : ''}`,
       debit: 0,
@@ -200,6 +206,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'INVOICE',
       referensi: inv.nomor_invoice,
       customer: inv.penjualan?.nama_customer,
+      faktur: inv.penjualan?.faktur,
       no_po: inv.penjualan?.no_po,
       keterangan: `Invoice Interior ${inv.nomor_invoice}`,
       debit: amount.total,
@@ -218,6 +225,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'PEMBAYARAN',
       referensi: p.tipe,
       customer: p.penjualan?.nama_customer,
+      faktur: p.penjualan?.faktur,
       no_po: p.penjualan?.no_po,
       keterangan: `Pembayaran Interior ${p.tipe}${p.catatan ? ` - ${p.catatan}` : ''}`,
       debit: 0,
@@ -238,6 +246,7 @@ async function buildPiutangEntries(isTest) {
       jenis: 'RETUR',
       referensi: `Retur SJ #${r.surat_jalan_interior_id}`,
       customer: penjualan?.nama_customer,
+      faktur: penjualan?.faktur,
       no_po: penjualan?.no_po,
       keterangan: `Retur Interior${r.catatan ? ` - ${r.catatan}` : ''}`,
       debit: 0,
@@ -251,9 +260,11 @@ async function buildPiutangEntries(isTest) {
 
 router.get('/rekap', authenticate, async (req, res) => {
   try {
-    const { from, to, search, page = 1, limit = 25 } = req.query;
+    const { from, to, search, sumber, faktur, page = 1, limit = 25 } = req.query;
+    const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
+    const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
     const entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
-      .filter(entry => entryMatches(entry, { search }));
+      .filter(entry => entryMatches(entry, { search, sumber: sourceFilter, faktur: fakturFilter }));
 
     const map = new Map();
     for (const entry of entries) {
@@ -262,6 +273,7 @@ router.get('/rekap', authenticate, async (req, res) => {
           customer_key: entry.piutang_key,
           nama_key: entry.customer_key,
           sumber: entry.sumber,
+          faktur: entry.faktur,
           nama_customer: entry.customer,
           saldo_awal: 0,
           debit: 0,
@@ -293,15 +305,28 @@ router.get('/rekap', authenticate, async (req, res) => {
       .filter(row => row.saldo_awal !== 0 || row.debit !== 0 || row.kredit !== 0 || row.saldo_akhir !== 0)
       .sort((a, b) => b.saldo_akhir - a.saldo_akhir || a.nama_customer.localeCompare(b.nama_customer));
 
-    const summary = allRows.reduce((acc, row) => {
+    const emptySummary = () => ({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0, customers: 0 });
+    const addSummary = (acc, row) => {
       acc.saldoAwal += row.saldo_awal;
       acc.debit += row.debit;
       acc.kredit += row.kredit;
       acc.saldoAkhir += row.saldo_akhir;
       acc.piutang += row.piutang;
       acc.lebihBayar += row.lebih_bayar;
+      acc.customers += 1;
       return acc;
-    }, { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
+    };
+    const summary = allRows.reduce(addSummary, emptySummary());
+    const breakdown = {
+      OFFLINE: { total: emptySummary(), FAKTUR: emptySummary(), NON_FAKTUR: emptySummary() },
+      INTERIOR: { total: emptySummary(), FAKTUR: emptySummary(), NON_FAKTUR: emptySummary() },
+    };
+    allRows.forEach(row => {
+      if (breakdown[row.sumber]) {
+        addSummary(breakdown[row.sumber].total, row);
+        addSummary(breakdown[row.sumber][row.faktur], row);
+      }
+    });
 
     const pageInt = Math.max(1, parseInt(page));
     const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
@@ -309,6 +334,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     res.json({
       data: allRows.slice(offset, offset + limitInt),
       summary,
+      breakdown,
       total: allRows.length,
       page: pageInt,
       totalPages: Math.max(1, Math.ceil(allRows.length / limitInt)),
@@ -320,9 +346,11 @@ router.get('/rekap', authenticate, async (req, res) => {
 
 router.get('/detail', authenticate, async (req, res) => {
   try {
-    const { from, to, search, customer_key, page = 1, limit = 100 } = req.query;
+    const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100 } = req.query;
+    const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
+    const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
     const allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
-      .filter(entry => entryMatches(entry, { search, customer_key }));
+      .filter(entry => entryMatches(entry, { search, customer_key, sumber: sourceFilter, faktur: fakturFilter }));
 
     const saldoAwal = from
       ? allEntries.filter(entry => entry.tanggal < from).reduce((sum, entry) => sum + entry.debit - entry.kredit, 0)
@@ -335,6 +363,7 @@ router.get('/detail', authenticate, async (req, res) => {
         id: 'SALDO-AWAL',
         tanggal: from || null,
         sumber: '-',
+        faktur: '-',
         jenis: 'SALDO_AWAL',
         referensi: '-',
         customer: customer_key ? (allEntries[0]?.customer || '-') : 'Semua Customer',

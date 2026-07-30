@@ -258,7 +258,7 @@ export default function KeuanganPage() {
     const totalLaku = rows.reduce((sum, row) => sum + money(row.nilaiTerjual), 0);
     const totalLakuBelumLunas = rows.reduce((sum, row) => sum + money(row.nilaiTerjualBelumLunas), 0);
     return worksheetXml('Offline Display', [55, 92, 190, 85, 100, 145, 120, 120, 120, 135], `
-      <Row ss:Height="26">${excelCell('Display / Piutang Offline', 'String', 'Title')}</Row>
+      <Row ss:Height="26">${excelCell('Display / Piutang SP Offline', 'String', 'Title')}</Row>
       <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
       <Row>${excelCell(`Total display: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(totalNilai)}`, 'String', 'Summary')}${excelCell(`Sisa piutang: ${formatRupiah(totalSisa)}`, 'String', 'Summary')}${excelCell(`Sudah terjual: ${formatRupiah(totalLaku)}`, 'String', 'Summary')}${excelCell(`Laku belum lunas: ${formatRupiah(totalLakuBelumLunas)}`, 'String', 'Summary')}</Row>
       <Row>${['ID', 'Tanggal', 'Nama Toko/Penerima', 'Status', 'Kondisi', 'Progress', 'Total Nilai', 'Sisa Piutang', 'Sudah Terjual', 'Laku Belum Lunas'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
@@ -460,7 +460,7 @@ export default function KeuanganPage() {
               sub={summary ? `Dari display: ${formatRupiah(summary.totalDisplayBelumLunas)}` : undefined}
               color="#dc2626"
             />
-            <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Display belum selesai, net retur" color="#f97316" />
+            <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Dari Surat Pengantar display, net retur" color="#f97316" />
             <SummaryCard label="Sudah Terjual dari Display" value={summary ? formatRupiah(summary.totalTerjualDisplay) : '-'} color="#16a34a" />
           </div>
 
@@ -501,7 +501,7 @@ export default function KeuanganPage() {
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#f97316' }}>2</div>
                     <div>
                       <p className="text-xs font-bold" style={{ color: '#7c2d12' }}>Masuk Piutang Display</p>
-                      <p className="text-xs" style={{ color: '#64748b' }}>Uang belum diterima</p>
+                      <p className="text-xs" style={{ color: '#64748b' }}>Saat Surat Pengantar dibuat</p>
                     </div>
                   </div>
 
@@ -538,7 +538,7 @@ export default function KeuanganPage() {
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
                     <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Piutang Display</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
-                      Nilai barang display yang belum selesai dan masih ada sisa net setelah retur. Ini belum dihitung sebagai omzet.
+                      Nilai barang display yang sudah memiliki Surat Pengantar, belum selesai, dan masih ada sisa net setelah retur. Ini belum dihitung sebagai omzet.
                     </p>
                   </div>
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
@@ -554,7 +554,7 @@ export default function KeuanganPage() {
 
           {/* Sub-tab */}
           <div className="flex gap-2">
-            {([['penjualan', 'Penjualan Langsung'], ['display', 'Display / Piutang']] as const).map(([val, label]) => (
+            {([['penjualan', 'Penjualan Langsung'], ['display', 'Display / Piutang SP']] as const).map(([val, label]) => (
               <button key={val} onClick={() => { setOfflineSubTab(val); setOfflinePage(1); fetchOffline(1, val, from, to); }}
                 className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
                 style={{
@@ -646,6 +646,9 @@ export default function KeuanganPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-bold" style={{ color: '#1e293b' }}>{row.nama_penerima}</span>
+                        {row.nomor_sp && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#2563eb' }}>{row.nomor_sp}</span>
+                        )}
                         <StatusBadge status={row.status} />
                         {row.adaSisa ? (
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#fff7ed', color: '#c2410c' }}>Ada Sisa</span>
@@ -660,7 +663,9 @@ export default function KeuanganPage() {
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#2563eb' }}>Display Berjalan</span>
                         )}
                       </div>
-                      <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>{formatDate(row.tanggal)}</p>
+                      <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+                        Display: {formatDate(row.tanggal)}{row.tanggal_sp ? ` · SP: ${formatDate(row.tanggal_sp)}` : ''}
+                      </p>
                     </div>
                     <button onClick={() => router.push(`/dashboard/penjualan/offline/${row.id}`)}
                       className="p-1.5 rounded-lg flex-shrink-0"

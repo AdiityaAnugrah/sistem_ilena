@@ -9,11 +9,14 @@ import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 
 type Tab = 'rekap' | 'detail';
+type SumberFilter = 'ALL' | 'OFFLINE' | 'INTERIOR';
+type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
 
 interface RekapRow {
   customer_key: string;
   nama_key?: string;
   sumber: 'OFFLINE' | 'INTERIOR';
+  faktur: 'FAKTUR' | 'NON_FAKTUR';
   nama_customer: string;
   saldo_awal: number;
   debit: number;
@@ -28,6 +31,7 @@ interface DetailRow {
   id: string;
   tanggal: string | null;
   sumber: string;
+  faktur?: string;
   jenis: string;
   referensi: string;
   customer: string;
@@ -46,6 +50,8 @@ const limitRekap = 25;
 const limitDetail = 100;
 type BadgeTone = 'blue' | 'green' | 'orange' | 'purple' | 'slate' | 'red';
 type SummaryCard = [string, number, string, string];
+type SummaryBucket = { saldoAwal: number; debit: number; kredit: number; saldoAkhir: number; piutang: number; lebihBayar: number; customers?: number };
+type Breakdown = Record<'OFFLINE' | 'INTERIOR', { total: SummaryBucket; FAKTUR: SummaryBucket; NON_FAKTUR: SummaryBucket }>;
 
 const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone }) => {
   const map = {
@@ -62,6 +68,8 @@ const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone 
 function PiutangUsahaContent() {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || 'rekap');
+  const [sumberFilter, setSumberFilter] = useState<SumberFilter>('ALL');
+  const [fakturFilter, setFakturFilter] = useState<FakturFilter>('ALL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
@@ -69,6 +77,7 @@ function PiutangUsahaContent() {
     key: string;
     name: string;
     sumber?: string;
+    faktur?: string;
     debit?: number;
     kredit?: number;
     piutang?: number;
@@ -81,6 +90,7 @@ function PiutangUsahaContent() {
   const [rekapRows, setRekapRows] = useState<RekapRow[]>([]);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
   const [rekapSummary, setRekapSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
+  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [detailSummary, setDetailSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
   const [rekapTotalPages, setRekapTotalPages] = useState(1);
   const [detailTotalPages, setDetailTotalPages] = useState(1);
@@ -98,13 +108,16 @@ function PiutangUsahaContent() {
     if (from) p.from = from;
     if (to) p.to = to;
     if (search.trim()) p.search = search.trim();
+    if (sumberFilter !== 'ALL') p.sumber = sumberFilter;
+    if (fakturFilter !== 'ALL') p.faktur = fakturFilter;
     return p;
-  }, [from, to, search]);
+  }, [from, to, search, sumberFilter, fakturFilter]);
 
   const fetchRekap = useCallback(async (page = rekapPage) => {
     const res = await api.get('/piutang-usaha/rekap', { params: { ...baseParams, page, limit: limitRekap } });
     setRekapRows(res.data.data || []);
     setRekapSummary(res.data.summary || { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
+    setBreakdown(res.data.breakdown || null);
     setRekapTotalPages(res.data.totalPages || 1);
   }, [baseParams, rekapPage]);
 
@@ -143,6 +156,7 @@ function PiutangUsahaContent() {
       key: row.customer_key,
       name: row.nama_customer,
       sumber: row.sumber,
+      faktur: row.faktur,
       debit: row.debit,
       kredit: row.kredit,
       piutang: row.piutang,
@@ -163,12 +177,12 @@ function PiutangUsahaContent() {
   const exportCsv = () => {
     const rows = tab === 'rekap'
       ? [
-          ['No', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir'],
-          ...rekapRows.map((r, i) => [i + 1 + (rekapPage - 1) * limitRekap, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
+          ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir'],
+          ...rekapRows.map((r, i) => [i + 1 + (rekapPage - 1) * limitRekap, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
-          ['No', 'Tanggal', 'Customer', 'Keterangan', 'Debit', 'Kredit', 'Saldo'],
-          ...detailRows.map((r, i) => [i + 1 + (detailPage - 1) * limitDetail, r.tanggal || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
+          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Debit', 'Kredit', 'Saldo'],
+          ...detailRows.map((r, i) => [i + 1 + (detailPage - 1) * limitDetail, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
     const csv = rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -181,6 +195,16 @@ function PiutangUsahaContent() {
   };
 
   const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : 'slate';
+  const fakturLabel = (v?: string) => v === 'FAKTUR' ? 'Faktur' : v === 'NON_FAKTUR' ? 'Non Faktur' : v || '-';
+  const filterButton = (active: boolean) => active ? { background: '#FA2F2F', color: '#fff', border: '1px solid #FA2F2F' } : { background: '#fff', color: '#475569', border: '1px solid #e2e8f0' };
+  const miniBreakdown = (sumber: 'OFFLINE' | 'INTERIOR') => {
+    const b = breakdown?.[sumber];
+    return [
+      ['Total', b?.total?.piutang || 0, b?.total?.customers || 0],
+      ['Faktur', b?.FAKTUR?.piutang || 0, b?.FAKTUR?.customers || 0],
+      ['Non Faktur', b?.NON_FAKTUR?.piutang || 0, b?.NON_FAKTUR?.customers || 0],
+    ] as const;
+  };
 
   return (
     <div className="space-y-6">
@@ -191,12 +215,36 @@ function PiutangUsahaContent() {
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Usaha</h1>
           <p className="text-sm mt-1 max-w-2xl" style={{ color: '#64748b' }}>
-            Pantau piutang dari invoice, pembayaran, dan retur. Saldo positif ditampilkan sebagai piutang, sedangkan saldo negatif ditampilkan sebagai lebih bayar/uang muka agar tidak membingungkan.
+            Khusus piutang berbasis invoice. Data dipisah antara Penjualan Offline / Interior serta Faktur / Non Faktur.
+            Piutang Display berbasis Surat Pengantar ada di menu Keuangan Offline.
           </p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
           <FileDown className="h-4 w-4" /> Export CSV
         </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {(['OFFLINE', 'INTERIOR'] as const).map(sumber => (
+          <div key={sumber} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>Penjualan</div>
+                <div className="text-lg font-black" style={{ color: sumber === 'OFFLINE' ? '#2563eb' : '#7c3aed' }}>{sumber === 'OFFLINE' ? 'Offline' : 'Interior'}</div>
+              </div>
+              <Badge tone={sumber === 'OFFLINE' ? 'blue' : 'purple'}>{sumber}</Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {miniBreakdown(sumber).map(([label, piutang, customers]) => (
+                <div key={label} className="rounded-xl p-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div className="text-[11px] font-black" style={{ color: '#64748b' }}>{label}</div>
+                  <div className="text-sm font-black tabular-nums mt-1" style={{ color: '#dc2626' }}>{formatRupiah(piutang)}</div>
+                  <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>{customers} customer</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -229,10 +277,12 @@ function PiutangUsahaContent() {
       </div>
 
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-        <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data</div>
+        <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data invoice</div>
         <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
           Laporan ini read-only dan tidak mengubah data produksi. Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga saldo awal ditampilkan sebagai <strong>Dari awal data</strong>.
           Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
+          Kategori <strong>Faktur</strong> dan <strong>Non Faktur</strong> mengikuti field faktur di transaksi penjualan asal invoice.
+          <strong> Display tidak masuk laporan ini</strong> karena Display memakai dasar Surat Pengantar, bukan Invoice.
           Jika kredit lebih besar dari debit, sistem menandainya sebagai <strong>Lebih Bayar / Uang Muka</strong>, bukan piutang minus.
         </div>
       </div>
@@ -248,6 +298,30 @@ function PiutangUsahaContent() {
                 style={tab === t ? { background: '#FA2F2F', color: '#fff' } : { color: '#64748b' }}
               >
                 {t === 'rekap' ? 'Rekap / Summary' : 'Detail'}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['ALL', 'Semua Sumber'],
+              ['OFFLINE', 'Offline'],
+              ['INTERIOR', 'Interior'],
+            ] as [SumberFilter, string][]).map(([value, label]) => (
+              <button key={value} onClick={() => { setSumberFilter(value); setSelectedCustomer(null); resetPaging(); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={filterButton(sumberFilter === value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['ALL', 'Semua'],
+              ['FAKTUR', 'Faktur'],
+              ['NON_FAKTUR', 'Non Faktur'],
+            ] as [FakturFilter, string][]).map(([value, label]) => (
+              <button key={value} onClick={() => { setFakturFilter(value); setSelectedCustomer(null); resetPaging(); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={filterButton(fakturFilter === value)}>
+                {label}
               </button>
             ))}
           </div>
@@ -294,20 +368,21 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Sumber', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Status Saldo', 'Aksi'].map(h => (
+                  {['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Status Saldo', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat rekap piutang...</td></tr>
+                  <tr><td colSpan={9} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat rekap piutang...</td></tr>
                 ) : rekapRows.length === 0 ? (
-                  <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada piutang pada filter ini</td></tr>
+                  <tr><td colSpan={9} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada piutang pada filter ini</td></tr>
                 ) : rekapRows.map((row, idx) => (
                   <tr key={row.customer_key} onClick={() => openCustomerDetail(row)} className="cursor-pointer" style={{ borderBottom: '1px solid #f8fafc' }}>
                     <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (rekapPage - 1) * limitRekap}</td>
                     <td className="px-4 py-3"><Badge tone={row.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{row.sumber}</Badge></td>
+                    <td className="px-4 py-3"><Badge tone={row.faktur === 'FAKTUR' ? 'green' : 'orange'}>{fakturLabel(row.faktur)}</Badge></td>
                     <td className="px-4 py-3">
                       <div className="text-sm font-black" style={{ color: '#1e293b' }}>{row.nama_customer}</div>
                       <div className="text-xs" style={{ color: '#94a3b8' }}>{row.jumlah_transaksi} transaksi periode ini</div>
@@ -377,6 +452,7 @@ function PiutangUsahaContent() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1 mb-1">
                         {row.sumber !== '-' && <Badge tone={row.sumber === 'OFFLINE' ? 'blue' : 'purple'}>{row.sumber}</Badge>}
+                        {row.faktur && row.faktur !== '-' && <Badge tone={row.faktur === 'FAKTUR' ? 'green' : 'orange'}>{fakturLabel(row.faktur)}</Badge>}
                         <Badge tone={jenisTone(row.jenis)}>{row.jenis === 'SALDO_AWAL' ? 'SALDO AWAL' : row.jenis}</Badge>
                       </div>
                       <div className="text-xs" style={{ color: '#94a3b8' }}>{row.no_po || '-'}</div>

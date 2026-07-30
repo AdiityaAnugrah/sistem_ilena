@@ -277,18 +277,34 @@ function summarizePiutang(entries) {
 function summarizeEntries(label, entries) {
   const totalDebit = money(entries.reduce((s, e) => s + e.debit, 0));
   const totalKredit = money(entries.reduce((s, e) => s + e.kredit, 0));
+  const totalInvoice = money(entries.filter(e => e.jenis === 'INVOICE').reduce((s, e) => s + e.debit, 0));
+  const totalPembayaran = money(entries.filter(e => e.jenis === 'PEMBAYARAN').reduce((s, e) => s + e.kredit, 0));
+  const totalRetur = money(entries.filter(e => e.jenis === 'RETUR').reduce((s, e) => s + e.kredit, 0));
+  const returEntries = entries.filter(e => e.jenis === 'RETUR');
   const net = money(totalDebit - totalKredit);
   const piutang = summarizePiutang(entries);
   return {
     label,
     entry_count: entries.length,
+    invoice_entry_count: entries.filter(e => e.jenis === 'INVOICE').length,
+    pembayaran_entry_count: entries.filter(e => e.jenis === 'PEMBAYARAN').length,
+    retur_entry_count: returEntries.length,
     total_debit: totalDebit,
     total_kredit: totalKredit,
+    total_invoice: totalInvoice,
+    total_pembayaran: totalPembayaran,
+    total_retur: totalRetur,
     net_saldo: net,
     total_piutang: money(piutang.bySourceCustomer.reduce((s, x) => s + x.piutang, 0)),
     total_lebih_bayar: money(piutang.bySourceCustomer.reduce((s, x) => s + x.lebih_bayar, 0)),
     customers_with_piutang: piutang.bySourceCustomer.filter(x => x.piutang > 0).length,
     customers_with_lebih_bayar: piutang.bySourceCustomer.filter(x => x.lebih_bayar > 0).length,
+    retur_by_source: returEntries.reduce((acc, e) => {
+      acc[e.sumber] ||= { count: 0, total: 0 };
+      acc[e.sumber].count += 1;
+      acc[e.sumber].total = money(acc[e.sumber].total + e.kredit);
+      return acc;
+    }, {}),
     bySourceCustomer: piutang.bySourceCustomer,
     byNormalizedCustomer: piutang.byNormalizedCustomer,
   };
@@ -328,31 +344,52 @@ function writeCsv(file, rows, columns) {
       similar_pairs: nameStats.similarPairs.length,
       production: {
         piutang_entry_count: productionPiutang.entry_count,
+        invoice_entry_count: productionPiutang.invoice_entry_count,
+        pembayaran_entry_count: productionPiutang.pembayaran_entry_count,
+        retur_entry_count: productionPiutang.retur_entry_count,
         total_debit: productionPiutang.total_debit,
         total_kredit: productionPiutang.total_kredit,
+        total_invoice: productionPiutang.total_invoice,
+        total_pembayaran: productionPiutang.total_pembayaran,
+        total_retur: productionPiutang.total_retur,
         net_saldo: productionPiutang.net_saldo,
         total_piutang: productionPiutang.total_piutang,
         total_lebih_bayar: productionPiutang.total_lebih_bayar,
         customers_with_piutang: productionPiutang.customers_with_piutang,
         customers_with_lebih_bayar: productionPiutang.customers_with_lebih_bayar,
+        retur_by_source: productionPiutang.retur_by_source,
       },
       testing: {
         piutang_entry_count: testingPiutang.entry_count,
+        invoice_entry_count: testingPiutang.invoice_entry_count,
+        pembayaran_entry_count: testingPiutang.pembayaran_entry_count,
+        retur_entry_count: testingPiutang.retur_entry_count,
         total_debit: testingPiutang.total_debit,
         total_kredit: testingPiutang.total_kredit,
+        total_invoice: testingPiutang.total_invoice,
+        total_pembayaran: testingPiutang.total_pembayaran,
+        total_retur: testingPiutang.total_retur,
         net_saldo: testingPiutang.net_saldo,
         total_piutang: testingPiutang.total_piutang,
         total_lebih_bayar: testingPiutang.total_lebih_bayar,
         customers_with_piutang: testingPiutang.customers_with_piutang,
         customers_with_lebih_bayar: testingPiutang.customers_with_lebih_bayar,
+        retur_by_source: testingPiutang.retur_by_source,
       },
       combined_diagnostic: {
         piutang_entry_count: combinedPiutang.entry_count,
+        invoice_entry_count: combinedPiutang.invoice_entry_count,
+        pembayaran_entry_count: combinedPiutang.pembayaran_entry_count,
+        retur_entry_count: combinedPiutang.retur_entry_count,
         total_debit: combinedPiutang.total_debit,
         total_kredit: combinedPiutang.total_kredit,
+        total_invoice: combinedPiutang.total_invoice,
+        total_pembayaran: combinedPiutang.total_pembayaran,
+        total_retur: combinedPiutang.total_retur,
         net_saldo: combinedPiutang.net_saldo,
         total_piutang: combinedPiutang.total_piutang,
         total_lebih_bayar: combinedPiutang.total_lebih_bayar,
+        retur_by_source: combinedPiutang.retur_by_source,
       },
     };
 

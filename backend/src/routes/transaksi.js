@@ -50,33 +50,22 @@ const methodAccount = (metode) => ({
   LAINNYA: '1109',
 }[metode] || '1109');
 
-const itemNetSubtotal = (item, returQty = 0) => {
-  const qty = Number(item.qty || 0);
-  const subtotal = Number(item.subtotal || 0);
-  if (qty <= 0) return money(subtotal);
-  return money(Math.max(0, subtotal - ((subtotal / qty) * Number(returQty || 0))));
-};
-
-const offlineNetTotal = (penjualan) => {
-  const returs = penjualan.returs || [];
-  const returByItem = {};
-  returs.forEach(r => {
-    const itemId = Number(r.penjualan_offline_item_id);
-    returByItem[itemId] = (returByItem[itemId] || 0) + Number(r.qty_retur || 0);
-  });
-  return money((penjualan.items || []).reduce((s, item) => s + itemNetSubtotal(item, returByItem[item.id] || 0), 0));
-};
-
 const offlineReturValue = (retur) => {
   const item = retur.item;
   if (!item || !item.qty) return 0;
   return money((Number(item.subtotal || 0) / Number(item.qty || 1)) * Number(retur.qty_retur || 0));
 };
 
-const interiorTotal = (penjualan) => {
-  const subtotal = (penjualan.items || []).reduce((s, i) => s + Number(i.subtotal || 0), 0);
-  const ppn = penjualan.pakai_ppn ? subtotal * (Number(penjualan.ppn_persen || 0) / 100) : 0;
-  return { subtotal: money(subtotal), ppn: money(ppn), total: money(subtotal + ppn) };
+const latestOfflinePpn = (penjualan) => {
+  const invoices = penjualan?.invoices || [];
+  if (!invoices.length) return 0;
+  return Number(invoices[invoices.length - 1]?.ppn_persen || 0);
+};
+
+const offlineReturAmount = (retur) => {
+  const subtotal = offlineReturValue(retur);
+  const ppn = money(subtotal * latestOfflinePpn(retur.penjualan) / 100);
+  return { subtotal, ppn, total: money(subtotal + ppn) };
 };
 
 async function invoiceInteriorAmount(inv) {
@@ -157,7 +146,7 @@ router.get('/', authenticate, async (req, res) => {
       }),
       ReturOffline.findAll({
         where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
-        include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }, { model: PenjualanOfflineItem, as: 'item' }],
+        include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] }, { model: PenjualanOfflineItem, as: 'item' }],
       }),
       InvoiceInterior.findAll({
         where: invoiceWhere,
@@ -174,7 +163,7 @@ router.get('/', authenticate, async (req, res) => {
     ]);
 
     for (const inv of offlineInvoices) {
-      const subtotal = offlineNetTotal(inv.penjualan);
+      const subtotal = money((inv.penjualan?.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0));
       const ppn = money(subtotal * Number(inv.ppn_persen || 0) / 100);
       const total = money(subtotal + ppn);
       if (total <= 0) continue;
@@ -212,8 +201,8 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     for (const r of offlineReturs) {
-      const amount = offlineReturValue(r);
-      if (amount <= 0) continue;
+      const amount = offlineReturAmount(r);
+      if (amount.total <= 0) continue;
       push({
         id: `OFFLINE-RETUR-${r.id}`,
         tanggal: r.tanggal,
@@ -222,10 +211,10 @@ router.get('/', authenticate, async (req, res) => {
         referensi: `Retur #${r.id}`,
         customer: r.penjualan?.nama_penerima,
         no_po: r.penjualan?.no_po,
-        nilai: amount,
+        nilai: amount.total,
         keterangan: r.catatan || 'Retur penjualan offline',
         detail_url: `/dashboard/penjualan/offline/${r.penjualan_offline_id}`,
-        lines: [line('4201', amount, 0), line('1201', 0, amount)],
+        lines: [line('4201', amount.subtotal, 0), ...(amount.ppn > 0 ? [line('2101', amount.ppn, 0)] : []), line('1201', 0, amount.total)],
       });
     }
 
@@ -269,8 +258,10 @@ router.get('/', authenticate, async (req, res) => {
       const baseItem = r.item;
       const penjualan = baseItem?.penjualan;
       const unit = baseItem?.qty ? Number(baseItem.subtotal || 0) / Number(baseItem.qty) : 0;
-      const amount = money(unit * Number(r.qty_retur || 0));
-      if (amount <= 0) continue;
+      const subtotal = money(unit * Number(r.qty_retur || 0));
+      const ppn = penjualan?.pakai_ppn ? money(subtotal * Number(penjualan.ppn_persen || 0) / 100) : 0;
+      const total = money(subtotal + ppn);
+      if (total <= 0) continue;
       push({
         id: `INTERIOR-RETUR-${r.id}`,
         tanggal: r.tanggal,
@@ -279,10 +270,10 @@ router.get('/', authenticate, async (req, res) => {
         referensi: `Retur SJ #${r.surat_jalan_interior_id}`,
         customer: penjualan?.nama_customer,
         no_po: penjualan?.no_po,
-        nilai: amount,
+        nilai: total,
         keterangan: r.catatan || 'Retur penjualan interior',
         detail_url: `/dashboard/penjualan/interior/${baseItem?.penjualan_interior_id}`,
-        lines: [line('4202', amount, 0), line('1201', 0, amount)],
+        lines: [line('4202', subtotal, 0), ...(ppn > 0 ? [line('2101', ppn, 0)] : []), line('1201', 0, total)],
       });
     }
 

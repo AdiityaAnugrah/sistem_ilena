@@ -1,9 +1,9 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice,
+  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
-  ReturOffline,
+  ReturOffline, ReturSJInterior,
   sequelize,
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
@@ -11,7 +11,6 @@ const { authenticate } = require('../middleware/auth');
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
-const sumItems = (items = []) => items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
 const itemNetSubtotal = (item, returQty = 0) => {
   const qty = Number(item.qty || 0);
   const subtotal = Number(item.subtotal || 0);
@@ -21,6 +20,24 @@ const itemNetSubtotal = (item, returQty = 0) => {
 };
 const sumItemsNetAfterRetur = (items = [], returQtyMap = {}) =>
   items.reduce((sum, item) => sum + itemNetSubtotal(item, returQtyMap[item.id] || 0), 0);
+
+const getInteriorReturQtyMap = async (itemIds = []) => {
+  const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
+  if (ids.length === 0) return {};
+  const rows = await ReturSJInterior.findAll({
+    where: { penjualan_interior_item_id: { [Op.in]: ids } },
+    attributes: [
+      'penjualan_interior_item_id',
+      [sequelize.fn('SUM', sequelize.col('qty_retur')), 'total_retur'],
+    ],
+    group: ['penjualan_interior_item_id'],
+    raw: true,
+  });
+  return rows.reduce((map, row) => {
+    map[row.penjualan_interior_item_id] = Number(row.total_retur || 0);
+    return map;
+  }, {});
+};
 
 const getReturQtyMap = async (itemIds = []) => {
   const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
@@ -92,22 +109,32 @@ router.get('/offline', authenticate, async (req, res) => {
       ...(from || to ? { tanggal: dateWhere } : {}),
     });
 
-    // Total nilai display masih aktif/belum selesai — NET setelah retur
-    const displayAktif = await PenjualanOffline.findAll({
+    // Piutang Display berasal dari DISPLAY yang sudah dibuat Surat Pengantar.
+    // Date filter untuk angka ini mengikuti tanggal Surat Pengantar, bukan tanggal input display.
+    const displayBerSpAktif = await PenjualanOffline.findAll({
       where: {
         tipe: 'DISPLAY',
         status: { [Op.ne]: 'COMPLETED' },
         is_test: isTest,
-        ...(from || to ? { tanggal: dateWhere } : {}),
       },
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] }],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
+        {
+          model: SuratPengantar,
+          as: 'suratPengantars',
+          attributes: ['id', 'nomor_sp', 'tanggal'],
+          required: true,
+          ...(from || to ? { where: { tanggal: dateWhere } } : {}),
+        },
+      ],
       attributes: ['id'],
+      distinct: true,
     });
     const displayReturQtyMap = await getReturQtyMap(
-      displayAktif.flatMap(d => (d.items || []).map(item => item.id))
+      displayBerSpAktif.flatMap(d => (d.items || []).map(item => item.id))
     );
     let totalPiutang = 0;
-    for (const d of displayAktif) {
+    for (const d of displayBerSpAktif) {
       for (const item of d.items) {
         if (item.qty > 0) totalPiutang += itemNetSubtotal(item, displayReturQtyMap[item.id] || 0);
       }
@@ -176,11 +203,20 @@ router.get('/offline', authenticate, async (req, res) => {
     }
 
     // tab === 'display'
-    const whereDisplay = { tipe: 'DISPLAY', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
+    const whereDisplay = { tipe: 'DISPLAY', is_test: isTest };
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where: whereDisplay,
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id', 'varian_nama'] }],
-      order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id', 'varian_nama'] },
+        {
+          model: SuratPengantar,
+          as: 'suratPengantars',
+          attributes: ['id', 'nomor_sp', 'tanggal'],
+          required: true,
+          ...(from || to ? { where: { tanggal: dateWhere } } : {}),
+        },
+      ],
+      order: [[{ model: SuratPengantar, as: 'suratPengantars' }, 'tanggal', 'DESC'], ['created_at', 'DESC']],
       limit: limitInt,
       offset,
       distinct: true,
@@ -220,6 +256,8 @@ router.get('/offline', authenticate, async (req, res) => {
       return {
         id: d.id,
         tanggal: d.tanggal,
+        nomor_sp: d.suratPengantars?.[0]?.nomor_sp || null,
+        tanggal_sp: d.suratPengantars?.[0]?.tanggal || null,
         nama_penerima: d.nama_penerima,
         status: d.status,
         nilaiSisa: money(nilaiSisa),
@@ -261,15 +299,18 @@ router.get('/interior', authenticate, async (req, res) => {
     const allProyek = await PenjualanInterior.findAll({
       where,
       include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] },
+        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
         { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah'] },
       ],
       attributes: ['id', 'pakai_ppn', 'ppn_persen'],
     });
 
+    const interiorReturQtyMap = await getInteriorReturQtyMap(
+      allProyek.flatMap(p => (p.items || []).map(item => item.id))
+    );
     let totalNilaiProyek = 0, totalTerbayar = 0;
     for (const p of allProyek) {
-      const subtotal = sumItems(p.items);
+      const subtotal = sumItemsNetAfterRetur(p.items, interiorReturQtyMap);
       const ppn = p.pakai_ppn ? subtotal * (parseInt(p.ppn_persen) / 100) : 0;
       totalNilaiProyek += subtotal + ppn;
       totalTerbayar += p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0);
@@ -283,7 +324,7 @@ router.get('/interior', authenticate, async (req, res) => {
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
       include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] },
+        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
         { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah', 'tipe', 'tanggal'] },
       ],
       order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
@@ -291,9 +332,12 @@ router.get('/interior', authenticate, async (req, res) => {
       offset,
       distinct: true,
     });
+    const listReturQtyMap = await getInteriorReturQtyMap(
+      rows.flatMap(p => (p.items || []).map(item => item.id))
+    );
 
     const list = rows.map(p => {
-      const subtotal = sumItems(p.items);
+      const subtotal = sumItemsNetAfterRetur(p.items, listReturQtyMap);
       const ppn = p.pakai_ppn ? subtotal * (parseInt(p.ppn_persen) / 100) : 0;
       const grandTotal = money(subtotal + ppn);
       const terbayar = money(p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0));
