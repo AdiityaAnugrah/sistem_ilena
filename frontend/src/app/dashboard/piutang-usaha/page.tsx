@@ -299,11 +299,6 @@ function PiutangUsahaContent() {
       ? 'Tagihan customer dari invoice Penjualan Interior. DP sebelum invoice sudah dipisah ke Uang Muka Interior.'
       : 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.';
 
-  const quickNav = [
-    { view: 'offline', label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
-    { view: 'interior', label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
-    { view: 'uangMuka', label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
-  ] as const;
 
   return (
     <div className="space-y-6">
@@ -322,23 +317,6 @@ function PiutangUsahaContent() {
         </div>
       </div>
 
-      <div className="rounded-2xl p-2" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {quickNav.map(item => {
-            const active = item.view === viewPage;
-            return (
-              <Link
-                key={item.view}
-                href={item.href}
-                className="min-h-[44px] rounded-xl px-3 py-2 text-center text-xs sm:text-sm font-black inline-flex items-center justify-center"
-                style={active ? { background: '#FA2F2F', color: '#fff' } : { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' }}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
 
       {viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
