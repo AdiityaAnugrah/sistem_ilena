@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import useAuthStore from '@/store/authStore';
 import GlobalSearch from '@/components/GlobalSearch';
 import {
@@ -43,8 +43,17 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Master Barang', href: '/dashboard/master/barang', icon: Package },
   { label: 'Semua Surat', href: '/dashboard/surat', icon: Folder },
   { label: 'Keuangan', href: '/dashboard/keuangan', icon: Wallet },
-  { label: 'Piutang Usaha', href: '/dashboard/piutang-usaha', icon: Wallet },
-  { label: 'Piutang Display', href: '/dashboard/piutang-display', icon: ReceiptText },
+  {
+    label: 'Piutang Usaha',
+    icon: Wallet,
+    children: [
+      { label: 'Ringkasan Piutang', href: '/dashboard/piutang-usaha' },
+      { label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
+      { label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
+      { label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
+    ],
+  },
+  { label: 'Outstanding Display', href: '/dashboard/piutang-display', icon: ReceiptText },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
   { label: 'Pengaturan', href: '/dashboard/pengaturan', icon: Settings, devOnly: true },
@@ -52,9 +61,10 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan']);
+  const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan', ...(pathname.startsWith('/dashboard/piutang-usaha') ? ['Piutang Usaha'] : [])]);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
@@ -68,11 +78,25 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     );
   };
 
+  const currentView = searchParams.get('view') || '';
+
+  const hrefPath = (href: string) => href.split('?')[0];
+  const hrefView = (href: string) => new URLSearchParams(href.split('?')[1] || '').get('view') || '';
+
   const isMenuActive = (item: NavItem) => {
     if (item.href) {
-      return item.href === '/dashboard' ? pathname === item.href : pathname.startsWith(item.href);
+      const base = hrefPath(item.href);
+      return base === '/dashboard' ? pathname === base : pathname.startsWith(base);
     }
-    return item.children?.some((c) => pathname.startsWith(c.href)) ?? false;
+    return item.children?.some((c) => pathname.startsWith(hrefPath(c.href))) ?? false;
+  };
+
+  const isChildActive = (href: string) => {
+    const base = hrefPath(href);
+    const view = hrefView(href);
+    if (base !== pathname) return false;
+    if (base === '/dashboard/piutang-usaha') return view ? currentView === view : !currentView;
+    return true;
   };
 
   return (
@@ -158,7 +182,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   {hasChildren && isOpen && (
                     <div style={{ marginLeft: 26, marginTop: 2, paddingLeft: 14, borderLeft: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {item.children?.map((child) => {
-                        const childActive = pathname === child.href || pathname.startsWith(child.href);
+                        const childActive = isChildActive(child.href);
                         return (
                           <Link
                             key={child.href}

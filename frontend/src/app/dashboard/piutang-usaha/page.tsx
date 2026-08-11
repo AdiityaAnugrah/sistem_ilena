@@ -100,7 +100,8 @@ const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone 
 function PiutangUsahaContent() {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || 'rekap');
-  const [viewPage, setViewPage] = useState<ViewPage>('ringkasan');
+  const initialView = params.get('view') as ViewPage | null;
+  const [viewPage, setViewPage] = useState<ViewPage>(initialView && ['ringkasan', 'offline', 'interior', 'uangMuka'].includes(initialView) ? initialView : 'ringkasan');
   const [fakturFilter, setFakturFilter] = useState<FakturFilter>('ALL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -137,6 +138,8 @@ function PiutangUsahaContent() {
     const key = params.get('customer_key');
     const name = params.get('customer_name');
     const initialTab = params.get('tab') as Tab | null;
+    const view = params.get('view') as ViewPage | null;
+    if (view && ['ringkasan', 'offline', 'interior', 'uangMuka'].includes(view)) setViewPage(view);
     if (initialTab === 'detail') setTab('detail');
     if (key) setSelectedCustomer({ key, name: name || key });
   }, [params]);
