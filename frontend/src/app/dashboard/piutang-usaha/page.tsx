@@ -9,7 +9,7 @@ import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 
 type Tab = 'rekap' | 'detail';
-type ViewPage = 'ringkasan' | 'offline' | 'interior' | 'uangMuka';
+type ViewPage = 'offline' | 'interior' | 'uangMuka';
 type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
 
 interface RekapRow {
@@ -101,7 +101,7 @@ function PiutangUsahaContent() {
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || 'rekap');
   const initialView = params.get('view') as ViewPage | null;
-  const [viewPage, setViewPage] = useState<ViewPage>(initialView && ['ringkasan', 'offline', 'interior', 'uangMuka'].includes(initialView) ? initialView : 'ringkasan');
+  const [viewPage, setViewPage] = useState<ViewPage>(initialView && ['offline', 'interior', 'uangMuka'].includes(initialView) ? initialView : 'offline');
   const [fakturFilter, setFakturFilter] = useState<FakturFilter>('ALL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -139,7 +139,7 @@ function PiutangUsahaContent() {
     const name = params.get('customer_name');
     const initialTab = params.get('tab') as Tab | null;
     const view = params.get('view') as ViewPage | null;
-    if (view && ['ringkasan', 'offline', 'interior', 'uangMuka'].includes(view)) setViewPage(view);
+    if (view && ['offline', 'interior', 'uangMuka'].includes(view)) setViewPage(view);
     if (initialTab === 'detail') setTab('detail');
     if (key) setSelectedCustomer({ key, name: name || key });
   }, [params]);
@@ -286,25 +286,20 @@ function PiutangUsahaContent() {
       ['Non Faktur', b?.NON_FAKTUR?.piutang || 0, b?.NON_FAKTUR?.customers || 0],
     ] as const;
   };
-  const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : viewPage === 'uangMuka' ? 'Uang Muka Interior' : 'Ringkasan Semua Piutang';
+  const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : 'Uang Muka Interior';
   const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : viewPage === 'uangMuka' ? 'orange' : 'red';
   const pageTitle = viewPage === 'offline'
     ? 'Piutang Offline'
     : viewPage === 'interior'
       ? 'Piutang Interior'
-      : viewPage === 'uangMuka'
-        ? 'Uang Muka Interior'
-        : 'Ringkasan Piutang Usaha';
+      : 'Uang Muka Interior';
   const pageDescription = viewPage === 'offline'
     ? 'Tagihan customer dari invoice Penjualan Offline. Gunakan tanggal Dari untuk melihat Saldo Awal.'
     : viewPage === 'interior'
       ? 'Tagihan customer dari invoice Penjualan Interior. DP sebelum invoice sudah dipisah ke Uang Muka Interior.'
-      : viewPage === 'uangMuka'
-        ? 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.'
-        : 'Pilih menu Piutang Offline, Piutang Interior, atau Uang Muka Interior dari sidebar agar laporan lebih fokus.';
+      : 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.';
 
   const quickNav = [
-    { view: 'ringkasan', label: 'Ringkasan', href: '/dashboard/piutang-usaha' },
     { view: 'offline', label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
     { view: 'interior', label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
     { view: 'uangMuka', label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
@@ -315,17 +310,12 @@ function PiutangUsahaContent() {
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black mb-3" style={{ background: viewPage === 'uangMuka' ? '#fff7ed' : '#fff1f1', color: viewPage === 'uangMuka' ? '#c2410c' : '#dc2626', border: `1px solid ${viewPage === 'uangMuka' ? '#fed7aa' : '#fecaca'}` }}>
-            <WalletCards className="h-3.5 w-3.5" /> {viewPage === 'ringkasan' ? 'Piutang Usaha' : currentSourceLabel}
+            <WalletCards className="h-3.5 w-3.5" /> {currentSourceLabel}
           </div>
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>{pageTitle}</h1>
           <p className="text-sm mt-1 max-w-2xl leading-relaxed" style={{ color: '#64748b' }}>{pageDescription}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          {viewPage !== 'ringkasan' && (
-            <Link href="/dashboard/piutang-usaha" className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black" style={{ background: '#fff1f1', color: '#dc2626', border: '1px solid #fecaca' }}>
-              Kembali ke Ringkasan
-            </Link>
-          )}
           <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
             <FileDown className="h-4 w-4" /> Export CSV
           </button>
@@ -350,37 +340,7 @@ function PiutangUsahaContent() {
         </div>
       </div>
 
-      {viewPage === 'ringkasan' && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {(['OFFLINE', 'INTERIOR'] as const).map(sumber => (
-          <div key={sumber} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-xs font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>Penjualan</div>
-                <div className="text-lg font-black" style={{ color: sumber === 'OFFLINE' ? '#2563eb' : '#7c3aed' }}>{sumber === 'OFFLINE' ? 'Offline' : 'Interior'}</div>
-              </div>
-              <Badge tone={sumber === 'OFFLINE' ? 'blue' : 'purple'}>{sumber}</Badge>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {miniBreakdown(sumber).map(([label, piutang, customers]) => (
-                <div key={label} className="rounded-xl p-3" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <div className="text-[11px] font-black" style={{ color: '#64748b' }}>{label}</div>
-                  <div className="text-sm font-black tabular-nums mt-1" style={{ color: '#dc2626' }}>{formatRupiah(piutang)}</div>
-                  <div className="text-[11px] mt-1" style={{ color: '#94a3b8' }}>{customers} customer</div>
-                </div>
-              ))}
-            </div>
-            <Link
-              href={`/dashboard/piutang-usaha?view=${sumber === 'OFFLINE' ? 'offline' : 'interior'}`}
-              className="mt-3 min-h-[40px] w-full rounded-xl text-xs font-black inline-flex items-center justify-center"
-              style={{ background: sumber === 'OFFLINE' ? '#eff6ff' : '#f5f3ff', color: sumber === 'OFFLINE' ? '#2563eb' : '#7c3aed', border: `1px solid ${sumber === 'OFFLINE' ? '#bfdbfe' : '#ddd6fe'}` }}
-            >
-              Buka Piutang {sumber === 'OFFLINE' ? 'Offline' : 'Interior'}
-            </Link>
-          </div>
-        ))}
-      </div>}
-
-      {viewPage !== 'ringkasan' && viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      {viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Saldo Awal</div>
           {from ? (
@@ -423,7 +383,7 @@ function PiutangUsahaContent() {
         ))}
       </div>}
 
-      {viewPage !== 'ringkasan' && <div className="rounded-2xl p-4" style={{ background: viewPage === 'uangMuka' ? '#fff7ed' : '#fffbeb', border: `1px solid ${viewPage === 'uangMuka' ? '#fed7aa' : '#fde68a'}` }}>
+      {<div className="rounded-2xl p-4" style={{ background: viewPage === 'uangMuka' ? '#fff7ed' : '#fffbeb', border: `1px solid ${viewPage === 'uangMuka' ? '#fed7aa' : '#fde68a'}` }}>
         <div className="text-sm font-black mb-1" style={{ color: viewPage === 'uangMuka' ? '#9a3412' : '#92400e' }}>{viewPage === 'uangMuka' ? 'Cara baca Uang Muka' : 'Cara baca Saldo Awal'}</div>
         <div className="text-sm leading-relaxed" style={{ color: viewPage === 'uangMuka' ? '#c2410c' : '#b45309' }}>
           {viewPage === 'uangMuka' ? (
@@ -434,28 +394,7 @@ function PiutangUsahaContent() {
         </div>
       </div>}
 
-      {viewPage === 'ringkasan' ? (
-        <div className="rounded-2xl p-6" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-          <div className="text-lg font-black mb-2" style={{ color: '#0f172a' }}>Pilih laporan dari sidebar</div>
-          <p className="text-sm leading-relaxed mb-4" style={{ color: '#64748b' }}>
-            Supaya tidak membingungkan, laporan dipisah menjadi tiga bagian. Gunakan dropdown <strong>Piutang Usaha</strong> di sidebar, atau pilih kartu di bawah ini.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Link href="/dashboard/piutang-usaha?view=offline" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
-              <div className="text-base font-black">Buka Piutang Offline</div>
-              <div className="text-sm mt-1" style={{ color: '#2563eb' }}>Invoice, pembayaran, retur dari Penjualan Offline.</div>
-            </Link>
-            <Link href="/dashboard/piutang-usaha?view=interior" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#6d28d9' }}>
-              <div className="text-base font-black">Buka Piutang Interior</div>
-              <div className="text-sm mt-1" style={{ color: '#7c3aed' }}>Invoice, pembayaran, retur dari Penjualan Interior.</div>
-            </Link>
-            <Link href="/dashboard/piutang-usaha?view=uangMuka" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' }}>
-              <div className="text-base font-black">Buka Uang Muka Interior</div>
-              <div className="text-sm mt-1" style={{ color: '#c2410c' }}>DP/pembayaran Interior sebelum invoice dan riwayat pemakaiannya.</div>
-            </Link>
-          </div>
-        </div>
-      ) : viewPage === 'uangMuka' ? (
+      {viewPage === 'uangMuka' ? (
         <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
           <div className="p-4 flex flex-col xl:flex-row xl:items-center gap-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
             <Badge tone="orange">Uang Muka Interior</Badge>

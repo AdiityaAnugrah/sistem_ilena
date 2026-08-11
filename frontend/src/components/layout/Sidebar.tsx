@@ -47,7 +47,6 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Piutang Usaha',
     icon: Wallet,
     children: [
-      { label: 'Ringkasan Piutang', href: '/dashboard/piutang-usaha' },
       { label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
       { label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
       { label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
