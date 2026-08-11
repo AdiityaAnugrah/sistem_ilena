@@ -303,6 +303,13 @@ function PiutangUsahaContent() {
         ? 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.'
         : 'Pilih menu Piutang Offline, Piutang Interior, atau Uang Muka Interior dari sidebar agar laporan lebih fokus.';
 
+  const quickNav = [
+    { view: 'ringkasan', label: 'Ringkasan', href: '/dashboard/piutang-usaha' },
+    { view: 'offline', label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
+    { view: 'interior', label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
+    { view: 'uangMuka', label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
+  ] as const;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
@@ -313,11 +320,35 @@ function PiutangUsahaContent() {
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>{pageTitle}</h1>
           <p className="text-sm mt-1 max-w-2xl leading-relaxed" style={{ color: '#64748b' }}>{pageDescription}</p>
         </div>
-        <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
-          <FileDown className="h-4 w-4" /> Export CSV
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          {viewPage !== 'ringkasan' && (
+            <Link href="/dashboard/piutang-usaha" className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-black" style={{ background: '#fff1f1', color: '#dc2626', border: '1px solid #fecaca' }}>
+              Kembali ke Ringkasan
+            </Link>
+          )}
+          <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
+            <FileDown className="h-4 w-4" /> Export CSV
+          </button>
+        </div>
       </div>
 
+      <div className="rounded-2xl p-2" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {quickNav.map(item => {
+            const active = item.view === viewPage;
+            return (
+              <Link
+                key={item.view}
+                href={item.href}
+                className="min-h-[44px] rounded-xl px-3 py-2 text-center text-xs sm:text-sm font-black inline-flex items-center justify-center"
+                style={active ? { background: '#FA2F2F', color: '#fff' } : { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
       {viewPage === 'ringkasan' && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {(['OFFLINE', 'INTERIOR'] as const).map(sumber => (
@@ -428,7 +459,7 @@ function PiutangUsahaContent() {
         <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
           <div className="p-4 flex flex-col xl:flex-row xl:items-center gap-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
             <Badge tone="orange">Uang Muka Interior</Badge>
-            {selectedUangMuka && <button onClick={() => { setSelectedUangMuka(null); setUangMukaPage(1); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>Kembali ke Rekap</button>}
+            {selectedUangMuka && <button onClick={() => { setSelectedUangMuka(null); setUangMukaPage(1); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>Kembali ke Rekap Uang Muka</button>}
             <form onSubmit={e => { e.preventDefault(); setUangMukaPage(1); fetchData(); }} className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
               <input value={search} onChange={e => { setSearch(e.target.value); setUangMukaPage(1); }} placeholder="Cari customer atau no PO..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
@@ -535,9 +566,14 @@ function PiutangUsahaContent() {
                   Detail di bawah menjelaskan asal angka invoice, bayar/retur, dan sisa piutang pada rekap customer ini.
                 </div>
               </div>
-              <button onClick={() => { setSelectedCustomer(null); setDetailPage(1); }} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff', color: '#c2410c', border: '1px solid #fed7aa' }}>
-                Lihat Semua Detail
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setTab('rekap')} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#FA2F2F', color: '#fff', border: '1px solid #FA2F2F' }}>
+                  Kembali ke Rekap
+                </button>
+                <button onClick={() => { setSelectedCustomer(null); setDetailPage(1); }} className="min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff', color: '#c2410c', border: '1px solid #fed7aa' }}>
+                  Lihat Semua Detail
+                </button>
+              </div>
             </div>
             {selectedCustomer.debit !== undefined && (
               <div className="mt-3 text-xs leading-relaxed" style={{ color: '#b45309' }}>
