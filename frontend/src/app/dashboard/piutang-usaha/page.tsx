@@ -9,7 +9,7 @@ import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 
 type Tab = 'rekap' | 'detail';
-type ViewPage = 'ringkasan' | 'offline' | 'interior';
+type ViewPage = 'ringkasan' | 'offline' | 'interior' | 'uangMuka';
 type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
 
 interface RekapRow {
@@ -25,6 +25,38 @@ interface RekapRow {
   piutang: number;
   lebih_bayar: number;
   jumlah_transaksi: number;
+}
+
+
+interface UangMukaRow {
+  key: string;
+  penjualan_interior_id: number;
+  nama_customer: string;
+  no_po: string;
+  faktur: 'FAKTUR' | 'NON_FAKTUR';
+  uang_muka_masuk: number;
+  uang_muka_terpakai: number;
+  sisa_uang_muka: number;
+  status: 'BELUM_TERPAKAI' | 'TERPAKAI_SEBAGIAN' | 'HABIS_TERPAKAI';
+  jumlah_transaksi: number;
+  detail_url?: string;
+}
+
+interface UangMukaHistoryRow {
+  id: string;
+  key: string;
+  tanggal: string;
+  jenis: string;
+  referensi: string;
+  nama_customer: string;
+  no_po: string;
+  faktur: 'FAKTUR' | 'NON_FAKTUR';
+  keterangan: string;
+  masuk: number;
+  terpakai: number;
+  sisa: number;
+  bukti_endpoint?: string | null;
+  detail_url?: string;
 }
 
 interface DetailRow {
@@ -86,14 +118,20 @@ function PiutangUsahaContent() {
   } | null>(null);
   const [rekapPage, setRekapPage] = useState(1);
   const [detailPage, setDetailPage] = useState(1);
+  const [uangMukaPage, setUangMukaPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [rekapRows, setRekapRows] = useState<RekapRow[]>([]);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
+  const [uangMukaRows, setUangMukaRows] = useState<UangMukaRow[]>([]);
+  const [uangMukaHistory, setUangMukaHistory] = useState<UangMukaHistoryRow[]>([]);
   const [rekapSummary, setRekapSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [detailSummary, setDetailSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
+  const [uangMukaSummary, setUangMukaSummary] = useState({ masuk: 0, terpakai: 0, sisa: 0, proyek: 0, aktif: 0 });
+  const [selectedUangMuka, setSelectedUangMuka] = useState<UangMukaRow | null>(null);
   const [rekapTotalPages, setRekapTotalPages] = useState(1);
   const [detailTotalPages, setDetailTotalPages] = useState(1);
+  const [uangMukaTotalPages, setUangMukaTotalPages] = useState(1);
 
   useEffect(() => {
     const key = params.get('customer_key');
@@ -136,25 +174,45 @@ function PiutangUsahaContent() {
     setDetailTotalPages(res.data.totalPages || 1);
   }, [baseParams, detailPage, selectedCustomer]);
 
+  const fetchUangMuka = useCallback(async (page = uangMukaPage, selected = selectedUangMuka) => {
+    const res = await api.get('/piutang-usaha/uang-muka-interior', {
+      params: {
+        from,
+        to,
+        search: search.trim() || undefined,
+        key: selected?.key,
+        page,
+        limit: selected ? limitDetail : limitRekap,
+      },
+    });
+    if (selected) setUangMukaHistory(res.data.data || []);
+    else setUangMukaRows(res.data.data || []);
+    setUangMukaSummary(res.data.summary || { masuk: 0, terpakai: 0, sisa: 0, proyek: 0, aktif: 0 });
+    setUangMukaTotalPages(res.data.totalPages || 1);
+  }, [from, to, search, uangMukaPage, selectedUangMuka]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchRekap(rekapPage), fetchDetail(detailPage, selectedCustomer)]);
+      if (viewPage === 'uangMuka') await fetchUangMuka(uangMukaPage, selectedUangMuka);
+      else await Promise.all([fetchRekap(rekapPage), fetchDetail(detailPage, selectedCustomer)]);
     } finally {
       setLoading(false);
     }
-  }, [fetchRekap, fetchDetail, rekapPage, detailPage, selectedCustomer]);
+  }, [viewPage, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const resetPaging = () => {
     setRekapPage(1);
     setDetailPage(1);
+    setUangMukaPage(1);
   };
 
   const openViewPage = (page: ViewPage) => {
     setViewPage(page);
     setSelectedCustomer(null);
+    setSelectedUangMuka(null);
     setTab('rekap');
     resetPaging();
   };
@@ -172,6 +230,7 @@ function PiutangUsahaContent() {
       saldo_akhir: row.saldo_akhir,
     });
     setDetailPage(1);
+    setUangMukaPage(1);
     setTab('detail');
   };
 
@@ -183,13 +242,23 @@ function PiutangUsahaContent() {
   };
 
   const exportCsv = () => {
-    const rows = tab === 'rekap'
+    const rows = viewPage === 'uangMuka'
+      ? (selectedUangMuka
+          ? [
+              ['No', 'Tanggal', 'Customer', 'No PO', 'Jenis', 'Referensi', 'Masuk', 'Terpakai', 'Sisa'],
+              ...uangMukaHistory.map((r, i) => [i + 1 + (uangMukaPage - 1) * limitDetail, r.tanggal || '', r.nama_customer, r.no_po, r.jenis, r.referensi, r.masuk, r.terpakai, r.sisa]),
+            ]
+          : [
+              ['No', 'Customer', 'No PO', 'Faktur', 'Uang Muka Masuk', 'Terpakai', 'Sisa', 'Status'],
+              ...uangMukaRows.map((r, i) => [i + 1 + (uangMukaPage - 1) * limitRekap, r.nama_customer, r.no_po, r.faktur, r.uang_muka_masuk, r.uang_muka_terpakai, r.sisa_uang_muka, r.status]),
+            ])
+      : tab === 'rekap'
       ? [
-          ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Sisa Sebelum Periode', 'Invoice Periode Ini', 'Bayar + Retur', 'Saldo Akhir'],
+          ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir'],
           ...rekapRows.map((r, i) => [i + 1 + (rekapPage - 1) * limitRekap, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
-          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Invoice', 'Bayar + Retur', 'Sisa Berjalan'],
+          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Invoice', 'Kredit', 'Sisa Berjalan'],
           ...detailRows.map((r, i) => [i + 1 + (detailPage - 1) * limitDetail, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
     const csv = rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -197,12 +266,13 @@ function PiutangUsahaContent() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `piutang-usaha-${tab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${viewPage === 'uangMuka' ? 'uang-muka-interior' : `piutang-usaha-${tab}`}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : 'slate';
+  const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : jenis.includes('UANG_MUKA') ? 'orange' : 'slate';
+  const uangMukaStatus = (status: string) => status === 'HABIS_TERPAKAI' ? 'Habis Terpakai' : status === 'TERPAKAI_SEBAGIAN' ? 'Terpakai Sebagian' : 'Belum Terpakai';
   const fakturLabel = (v?: string) => v === 'FAKTUR' ? 'Faktur' : v === 'NON_FAKTUR' ? 'Non Faktur' : v || '-';
   const filterButton = (active: boolean) => active ? { background: '#FA2F2F', color: '#fff', border: '1px solid #FA2F2F' } : { background: '#fff', color: '#475569', border: '1px solid #e2e8f0' };
   const miniBreakdown = (sumber: 'OFFLINE' | 'INTERIOR') => {
@@ -213,8 +283,8 @@ function PiutangUsahaContent() {
       ['Non Faktur', b?.NON_FAKTUR?.piutang || 0, b?.NON_FAKTUR?.customers || 0],
     ] as const;
   };
-  const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : 'Ringkasan Semua Piutang';
-  const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : 'red';
+  const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : viewPage === 'uangMuka' ? 'Uang Muka Interior' : 'Ringkasan Semua Piutang';
+  const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : viewPage === 'uangMuka' ? 'orange' : 'red';
 
   return (
     <div className="space-y-6">
@@ -226,7 +296,7 @@ function PiutangUsahaContent() {
           <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Usaha</h1>
           <p className="text-sm mt-1 max-w-2xl" style={{ color: '#64748b' }}>
             Khusus piutang berbasis invoice. Data dipisah antara Penjualan Offline / Interior serta Faktur / Non Faktur.
-            Piutang Display berbasis Surat Pengantar ada di menu Keuangan Offline.
+            DP Interior sebelum invoice dipisahkan ke Uang Muka Interior supaya laporan piutang tidak membingungkan.
           </p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
@@ -235,11 +305,12 @@ function PiutangUsahaContent() {
       </div>
 
       <div className="rounded-2xl p-2" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
           {([
             ['ringkasan', '1. Ringkasan', 'Lihat total Offline dan Interior sebelum masuk detail'],
             ['offline', '2. Piutang Offline', 'Invoice dari Penjualan Offline saja'],
             ['interior', '3. Piutang Interior', 'Invoice dari Penjualan Interior saja'],
+            ['uangMuka', '4. Uang Muka Interior', 'DP/pembayaran Interior sebelum ada invoice'],
           ] as [ViewPage, string, string][]).map(([page, title, desc]) => (
             <button
               key={page}
@@ -284,9 +355,9 @@ function PiutangUsahaContent() {
         ))}
       </div>
 
-      {viewPage !== 'ringkasan' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      {viewPage !== 'ringkasan' && viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-          <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Sisa Sebelum Periode</div>
+          <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Saldo Awal</div>
           {from ? (
             <>
               <div className="text-lg font-black tabular-nums" style={{ color: '#0f172a' }}>{formatRupiah(rekapSummary.saldoAwal || 0)}</div>
@@ -300,11 +371,11 @@ function PiutangUsahaContent() {
           )}
         </div>
         {([
-          ['Invoice Periode Ini', rekapSummary.debit, '#eff6ff', '#2563eb'],
-          ['Bayar + Retur', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
+          ['Debit', rekapSummary.debit, '#eff6ff', '#2563eb'],
+          ['Kredit', rekapSummary.kredit, '#f0fdf4', '#16a34a'],
           ['Total Piutang', rekapSummary.piutang, '#fff1f1', '#dc2626'],
           ['Lebih Bayar / Uang Muka', rekapSummary.lebihBayar, '#fff7ed', '#c2410c'],
-          ['Net Saldo', rekapSummary.saldoAkhir, '#f8fafc', '#0f172a'],
+          ['Saldo Akhir', rekapSummary.saldoAkhir, '#f8fafc', '#0f172a'],
         ] as SummaryCard[]).map(([label, value, bg, fg]) => (
           <div key={label} className="rounded-2xl p-4" style={{ background: bg, border: '1px solid #e2e8f0' }}>
             <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>{label}</div>
@@ -313,15 +384,29 @@ function PiutangUsahaContent() {
         ))}
       </div>}
 
+      {viewPage === 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {([
+          ['Uang Muka Masuk', uangMukaSummary.masuk, '#fff7ed', '#c2410c'],
+          ['Terpakai ke Invoice', uangMukaSummary.terpakai, '#eff6ff', '#2563eb'],
+          ['Sisa Uang Muka', uangMukaSummary.sisa, '#fef2f2', '#dc2626'],
+          ['Proyek Aktif', uangMukaSummary.aktif, '#f8fafc', '#0f172a'],
+        ] as SummaryCard[]).map(([label, value, bg, fg]) => (
+          <div key={label} className="rounded-2xl p-4" style={{ background: bg, border: '1px solid #e2e8f0' }}>
+            <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>{label}</div>
+            <div className="text-lg font-black tabular-nums" style={{ color: fg }}>{label === 'Proyek Aktif' ? `${value} proyek` : formatRupiah(value || 0)}</div>
+          </div>
+        ))}
+      </div>}
+
       <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
         <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data invoice</div>
         <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
-          Laporan ini read-only dan tidak mengubah data produksi. Angka <strong>Sisa Sebelum Periode</strong> adalah sisa piutang customer sebelum tanggal <strong>Dari</strong>.
+          Laporan ini read-only dan tidak mengubah data produksi. Angka <strong>Saldo Awal</strong> adalah saldo terakhir customer sebelum tanggal <strong>Dari</strong>.
           Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga kolom itu ditampilkan sebagai <strong>Dari awal data</strong>.
           Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
           Kategori <strong>Faktur</strong> dan <strong>Non Faktur</strong> mengikuti field faktur di transaksi penjualan asal invoice.
           <strong> Display tidak masuk laporan ini</strong> karena Display memakai dasar Surat Pengantar, bukan Invoice.
-          Jika kredit lebih besar dari debit, sistem menandainya sebagai <strong>Lebih Bayar / Uang Muka</strong>, bukan piutang minus.
+          Untuk Interior, DP sebelum invoice dipisahkan ke <strong>Uang Muka Interior</strong>; setelah invoice dibuat, uang muka akan tampil sebagai kredit terpakai.
         </div>
       </div>
 
@@ -332,7 +417,7 @@ function PiutangUsahaContent() {
             Halaman ini sekarang dipisah supaya tidak membingungkan. Pilih <strong>Piutang Offline</strong> untuk customer dari penjualan offline,
             atau pilih <strong>Piutang Interior</strong> untuk customer proyek interior. Setelah masuk salah satu halaman, baru pilih customer untuk melihat detail mutasinya.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button onClick={() => openViewPage('offline')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
               <div className="text-base font-black">Buka Piutang Offline</div>
               <div className="text-sm mt-1" style={{ color: '#2563eb' }}>Invoice, pembayaran, retur dari Penjualan Offline.</div>
@@ -341,6 +426,68 @@ function PiutangUsahaContent() {
               <div className="text-base font-black">Buka Piutang Interior</div>
               <div className="text-sm mt-1" style={{ color: '#7c3aed' }}>Invoice, pembayaran, retur dari Penjualan Interior.</div>
             </button>
+            <button onClick={() => openViewPage('uangMuka')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' }}>
+              <div className="text-base font-black">Buka Uang Muka Interior</div>
+              <div className="text-sm mt-1" style={{ color: '#c2410c' }}>DP/pembayaran Interior sebelum invoice dan riwayat pemakaiannya.</div>
+            </button>
+          </div>
+        </div>
+      ) : viewPage === 'uangMuka' ? (
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
+          <div className="p-4 flex flex-col xl:flex-row xl:items-center gap-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
+            <Badge tone="orange">Uang Muka Interior</Badge>
+            {selectedUangMuka && <button onClick={() => { setSelectedUangMuka(null); setUangMukaPage(1); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>Kembali ke Rekap</button>}
+            <form onSubmit={e => { e.preventDefault(); setUangMukaPage(1); fetchData(); }} className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
+              <input value={search} onChange={e => { setSearch(e.target.value); setUangMukaPage(1); }} placeholder="Cari customer atau no PO..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
+            </form>
+            <DateInput value={from} onChange={e => { setFrom(e.target.value); setUangMukaPage(1); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
+            <DateInput value={to} onChange={e => { setTo(e.target.value); setUangMukaPage(1); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                {(selectedUangMuka ? ['No', 'Tanggal', 'Jenis', 'Keterangan', 'Masuk', 'Terpakai', 'Sisa', 'Aksi'] : ['No', 'Customer', 'No PO', 'Faktur', 'Uang Muka Masuk', 'Terpakai', 'Sisa Uang Muka', 'Status', 'Aksi']).map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={selectedUangMuka ? 8 : 9} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat uang muka interior...</td></tr>
+                ) : selectedUangMuka ? (uangMukaHistory.length === 0 ? (
+                  <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Belum ada riwayat uang muka</td></tr>
+                ) : uangMukaHistory.map((row, idx) => (
+                  <tr key={row.id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (uangMukaPage - 1) * limitDetail}</td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{formatDate(row.tanggal)}</td>
+                    <td className="px-4 py-3"><Badge tone={row.jenis === 'UANG_MUKA_MASUK' ? 'orange' : 'blue'}>{row.jenis === 'UANG_MUKA_MASUK' ? 'Masuk' : 'Terpakai'}</Badge></td>
+                    <td className="px-4 py-3 min-w-[280px]"><div className="text-sm font-semibold" style={{ color: '#334155' }}>{row.keterangan}</div><div className="text-xs font-mono mt-0.5" style={{ color: '#94a3b8' }}>{row.referensi}</div></td>
+                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#c2410c' }}>{row.masuk ? formatRupiah(row.masuk) : '-'}</td>
+                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#2563eb' }}>{row.terpakai ? formatRupiah(row.terpakai) : '-'}</td>
+                    <td className="px-4 py-3 text-sm font-black tabular-nums" style={{ color: row.sisa > 0 ? '#dc2626' : '#16a34a' }}>{formatRupiah(row.sisa)}</td>
+                    <td className="px-4 py-3"><div className="flex gap-1">{row.bukti_endpoint && <button onClick={() => openBukti(row.bukti_endpoint!)} className="inline-flex items-center gap-1 min-h-[34px] px-2 rounded-lg text-xs font-bold" style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}><Paperclip className="h-3 w-3" /> Bukti</button>}{row.detail_url && <Link href={row.detail_url} className="inline-flex items-center gap-1 min-h-[34px] px-2 rounded-lg text-xs font-bold" style={{ background: '#fff1f1', color: '#dc2626', border: '1px solid #fecaca' }}><ExternalLink className="h-3 w-3" /> Proyek</Link>}</div></td>
+                  </tr>
+                ))) : uangMukaRows.length === 0 ? (
+                  <tr><td colSpan={9} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada uang muka interior pada filter ini</td></tr>
+                ) : uangMukaRows.map((row, idx) => (
+                  <tr key={row.key} onClick={() => { setSelectedUangMuka(row); setUangMukaPage(1); }} className="cursor-pointer" style={{ borderBottom: '1px solid #f8fafc' }}>
+                    <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (uangMukaPage - 1) * limitRekap}</td>
+                    <td className="px-4 py-3"><div className="text-sm font-black" style={{ color: '#1e293b' }}>{row.nama_customer}</div><div className="text-xs" style={{ color: '#94a3b8' }}>{row.jumlah_transaksi} mutasi uang muka</div></td>
+                    <td className="px-4 py-3 text-sm font-mono" style={{ color: '#64748b' }}>{row.no_po || '-'}</td>
+                    <td className="px-4 py-3"><Badge tone={row.faktur === 'FAKTUR' ? 'green' : 'orange'}>{fakturLabel(row.faktur)}</Badge></td>
+                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#c2410c' }}>{formatRupiah(row.uang_muka_masuk)}</td>
+                    <td className="px-4 py-3 text-sm font-bold tabular-nums" style={{ color: '#2563eb' }}>{formatRupiah(row.uang_muka_terpakai)}</td>
+                    <td className="px-4 py-3 text-sm font-black tabular-nums" style={{ color: row.sisa_uang_muka > 0 ? '#dc2626' : '#16a34a' }}>{formatRupiah(row.sisa_uang_muka)}</td>
+                    <td className="px-4 py-3"><Badge tone={row.status === 'HABIS_TERPAKAI' ? 'green' : row.status === 'TERPAKAI_SEBAGIAN' ? 'blue' : 'orange'}>{uangMukaStatus(row.status)}</Badge></td>
+                    <td className="px-4 py-3"><button className="inline-flex items-center gap-1 min-h-[36px] px-3 rounded-lg text-xs font-black" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>Riwayat <ArrowRight className="h-3 w-3" /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: '1px solid #f1f5f9' }}>
+            <span className="text-xs" style={{ color: '#94a3b8' }}>Halaman {uangMukaPage} dari {uangMukaTotalPages}</span>
+            <div className="flex gap-2"><button disabled={uangMukaPage <= 1} onClick={() => setUangMukaPage(p => Math.max(1, p - 1))} className="min-h-[36px] px-3 rounded-lg text-xs font-bold disabled:opacity-40" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}>Sebelumnya</button><button disabled={uangMukaPage >= uangMukaTotalPages} onClick={() => setUangMukaPage(p => Math.min(uangMukaTotalPages, p + 1))} className="min-h-[36px] px-3 rounded-lg text-xs font-bold disabled:opacity-40" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}>Berikutnya</button></div>
           </div>
         </div>
       ) : <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
@@ -415,7 +562,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Sumber', 'Faktur', 'Nama Customer', 'Sisa Sebelum Periode', 'Invoice Periode Ini', 'Bayar + Retur', 'Status Saldo', 'Aksi'].map(h => (
+                  {['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -482,7 +629,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Invoice', 'Bayar + Retur', 'Sisa Berjalan', 'Aksi'].map(h => (
+                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Invoice', 'Kredit', 'Sisa Berjalan', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>
@@ -554,9 +701,9 @@ function PiutangUsahaContent() {
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: '#64748b' }}>Ringkasan Detail</div>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-sm">
-            <div><span style={{ color: '#94a3b8' }}>Sisa Sebelum Periode</span><div className="font-black" style={{ color: '#0f172a' }}>{from ? formatRupiah(detailSummary.saldoAwal) : 'Dari awal data'}</div></div>
-            <div><span style={{ color: '#94a3b8' }}>Invoice</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
-            <div><span style={{ color: '#94a3b8' }}>Bayar + Retur</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Saldo Awal</span><div className="font-black" style={{ color: '#0f172a' }}>{from ? formatRupiah(detailSummary.saldoAwal) : 'Dari awal data'}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Debit</span><div className="font-black" style={{ color: '#2563eb' }}>{formatRupiah(detailSummary.debit)}</div></div>
+            <div><span style={{ color: '#94a3b8' }}>Kredit</span><div className="font-black" style={{ color: '#16a34a' }}>{formatRupiah(detailSummary.kredit)}</div></div>
             <div><span style={{ color: '#94a3b8' }}>{detailSummary.saldoAkhir >= 0 ? 'Saldo Piutang' : 'Lebih Bayar / Uang Muka'}</span><div className="font-black" style={{ color: detailSummary.saldoAkhir >= 0 ? '#dc2626' : '#c2410c' }}>{formatRupiah(Math.abs(detailSummary.saldoAkhir))}</div></div>
           </div>
         </div>

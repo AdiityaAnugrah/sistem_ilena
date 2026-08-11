@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem, SuratJalan, Invoice, SuratPengantar,
+  PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   ReturOffline, ReturSJInterior,
   sequelize,
@@ -20,6 +20,7 @@ const itemNetSubtotal = (item, returQty = 0) => {
 };
 const sumItemsNetAfterRetur = (items = [], returQtyMap = {}) =>
   items.reduce((sum, item) => sum + itemNetSubtotal(item, returQtyMap[item.id] || 0), 0);
+const sumPayments = (payments = []) => money(payments.reduce((sum, p) => sum + Number(p.jumlah || 0), 0));
 
 const getInteriorReturQtyMap = async (itemIds = []) => {
   const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
@@ -226,7 +227,10 @@ router.get('/offline', authenticate, async (req, res) => {
     // Hitung total yang sudah terjual per display
     const terjualPerDisplay = await PenjualanOffline.findAll({
       where: { display_source_id: { [Op.in]: displayIds.length ? displayIds : [0] }, is_test: isTest },
-      include: [{ model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id'] }],
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id'] },
+        { model: PembayaranOffline, as: 'pembayarans', attributes: ['jumlah'] },
+      ],
       attributes: ['id', 'display_source_id', 'status'],
     });
     const allDisplayListItemIds = [
@@ -238,11 +242,11 @@ router.get('/offline', authenticate, async (req, res) => {
     const terjualBelumLunasMap = {};
     for (const p of terjualPerDisplay) {
       const srcId = p.display_source_id;
-      const totalPenjualan = sumItemsNetAfterRetur(p.items, returQtyMap);
+      const totalPenjualan = money(sumItemsNetAfterRetur(p.items || [], returQtyMap));
+      const totalTerbayar = sumPayments(p.pembayarans || []);
+      const sisaTagihan = Math.max(0, totalPenjualan - totalTerbayar);
       terjualMap[srcId] = (terjualMap[srcId] || 0) + totalPenjualan;
-      if (p.status !== 'COMPLETED') {
-        terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + totalPenjualan;
-      }
+      terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + sisaTagihan;
     }
 
     const list = rows.map(d => {

@@ -66,6 +66,125 @@ async function invoiceInteriorAmount(inv) {
   return { subtotal, ppn, total: money(subtotal + ppn) };
 }
 
+
+async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
+  const byPenjualan = new Map();
+  const ensure = (id, penjualan) => {
+    if (!byPenjualan.has(id)) byPenjualan.set(id, { penjualan, invoices: [], payments: [] });
+    const row = byPenjualan.get(id);
+    if (!row.penjualan && penjualan) row.penjualan = penjualan;
+    return row;
+  };
+
+  for (const inv of interiorInvoices || []) {
+    const id = Number(inv.penjualan_interior_id || inv.penjualan?.id);
+    if (!id) continue;
+    const amount = await invoiceInteriorAmount(inv);
+    ensure(id, inv.penjualan).invoices.push({ inv, amount });
+  }
+
+  for (const p of interiorPayments || []) {
+    const id = Number(p.penjualan_interior_id || p.penjualan?.id);
+    if (!id) continue;
+    ensure(id, p.penjualan).payments.push(p);
+  }
+
+  const advancePaymentIds = new Set();
+  const usageByInvoice = new Map();
+  const history = [];
+  const rekapMap = new Map();
+
+  for (const [penjualanId, row] of byPenjualan.entries()) {
+    row.invoices.sort((a, b) => String(a.inv.tanggal).localeCompare(String(b.inv.tanggal)) || Number(a.inv.id) - Number(b.inv.id));
+    row.payments.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id));
+
+    const firstInvoiceDate = row.invoices[0]?.inv?.tanggal || null;
+    const advancePayments = row.payments.filter(p => !firstInvoiceDate || String(p.tanggal) < String(firstInvoiceDate));
+    if (!advancePayments.length) continue;
+
+    const penjualan = row.penjualan || advancePayments[0]?.penjualan || row.invoices[0]?.inv?.penjualan;
+    const customer = penjualan?.nama_customer || 'Tanpa Nama';
+    const key = `INTERIOR-UM-${penjualanId}`;
+    const rekap = {
+      key,
+      penjualan_interior_id: penjualanId,
+      customer_key: customerKey(customer),
+      nama_customer: customer,
+      no_po: penjualan?.no_po || '',
+      faktur: penjualan?.faktur || 'NON_FAKTUR',
+      uang_muka_masuk: 0,
+      uang_muka_terpakai: 0,
+      sisa_uang_muka: 0,
+      jumlah_transaksi: 0,
+      detail_url: `/dashboard/penjualan/interior/${penjualanId}`,
+    };
+
+    let running = 0;
+    for (const pay of advancePayments) {
+      const amount = money(pay.jumlah);
+      if (amount <= 0) continue;
+      advancePaymentIds.add(Number(pay.id));
+      running = money(running + amount);
+      rekap.uang_muka_masuk += amount;
+      rekap.jumlah_transaksi += 1;
+      history.push({
+        id: `UM-MASUK-${pay.id}`,
+        key,
+        penjualan_interior_id: penjualanId,
+        tanggal: pay.tanggal,
+        jenis: 'UANG_MUKA_MASUK',
+        referensi: pay.tipe,
+        nama_customer: customer,
+        no_po: rekap.no_po,
+        faktur: rekap.faktur,
+        keterangan: `Uang muka Interior ${pay.tipe}${pay.catatan ? ` - ${pay.catatan}` : ''}`,
+        masuk: amount,
+        terpakai: 0,
+        sisa: running,
+        bukti_endpoint: pay.bukti_bayar ? `/penjualan-interior/${penjualanId}/pembayaran/${pay.id}/bukti` : null,
+        detail_url: rekap.detail_url,
+      });
+    }
+
+    let remaining = money(rekap.uang_muka_masuk);
+    for (const { inv, amount } of row.invoices) {
+      if (remaining <= 0) break;
+      const used = Math.min(remaining, money(amount.total));
+      if (used <= 0) continue;
+      remaining = money(remaining - used);
+      usageByInvoice.set(Number(inv.id), used);
+      rekap.uang_muka_terpakai += used;
+      rekap.jumlah_transaksi += 1;
+      history.push({
+        id: `UM-TERPAKAI-${inv.id}`,
+        key,
+        penjualan_interior_id: penjualanId,
+        tanggal: inv.tanggal,
+        jenis: 'UANG_MUKA_TERPAKAI',
+        referensi: inv.nomor_invoice,
+        nama_customer: customer,
+        no_po: rekap.no_po,
+        faktur: rekap.faktur,
+        keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
+        masuk: 0,
+        terpakai: used,
+        sisa: remaining,
+        bukti_endpoint: null,
+        detail_url: rekap.detail_url,
+      });
+    }
+
+    rekap.uang_muka_masuk = money(rekap.uang_muka_masuk);
+    rekap.uang_muka_terpakai = money(rekap.uang_muka_terpakai);
+    rekap.sisa_uang_muka = money(rekap.uang_muka_masuk - rekap.uang_muka_terpakai);
+    rekap.status = rekap.sisa_uang_muka <= 0 ? 'HABIS_TERPAKAI' : rekap.uang_muka_terpakai > 0 ? 'TERPAKAI_SEBAGIAN' : 'BELUM_TERPAKAI';
+    rekapMap.set(key, rekap);
+  }
+
+  history.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.id).localeCompare(String(b.id)));
+  return { advancePaymentIds, usageByInvoice, history, rekapRows: [...rekapMap.values()] };
+}
+
 const interiorReturTotal = (retur) => {
   const item = retur.item;
   const penjualan = item?.penjualan;
@@ -196,6 +315,8 @@ async function buildPiutangEntries(isTest) {
     });
   }
 
+  const interiorAdvanceState = await buildInteriorAdvanceState(interiorInvoices, interiorPayments);
+
   for (const inv of interiorInvoices) {
     const amount = await invoiceInteriorAmount(inv);
     if (amount.total <= 0) continue;
@@ -213,9 +334,28 @@ async function buildPiutangEntries(isTest) {
       kredit: 0,
       detail_url: `/dashboard/penjualan/interior/${inv.penjualan_interior_id}`,
     });
+
+    const uangMukaTerpakai = interiorAdvanceState.usageByInvoice.get(Number(inv.id)) || 0;
+    if (uangMukaTerpakai > 0) {
+      push({
+        id: `INTERIOR-UANG-MUKA-TERPAKAI-${inv.id}`,
+        tanggal: inv.tanggal,
+        sumber: 'INTERIOR',
+        jenis: 'UANG_MUKA_TERPAKAI',
+        referensi: inv.nomor_invoice,
+        customer: inv.penjualan?.nama_customer,
+        faktur: inv.penjualan?.faktur,
+        no_po: inv.penjualan?.no_po,
+        keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
+        debit: 0,
+        kredit: uangMukaTerpakai,
+        detail_url: `/dashboard/penjualan/interior/${inv.penjualan_interior_id}`,
+      });
+    }
   }
 
   for (const p of interiorPayments) {
+    if (interiorAdvanceState.advancePaymentIds.has(Number(p.id))) continue;
     const amount = money(p.jumlah);
     if (amount <= 0) continue;
     push({
@@ -397,6 +537,70 @@ router.get('/detail', authenticate, async (req, res) => {
       total: detailRows.length,
       page: pageInt,
       totalPages: Math.max(1, Math.ceil(detailRows.length / limitInt)),
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+
+router.get('/uang-muka-interior', authenticate, async (req, res) => {
+  try {
+    const { from, to, search, status, key, page = 1, limit = 25 } = req.query;
+    const isTest = req.user.role === 'TEST' ? 1 : 0;
+    const [interiorInvoices, interiorPayments] = await Promise.all([
+      InvoiceInterior.findAll({
+        include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
+      }),
+      PembayaranInterior.findAll({
+        include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
+      }),
+    ]);
+    const state = await buildInteriorAdvanceState(interiorInvoices, interiorPayments);
+    const q = String(search || '').trim().toLowerCase();
+    const statusFilter = String(status || '').toUpperCase();
+
+    let rows = state.rekapRows.filter(row => {
+      if (key && row.key !== key) return false;
+      if (statusFilter && row.status !== statusFilter) return false;
+      if (q) {
+        const text = [row.nama_customer, row.no_po, row.faktur, row.status].filter(Boolean).join(' ').toLowerCase();
+        if (!text.includes(q)) return false;
+      }
+      return row.uang_muka_masuk !== 0 || row.uang_muka_terpakai !== 0 || row.sisa_uang_muka !== 0;
+    });
+
+    const history = state.history.filter(row => {
+      if (key && row.key !== key) return false;
+      if (from && row.tanggal < from) return false;
+      if (to && row.tanggal > to) return false;
+      if (q) {
+        const text = [row.nama_customer, row.no_po, row.keterangan, row.referensi, row.faktur].filter(Boolean).join(' ').toLowerCase();
+        if (!text.includes(q)) return false;
+      }
+      return true;
+    });
+
+    rows = rows.sort((a, b) => b.sisa_uang_muka - a.sisa_uang_muka || a.nama_customer.localeCompare(b.nama_customer));
+    const summary = rows.reduce((acc, row) => {
+      acc.masuk += row.uang_muka_masuk;
+      acc.terpakai += row.uang_muka_terpakai;
+      acc.sisa += row.sisa_uang_muka;
+      acc.proyek += 1;
+      if (row.sisa_uang_muka > 0) acc.aktif += 1;
+      return acc;
+    }, { masuk: 0, terpakai: 0, sisa: 0, proyek: 0, aktif: 0 });
+
+    const pageInt = Math.max(1, parseInt(page));
+    const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (pageInt - 1) * limitInt;
+    const source = key ? history : rows;
+    res.json({
+      data: source.slice(offset, offset + limitInt),
+      summary,
+      total: source.length,
+      page: pageInt,
+      totalPages: Math.max(1, Math.ceil(source.length / limitInt)),
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

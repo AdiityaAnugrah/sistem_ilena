@@ -105,7 +105,7 @@ export default function PiutangDisplayPage() {
 
   const exportCsv = () => {
     const data = [
-      ['No', 'Nomor SP', 'Tanggal SP', 'Customer', 'Status', 'Piutang Display', 'Sudah Terjual', 'Laku Belum Lunas', 'Total Nilai'],
+      ['No', 'Nomor SP', 'Tanggal SP', 'Customer', 'Status', 'Sisa Display Beredar', 'Sudah Terjual', 'Tagihan Display Belum Lunas', 'Total Nilai'],
       ...filteredRows.map((row, idx) => [
         idx + 1 + (page - 1) * limit,
         row.nomor_sp || '',
@@ -123,7 +123,7 @@ export default function PiutangDisplayPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `piutang-display-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `outstanding-display-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -139,12 +139,12 @@ export default function PiutangDisplayPage() {
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black mb-3" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>
-            <ReceiptText className="h-3.5 w-3.5" /> Piutang Display
+            <ReceiptText className="h-3.5 w-3.5" /> Outstanding Display
           </div>
-          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Display</h1>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Outstanding Display</h1>
           <p className="text-sm mt-1 max-w-2xl leading-relaxed" style={{ color: '#64748b' }}>
             Khusus barang display Penjualan Offline. Dasarnya <strong>Surat Pengantar</strong>, bukan Invoice.
-            Piutang Display dihitung dari nilai display yang sudah punya SP dan masih tersisa setelah retur.
+            Halaman ini memisahkan <strong>Sisa Display</strong> dan <strong>Tagihan Display Belum Lunas</strong> supaya tidak tercampur.
           </p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
@@ -153,19 +153,18 @@ export default function PiutangDisplayPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard label="Total Piutang Display" value={summary.totalPiutang} sub="Display ber-SP, belum selesai, net retur" tone="orange" />
+        <MetricCard label="Sisa Display Beredar" value={summary.totalPiutang} sub="Nilai barang display yang masih berada di luar" tone="orange" />
         <MetricCard label="Sudah Terjual dari Display" value={summary.totalTerjualDisplay} sub="Barang display yang sudah diproses jadi penjualan" tone="green" />
-        <MetricCard label="Laku Belum Lunas" value={summary.totalDisplayBelumLunas} sub="Penjualan dari display yang statusnya belum selesai" tone="red" />
+        <MetricCard label="Tagihan Display Belum Lunas" value={summary.totalDisplayBelumLunas} sub="Sisa tagihan dari display yang sudah diproses jadi penjualan" tone="red" />
       </div>
 
       <div className="rounded-2xl p-4" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
         <div className="flex gap-3">
           <Info className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#0369a1' }} />
           <div>
-            <div className="text-sm font-black mb-1" style={{ color: '#0c4a6e' }}>Cara baca Piutang Display</div>
+            <div className="text-sm font-black mb-1" style={{ color: '#0c4a6e' }}>Cara baca Outstanding Display</div>
             <div className="text-sm leading-relaxed" style={{ color: '#0369a1' }}>
-              <strong>Piutang Display</strong> muncul saat Surat Pengantar display dibuat. Jika barang display sudah dijual,
-              nilainya pindah ke <strong>Sudah Terjual dari Display</strong>. Jika penjualan itu belum selesai, muncul juga di <strong>Laku Belum Lunas</strong>.
+              <strong>Sisa Display Beredar</strong> adalah nilai barang display yang masih ada di customer/toko. Jika barang display sudah dijual, nilainya masuk ke <strong>Sudah Terjual dari Display</strong>. Kolom <strong>Tagihan Display Belum Lunas</strong> hanya menampilkan sisa tagihan yang belum dibayar dari penjualan display tersebut.
             </div>
           </div>
         </div>
@@ -196,16 +195,16 @@ export default function PiutangDisplayPage() {
           <table className="w-full">
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                {['No', 'Surat Pengantar', 'Customer Display', 'Status', 'Piutang Display', 'Sudah Terjual', 'Laku Belum Lunas', 'Aksi'].map(h => (
+                {['No', 'Surat Pengantar', 'Customer Display', 'Status', 'Sisa Display Beredar', 'Sudah Terjual', 'Tagihan Display Belum Lunas', 'Aksi'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat piutang display...</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat outstanding display...</td></tr>
               ) : filteredRows.length === 0 ? (
-                <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada piutang display pada filter ini</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada outstanding display pada filter ini</td></tr>
               ) : filteredRows.map((row, idx) => (
                 <tr key={row.id} style={{ borderBottom: '1px solid #f8fafc' }}>
                   <td className="px-4 py-3 text-sm" style={{ color: '#94a3b8' }}>{idx + 1 + (page - 1) * limit}</td>
