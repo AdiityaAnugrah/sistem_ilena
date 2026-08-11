@@ -288,47 +288,38 @@ function PiutangUsahaContent() {
   };
   const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : viewPage === 'uangMuka' ? 'Uang Muka Interior' : 'Ringkasan Semua Piutang';
   const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : viewPage === 'uangMuka' ? 'orange' : 'red';
+  const pageTitle = viewPage === 'offline'
+    ? 'Piutang Offline'
+    : viewPage === 'interior'
+      ? 'Piutang Interior'
+      : viewPage === 'uangMuka'
+        ? 'Uang Muka Interior'
+        : 'Ringkasan Piutang Usaha';
+  const pageDescription = viewPage === 'offline'
+    ? 'Tagihan customer dari invoice Penjualan Offline. Gunakan tanggal Dari untuk melihat Saldo Awal.'
+    : viewPage === 'interior'
+      ? 'Tagihan customer dari invoice Penjualan Interior. DP sebelum invoice sudah dipisah ke Uang Muka Interior.'
+      : viewPage === 'uangMuka'
+        ? 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.'
+        : 'Pilih menu Piutang Offline, Piutang Interior, atau Uang Muka Interior dari sidebar agar laporan lebih fokus.';
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black mb-3" style={{ background: '#fff1f1', color: '#dc2626', border: '1px solid #fecaca' }}>
-            <WalletCards className="h-3.5 w-3.5" /> Piutang Usaha
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black mb-3" style={{ background: viewPage === 'uangMuka' ? '#fff7ed' : '#fff1f1', color: viewPage === 'uangMuka' ? '#c2410c' : '#dc2626', border: `1px solid ${viewPage === 'uangMuka' ? '#fed7aa' : '#fecaca'}` }}>
+            <WalletCards className="h-3.5 w-3.5" /> {viewPage === 'ringkasan' ? 'Piutang Usaha' : currentSourceLabel}
           </div>
-          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Piutang Usaha</h1>
-          <p className="text-sm mt-1 max-w-2xl" style={{ color: '#64748b' }}>
-            Khusus piutang berbasis invoice. Data dipisah antara Penjualan Offline / Interior serta Faktur / Non Faktur.
-            DP Interior sebelum invoice dipisahkan ke Uang Muka Interior supaya laporan piutang tidak membingungkan.
-          </p>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>{pageTitle}</h1>
+          <p className="text-sm mt-1 max-w-2xl leading-relaxed" style={{ color: '#64748b' }}>{pageDescription}</p>
         </div>
         <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
           <FileDown className="h-4 w-4" /> Export CSV
         </button>
       </div>
 
-      <div className="rounded-2xl p-2" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
-          {([
-            ['ringkasan', '1. Ringkasan', 'Lihat total Offline dan Interior sebelum masuk detail'],
-            ['offline', '2. Piutang Offline', 'Invoice dari Penjualan Offline saja'],
-            ['interior', '3. Piutang Interior', 'Invoice dari Penjualan Interior saja'],
-            ['uangMuka', '4. Uang Muka Interior', 'DP/pembayaran Interior sebelum ada invoice'],
-          ] as [ViewPage, string, string][]).map(([page, title, desc]) => (
-            <button
-              key={page}
-              onClick={() => openViewPage(page)}
-              className="min-h-[72px] rounded-xl px-4 py-3 text-left transition-all"
-              style={viewPage === page ? { background: '#FA2F2F', color: '#fff', boxShadow: '0 8px 20px rgba(250,47,47,0.18)' } : { background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0' }}
-            >
-              <div className="text-sm font-black">{title}</div>
-              <div className="text-xs mt-1 leading-relaxed" style={{ color: viewPage === page ? 'rgba(255,255,255,0.82)' : '#64748b' }}>{desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {viewPage === 'ringkasan' && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {(['OFFLINE', 'INTERIOR'] as const).map(sumber => (
           <div key={sumber} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
             <div className="flex items-center justify-between mb-3">
@@ -347,16 +338,16 @@ function PiutangUsahaContent() {
                 </div>
               ))}
             </div>
-            <button
-              onClick={() => openViewPage(sumber === 'OFFLINE' ? 'offline' : 'interior')}
-              className="mt-3 min-h-[40px] w-full rounded-xl text-xs font-black"
+            <Link
+              href={`/dashboard/piutang-usaha?view=${sumber === 'OFFLINE' ? 'offline' : 'interior'}`}
+              className="mt-3 min-h-[40px] w-full rounded-xl text-xs font-black inline-flex items-center justify-center"
               style={{ background: sumber === 'OFFLINE' ? '#eff6ff' : '#f5f3ff', color: sumber === 'OFFLINE' ? '#2563eb' : '#7c3aed', border: `1px solid ${sumber === 'OFFLINE' ? '#bfdbfe' : '#ddd6fe'}` }}
             >
-              Buka Halaman {sumber === 'OFFLINE' ? 'Offline' : 'Interior'}
-            </button>
+              Buka Piutang {sumber === 'OFFLINE' ? 'Offline' : 'Interior'}
+            </Link>
           </div>
         ))}
-      </div>
+      </div>}
 
       {viewPage !== 'ringkasan' && viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
@@ -401,38 +392,36 @@ function PiutangUsahaContent() {
         ))}
       </div>}
 
-      <div className="rounded-2xl p-4" style={{ background: '#fffbeb', border: '1px solid #fde68a' }}>
-        <div className="text-sm font-black mb-1" style={{ color: '#92400e' }}>Catatan akurasi data invoice</div>
-        <div className="text-sm leading-relaxed" style={{ color: '#b45309' }}>
-          Laporan ini read-only dan tidak mengubah data produksi. Angka <strong>Saldo Awal</strong> adalah saldo terakhir customer sebelum tanggal <strong>Dari</strong>.
-          Jika tanggal <strong>Dari</strong> kosong, sistem menampilkan laporan dari awal data sehingga kolom itu ditampilkan sebagai <strong>Dari awal data</strong>.
-          Customer dari Penjualan Offline dan Interior sengaja <strong>tidak digabung otomatis</strong> sampai ada master customer.
-          Kategori <strong>Faktur</strong> dan <strong>Non Faktur</strong> mengikuti field faktur di transaksi penjualan asal invoice.
-          <strong> Display tidak masuk laporan ini</strong> karena Display memakai dasar Surat Pengantar, bukan Invoice.
-          Untuk Interior, DP sebelum invoice dipisahkan ke <strong>Uang Muka Interior</strong>; setelah invoice dibuat, uang muka akan tampil sebagai kredit terpakai.
+      {viewPage !== 'ringkasan' && <div className="rounded-2xl p-4" style={{ background: viewPage === 'uangMuka' ? '#fff7ed' : '#fffbeb', border: `1px solid ${viewPage === 'uangMuka' ? '#fed7aa' : '#fde68a'}` }}>
+        <div className="text-sm font-black mb-1" style={{ color: viewPage === 'uangMuka' ? '#9a3412' : '#92400e' }}>{viewPage === 'uangMuka' ? 'Cara baca Uang Muka' : 'Cara baca Saldo Awal'}</div>
+        <div className="text-sm leading-relaxed" style={{ color: viewPage === 'uangMuka' ? '#c2410c' : '#b45309' }}>
+          {viewPage === 'uangMuka' ? (
+            <>Uang muka berisi DP/pembayaran Interior yang masuk <strong>sebelum invoice</strong>. Saat invoice dibuat, uang muka akan tampil sebagai <strong>Terpakai ke Invoice</strong> dan mengurangi sisa uang muka.</>
+          ) : (
+            <>Isi tanggal <strong>Dari</strong> untuk melihat <strong>Saldo Awal</strong>. Saldo Awal adalah saldo terakhir customer sebelum periode. Jika tanggal Dari kosong, laporan dihitung dari awal data sehingga Saldo Awal ditampilkan sebagai <strong>Dari awal data</strong>.</>
+          )}
         </div>
-      </div>
+      </div>}
 
       {viewPage === 'ringkasan' ? (
         <div className="rounded-2xl p-6" style={{ background: '#fff', border: '1px solid #e8edf5' }}>
-          <div className="text-lg font-black mb-2" style={{ color: '#0f172a' }}>Mulai dari mana?</div>
+          <div className="text-lg font-black mb-2" style={{ color: '#0f172a' }}>Pilih laporan dari sidebar</div>
           <p className="text-sm leading-relaxed mb-4" style={{ color: '#64748b' }}>
-            Halaman ini sekarang dipisah supaya tidak membingungkan. Pilih <strong>Piutang Offline</strong> untuk customer dari penjualan offline,
-            atau pilih <strong>Piutang Interior</strong> untuk customer proyek interior. Setelah masuk salah satu halaman, baru pilih customer untuk melihat detail mutasinya.
+            Supaya tidak membingungkan, laporan dipisah menjadi tiga bagian. Gunakan dropdown <strong>Piutang Usaha</strong> di sidebar, atau pilih kartu di bawah ini.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <button onClick={() => openViewPage('offline')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
+            <Link href="/dashboard/piutang-usaha?view=offline" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
               <div className="text-base font-black">Buka Piutang Offline</div>
               <div className="text-sm mt-1" style={{ color: '#2563eb' }}>Invoice, pembayaran, retur dari Penjualan Offline.</div>
-            </button>
-            <button onClick={() => openViewPage('interior')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#6d28d9' }}>
+            </Link>
+            <Link href="/dashboard/piutang-usaha?view=interior" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', color: '#6d28d9' }}>
               <div className="text-base font-black">Buka Piutang Interior</div>
               <div className="text-sm mt-1" style={{ color: '#7c3aed' }}>Invoice, pembayaran, retur dari Penjualan Interior.</div>
-            </button>
-            <button onClick={() => openViewPage('uangMuka')} className="min-h-[92px] rounded-2xl p-4 text-left" style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' }}>
+            </Link>
+            <Link href="/dashboard/piutang-usaha?view=uangMuka" className="min-h-[92px] rounded-2xl p-4 text-left block" style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412' }}>
               <div className="text-base font-black">Buka Uang Muka Interior</div>
               <div className="text-sm mt-1" style={{ color: '#c2410c' }}>DP/pembayaran Interior sebelum invoice dan riwayat pemakaiannya.</div>
-            </button>
+            </Link>
           </div>
         </div>
       ) : viewPage === 'uangMuka' ? (
