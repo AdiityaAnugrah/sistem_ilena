@@ -25,15 +25,17 @@ const offlineInvoiceTotal = (penjualan, invoice) => {
   return { subtotal, ppn, total: money(subtotal + ppn) };
 };
 
-const latestOfflinePpn = (penjualan) => {
-  const invoices = penjualan?.invoices || [];
+const offlineInvoicePpn = (penjualan) => {
+  const invoices = [...(penjualan?.invoices || [])].sort((a, b) =>
+    String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id)
+  );
   if (!invoices.length) return 0;
   return Number(invoices[invoices.length - 1]?.ppn_persen || 0);
 };
 
 const offlineReturTotal = (retur) => {
   const base = money(itemUnitValue(retur.item) * Number(retur.qty_retur || 0));
-  const ppnPersen = latestOfflinePpn(retur.penjualan);
+  const ppnPersen = offlineInvoicePpn(retur.penjualan);
   const ppn = money(base * ppnPersen / 100);
   return money(base + ppn);
 };
@@ -89,7 +91,7 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
     ensure(id, p.penjualan).payments.push(p);
   }
 
-  const advancePaymentIds = new Set();
+  const normalPaymentAmounts = new Map();
   const usageByInvoice = new Map();
   const history = [];
   const rekapMap = new Map();
@@ -98,11 +100,7 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
     row.invoices.sort((a, b) => String(a.inv.tanggal).localeCompare(String(b.inv.tanggal)) || Number(a.inv.id) - Number(b.inv.id));
     row.payments.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id));
 
-    const firstInvoiceDate = row.invoices[0]?.inv?.tanggal || null;
-    const advancePayments = row.payments.filter(p => !firstInvoiceDate || String(p.tanggal) < String(firstInvoiceDate));
-    if (!advancePayments.length) continue;
-
-    const penjualan = row.penjualan || advancePayments[0]?.penjualan || row.invoices[0]?.inv?.penjualan;
+    const penjualan = row.penjualan || row.payments[0]?.penjualan || row.invoices[0]?.inv?.penjualan;
     const customer = penjualan?.nama_customer || 'Tanpa Nama';
     const key = `INTERIOR-UM-${penjualanId}`;
     const rekap = {
@@ -119,60 +117,56 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
       detail_url: `/dashboard/penjualan/interior/${penjualanId}`,
     };
 
-    let running = 0;
-    for (const pay of advancePayments) {
-      const amount = money(pay.jumlah);
-      if (amount <= 0) continue;
-      advancePaymentIds.add(Number(pay.id));
-      running = money(running + amount);
-      rekap.uang_muka_masuk += amount;
-      rekap.jumlah_transaksi += 1;
-      history.push({
-        id: `UM-MASUK-${pay.id}`,
-        key,
-        penjualan_interior_id: penjualanId,
-        tanggal: pay.tanggal,
-        jenis: 'UANG_MUKA_MASUK',
-        referensi: pay.tipe,
-        nama_customer: customer,
-        no_po: rekap.no_po,
-        faktur: rekap.faktur,
-        keterangan: `Uang muka Interior ${pay.tipe}${pay.catatan ? ` - ${pay.catatan}` : ''}`,
-        masuk: amount,
-        terpakai: 0,
-        sisa: running,
-        bukti_endpoint: pay.bukti_bayar ? `/penjualan-interior/${penjualanId}/pembayaran/${pay.id}/bukti` : null,
-        detail_url: rekap.detail_url,
-      });
+    let remaining = 0;
+    let outstanding = 0;
+    const events = [
+      ...row.invoices.map(value => ({ type: 'INVOICE', date: value.inv.tanggal, id: Number(value.inv.id), value })),
+      ...row.payments.map(value => ({ type: 'PAYMENT', date: value.tanggal, id: Number(value.id), value })),
+    ].sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.type === b.type ? a.id - b.id : a.type === 'INVOICE' ? -1 : 1));
+
+    for (const event of events) {
+      if (event.type === 'INVOICE') {
+        const { inv, amount } = event.value;
+        const invoiceTotal = money(amount.total);
+        const used = Math.min(remaining, invoiceTotal);
+        remaining = money(remaining - used);
+        outstanding = money(outstanding + invoiceTotal - used);
+        if (used <= 0) continue;
+        usageByInvoice.set(Number(inv.id), used);
+        rekap.uang_muka_terpakai += used;
+        rekap.jumlah_transaksi += 1;
+        history.push({
+          id: `UM-TERPAKAI-${inv.id}`, key, penjualan_interior_id: penjualanId,
+          tanggal: inv.tanggal, jenis: 'UANG_MUKA_TERPAKAI', referensi: inv.nomor_invoice,
+          nama_customer: customer, no_po: rekap.no_po, faktur: rekap.faktur,
+          keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
+          masuk: 0, terpakai: used, sisa: remaining, bukti_endpoint: null, detail_url: rekap.detail_url,
+        });
+      } else {
+        const pay = event.value;
+        const amount = money(pay.jumlah);
+        if (amount <= 0) continue;
+        const normalAmount = Math.min(outstanding, amount);
+        normalPaymentAmounts.set(Number(pay.id), normalAmount);
+        outstanding = money(outstanding - normalAmount);
+        const advanceAmount = money(amount - normalAmount);
+        if (advanceAmount <= 0) continue;
+        remaining = money(remaining + advanceAmount);
+        rekap.uang_muka_masuk += advanceAmount;
+        rekap.jumlah_transaksi += 1;
+        history.push({
+          id: `UM-MASUK-${pay.id}`, key, penjualan_interior_id: penjualanId,
+          tanggal: pay.tanggal, jenis: 'UANG_MUKA_MASUK', referensi: pay.tipe,
+          nama_customer: customer, no_po: rekap.no_po, faktur: rekap.faktur,
+          keterangan: `Uang muka Interior ${pay.tipe}${pay.catatan ? ` - ${pay.catatan}` : ''}`,
+          masuk: advanceAmount, terpakai: 0, sisa: remaining,
+          bukti_endpoint: pay.bukti_bayar ? `/penjualan-interior/${penjualanId}/pembayaran/${pay.id}/bukti` : null,
+          detail_url: rekap.detail_url,
+        });
+      }
     }
 
-    let remaining = money(rekap.uang_muka_masuk);
-    for (const { inv, amount } of row.invoices) {
-      if (remaining <= 0) break;
-      const used = Math.min(remaining, money(amount.total));
-      if (used <= 0) continue;
-      remaining = money(remaining - used);
-      usageByInvoice.set(Number(inv.id), used);
-      rekap.uang_muka_terpakai += used;
-      rekap.jumlah_transaksi += 1;
-      history.push({
-        id: `UM-TERPAKAI-${inv.id}`,
-        key,
-        penjualan_interior_id: penjualanId,
-        tanggal: inv.tanggal,
-        jenis: 'UANG_MUKA_TERPAKAI',
-        referensi: inv.nomor_invoice,
-        nama_customer: customer,
-        no_po: rekap.no_po,
-        faktur: rekap.faktur,
-        keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
-        masuk: 0,
-        terpakai: used,
-        sisa: remaining,
-        bukti_endpoint: null,
-        detail_url: rekap.detail_url,
-      });
-    }
+    if (rekap.uang_muka_masuk <= 0 && rekap.uang_muka_terpakai <= 0) continue;
 
     rekap.uang_muka_masuk = money(rekap.uang_muka_masuk);
     rekap.uang_muka_terpakai = money(rekap.uang_muka_terpakai);
@@ -182,7 +176,7 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
   }
 
   history.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.id).localeCompare(String(b.id)));
-  return { advancePaymentIds, usageByInvoice, history, rekapRows: [...rekapMap.values()] };
+  return { normalPaymentAmounts, usageByInvoice, history, rekapRows: [...rekapMap.values()] };
 }
 
 const interiorReturTotal = (retur) => {
@@ -215,6 +209,29 @@ function entryMatches(entry, { search, customer_key, sumber, faktur }) {
     if (!text.includes(q)) return false;
   }
   return true;
+}
+
+function filterLedgerBySearch(entries, search) {
+  if (!search) return entries;
+  const matchedKeys = new Set(entries
+    .filter(entry => entryMatches(entry, { search }))
+    .map(entry => entry.piutang_key));
+  return entries.filter(entry => matchedKeys.has(entry.piutang_key));
+}
+
+function selectLatestOfflineInvoices(invoices) {
+  const bySale = new Map();
+  for (const inv of invoices || []) {
+    const saleId = Number(inv.penjualan_offline_id || inv.penjualan?.id);
+    if (!saleId) continue;
+    const current = bySale.get(saleId);
+    if (!current
+      || String(inv.tanggal).localeCompare(String(current.tanggal)) > 0
+      || (String(inv.tanggal) === String(current.tanggal) && Number(inv.id) > Number(current.id))) {
+      bySale.set(saleId, inv);
+    }
+  }
+  return [...bySale.values()];
 }
 
 async function buildPiutangEntries(isTest) {
@@ -257,7 +274,7 @@ async function buildPiutangEntries(isTest) {
     }),
   ]);
 
-  for (const inv of offlineInvoices) {
+  for (const inv of selectLatestOfflineInvoices(offlineInvoices)) {
     const amount = offlineInvoiceTotal(inv.penjualan, inv);
     if (amount.total <= 0) continue;
     push({
@@ -355,8 +372,9 @@ async function buildPiutangEntries(isTest) {
   }
 
   for (const p of interiorPayments) {
-    if (interiorAdvanceState.advancePaymentIds.has(Number(p.id))) continue;
-    const amount = money(p.jumlah);
+    const amount = interiorAdvanceState.normalPaymentAmounts.has(Number(p.id))
+      ? interiorAdvanceState.normalPaymentAmounts.get(Number(p.id))
+      : money(p.jumlah);
     if (amount <= 0) continue;
     push({
       id: `INTERIOR-PEMBAYARAN-${p.id}`,
@@ -400,11 +418,12 @@ async function buildPiutangEntries(isTest) {
 
 router.get('/rekap', authenticate, async (req, res) => {
   try {
-    const { from, to, search, sumber, faktur, page = 1, limit = 25 } = req.query;
+    const { from, to, search, sumber, faktur, page = 1, limit = 25, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    const entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
-      .filter(entry => entryMatches(entry, { search, sumber: sourceFilter, faktur: fakturFilter }));
+    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
+      .filter(entry => entryMatches(entry, { sumber: sourceFilter, faktur: fakturFilter }));
+    entries = filterLedgerBySearch(entries, search);
 
     const map = new Map();
     for (const entry of entries) {
@@ -472,7 +491,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
     const offset = (pageInt - 1) * limitInt;
     res.json({
-      data: allRows.slice(offset, offset + limitInt),
+      data: String(all) === 'true' ? allRows : allRows.slice(offset, offset + limitInt),
       summary,
       breakdown,
       total: allRows.length,
@@ -486,11 +505,12 @@ router.get('/rekap', authenticate, async (req, res) => {
 
 router.get('/detail', authenticate, async (req, res) => {
   try {
-    const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100 } = req.query;
+    const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    const allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
-      .filter(entry => entryMatches(entry, { search, customer_key, sumber: sourceFilter, faktur: fakturFilter }));
+    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
+      .filter(entry => entryMatches(entry, { customer_key, sumber: sourceFilter, faktur: fakturFilter }));
+    if (!customer_key) allEntries = filterLedgerBySearch(allEntries, search);
 
     const saldoAwal = from
       ? allEntries.filter(entry => entry.tanggal < from).reduce((sum, entry) => sum + entry.debit - entry.kredit, 0)
@@ -499,7 +519,7 @@ router.get('/detail', authenticate, async (req, res) => {
     let saldo = money(saldoAwal);
     const periodEntries = allEntries.filter(entry => inPeriod(entry.tanggal, from, to));
     const detailRows = [
-      {
+      ...(from ? [{
         id: 'SALDO-AWAL',
         tanggal: from || null,
         sumber: '-',
@@ -514,7 +534,7 @@ router.get('/detail', authenticate, async (req, res) => {
         debit: 0,
         kredit: 0,
         saldo,
-      },
+      }] : []),
       ...periodEntries.map(entry => {
         saldo = money(saldo + entry.debit - entry.kredit);
         return { ...entry, saldo };
@@ -532,7 +552,7 @@ router.get('/detail', authenticate, async (req, res) => {
     const limitInt = Math.min(200, Math.max(1, parseInt(limit)));
     const offset = (pageInt - 1) * limitInt;
     res.json({
-      data: detailRows.slice(offset, offset + limitInt),
+      data: String(all) === 'true' ? detailRows : detailRows.slice(offset, offset + limitInt),
       summary,
       total: detailRows.length,
       page: pageInt,
@@ -546,7 +566,7 @@ router.get('/detail', authenticate, async (req, res) => {
 
 router.get('/uang-muka-interior', authenticate, async (req, res) => {
   try {
-    const { from, to, search, status, key, page = 1, limit = 25 } = req.query;
+    const { from, to, search, status, key, page = 1, limit = 25, all } = req.query;
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const [interiorInvoices, interiorPayments] = await Promise.all([
       InvoiceInterior.findAll({
@@ -560,14 +580,34 @@ router.get('/uang-muka-interior', authenticate, async (req, res) => {
     const q = String(search || '').trim().toLowerCase();
     const statusFilter = String(status || '').toUpperCase();
 
-    let rows = state.rekapRows.filter(row => {
+    const historyByKey = new Map();
+    for (const event of state.history) {
+      if (!historyByKey.has(event.key)) historyByKey.set(event.key, []);
+      historyByKey.get(event.key).push(event);
+    }
+
+    let rows = state.rekapRows.map(row => {
+      const events = historyByKey.get(row.key) || [];
+      const throughEnd = events.filter(event => !to || event.tanggal <= to);
+      const inRange = throughEnd.filter(event => !from || event.tanggal >= from);
+      return {
+        ...row,
+        uang_muka_masuk: money(inRange.reduce((sum, event) => sum + event.masuk, 0)),
+        uang_muka_terpakai: money(inRange.reduce((sum, event) => sum + event.terpakai, 0)),
+        sisa_uang_muka: money(throughEnd[throughEnd.length - 1]?.sisa || 0),
+        jumlah_transaksi: inRange.length,
+        status: money(throughEnd[throughEnd.length - 1]?.sisa || 0) <= 0
+          ? 'HABIS_TERPAKAI'
+          : throughEnd.some(event => event.terpakai > 0) ? 'TERPAKAI_SEBAGIAN' : 'BELUM_TERPAKAI',
+      };
+    }).filter(row => {
       if (key && row.key !== key) return false;
       if (statusFilter && row.status !== statusFilter) return false;
       if (q) {
         const text = [row.nama_customer, row.no_po, row.faktur, row.status].filter(Boolean).join(' ').toLowerCase();
         if (!text.includes(q)) return false;
       }
-      return row.uang_muka_masuk !== 0 || row.uang_muka_terpakai !== 0 || row.sisa_uang_muka !== 0;
+      return row.jumlah_transaksi > 0 || row.sisa_uang_muka !== 0;
     });
 
     const history = state.history.filter(row => {
@@ -596,7 +636,7 @@ router.get('/uang-muka-interior', authenticate, async (req, res) => {
     const offset = (pageInt - 1) * limitInt;
     const source = key ? history : rows;
     res.json({
-      data: source.slice(offset, offset + limitInt),
+      data: String(all) === 'true' ? source : source.slice(offset, offset + limitInt),
       summary,
       total: source.length,
       page: pageInt,
@@ -607,4 +647,5 @@ router.get('/uang-muka-interior', authenticate, async (req, res) => {
   }
 });
 
+router.__testables = { buildInteriorAdvanceState, filterLedgerBySearch, selectLatestOfflineInvoices };
 module.exports = router;

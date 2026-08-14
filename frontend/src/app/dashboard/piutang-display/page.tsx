@@ -6,6 +6,7 @@ import { ArrowRight, FileDown, Info, ReceiptText, Search } from 'lucide-react';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
+import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
 
 type DisplayRow = {
   id: number;
@@ -151,6 +152,8 @@ export default function PiutangDisplayPage() {
           <FileDown className="h-4 w-4" /> Export CSV
         </button>
       </div>
+
+      <FinanceSectionNav active="display" />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard label="Sisa Display Beredar" value={summary.totalPiutang} sub="Nilai barang display yang masih berada di luar" tone="orange" />

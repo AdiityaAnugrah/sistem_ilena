@@ -16,7 +16,6 @@ import {
   Folder,
   Settings,
   Wallet,
-  ReceiptText,
 } from 'lucide-react';
 
 interface NavItem {
@@ -42,17 +41,17 @@ const NAV_ITEMS: NavItem[] = [
   },
   { label: 'Master Barang', href: '/dashboard/master/barang', icon: Package },
   { label: 'Semua Surat', href: '/dashboard/surat', icon: Folder },
-  { label: 'Keuangan', href: '/dashboard/keuangan', icon: Wallet },
   {
-    label: 'Piutang Usaha',
+    label: 'Keuangan',
     icon: Wallet,
     children: [
+      { label: 'Ringkasan Keuangan', href: '/dashboard/keuangan' },
       { label: 'Piutang Offline', href: '/dashboard/piutang-usaha?view=offline' },
       { label: 'Piutang Interior', href: '/dashboard/piutang-usaha?view=interior' },
       { label: 'Uang Muka Interior', href: '/dashboard/piutang-usaha?view=uangMuka' },
+      { label: 'Outstanding Display', href: '/dashboard/piutang-display' },
     ],
   },
-  { label: 'Outstanding Display', href: '/dashboard/piutang-display', icon: ReceiptText },
   { label: 'Pengguna', href: '/dashboard/pengguna', icon: Users, devOrSuperAdminOnly: true },
   { label: 'Log Aktivitas', href: '/dashboard/log-activity', icon: ClipboardList, devOnly: true },
   { label: 'Pengaturan', href: '/dashboard/pengaturan', icon: Settings, devOnly: true },
@@ -63,7 +62,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan', ...(pathname.startsWith('/dashboard/piutang-usaha') ? ['Piutang Usaha'] : [])]);
+  const financeRoute = pathname.startsWith('/dashboard/keuangan') || pathname.startsWith('/dashboard/piutang-usaha') || pathname.startsWith('/dashboard/piutang-display');
+  const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan', ...(financeRoute ? ['Keuangan'] : [])]);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   const handleLogout = () => {

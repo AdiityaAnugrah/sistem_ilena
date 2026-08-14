@@ -1,12 +1,13 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, ExternalLink, FileDown, Paperclip, Search, WalletCards } from 'lucide-react';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
+import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
 
 type Tab = 'rekap' | 'detail';
 type ViewPage = 'offline' | 'interior' | 'uangMuka';
@@ -82,8 +83,6 @@ const limitRekap = 25;
 const limitDetail = 100;
 type BadgeTone = 'blue' | 'green' | 'orange' | 'purple' | 'slate' | 'red';
 type SummaryCard = [string, number, string, string];
-type SummaryBucket = { saldoAwal: number; debit: number; kredit: number; saldoAkhir: number; piutang: number; lebihBayar: number; customers?: number };
-type Breakdown = Record<'OFFLINE' | 'INTERIOR', { total: SummaryBucket; FAKTUR: SummaryBucket; NON_FAKTUR: SummaryBucket }>;
 
 const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone }) => {
   const map = {
@@ -99,13 +98,19 @@ const Badge = ({ children, tone }: { children: React.ReactNode; tone: BadgeTone 
 
 function PiutangUsahaContent() {
   const params = useSearchParams();
-  const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || 'rekap');
+  const initialTab = params.get('tab');
+  const [tab, setTab] = useState<Tab>(initialTab === 'detail' ? 'detail' : 'rekap');
   const initialView = params.get('view') as ViewPage | null;
   const [viewPage, setViewPage] = useState<ViewPage>(initialView && ['offline', 'interior', 'uangMuka'].includes(initialView) ? initialView : 'offline');
   const [fakturFilter, setFakturFilter] = useState<FakturFilter>('ALL');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const requestId = useRef(0);
+  const requestController = useRef<AbortController | null>(null);
+  const previousView = useRef<ViewPage>(viewPage);
   const [selectedCustomer, setSelectedCustomer] = useState<{
     key: string;
     name: string;
@@ -121,12 +126,12 @@ function PiutangUsahaContent() {
   const [detailPage, setDetailPage] = useState(1);
   const [uangMukaPage, setUangMukaPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [rekapRows, setRekapRows] = useState<RekapRow[]>([]);
   const [detailRows, setDetailRows] = useState<DetailRow[]>([]);
   const [uangMukaRows, setUangMukaRows] = useState<UangMukaRow[]>([]);
   const [uangMukaHistory, setUangMukaHistory] = useState<UangMukaHistoryRow[]>([]);
   const [rekapSummary, setRekapSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
-  const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [detailSummary, setDetailSummary] = useState({ saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
   const [uangMukaSummary, setUangMukaSummary] = useState({ masuk: 0, terpakai: 0, sisa: 0, proyek: 0, aktif: 0 });
   const [selectedUangMuka, setSelectedUangMuka] = useState<UangMukaRow | null>(null);
@@ -139,7 +144,18 @@ function PiutangUsahaContent() {
     const name = params.get('customer_name');
     const initialTab = params.get('tab') as Tab | null;
     const view = params.get('view') as ViewPage | null;
-    if (view && ['offline', 'interior', 'uangMuka'].includes(view)) setViewPage(view);
+    if (view && ['offline', 'interior', 'uangMuka'].includes(view)) {
+      if (previousView.current !== view) {
+        previousView.current = view;
+        setSelectedCustomer(null);
+        setSelectedUangMuka(null);
+        setTab('rekap');
+        setRekapPage(1);
+        setDetailPage(1);
+        setUangMukaPage(1);
+      }
+      setViewPage(view);
+    }
     if (initialTab === 'detail') setTab('detail');
     if (key) setSelectedCustomer({ key, name: name || key });
   }, [params]);
@@ -155,29 +171,28 @@ function PiutangUsahaContent() {
     return p;
   }, [from, to, search, fakturFilter, viewPage]);
 
-  const fetchRekap = useCallback(async (page = rekapPage) => {
-    const res = await api.get('/piutang-usaha/rekap', { params: { ...baseParams, page, limit: limitRekap } });
+  const fetchRekap = useCallback(async (page = rekapPage, signal?: AbortSignal) => {
+    const res = await api.get('/piutang-usaha/rekap', { params: { ...baseParams, page, limit: limitRekap }, signal });
     setRekapRows(res.data.data || []);
     setRekapSummary(res.data.summary || { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0, piutang: 0, lebihBayar: 0 });
-    setBreakdown(res.data.breakdown || null);
     setRekapTotalPages(res.data.totalPages || 1);
   }, [baseParams, rekapPage]);
 
-  const fetchDetail = useCallback(async (page = detailPage, customer = selectedCustomer) => {
+  const fetchDetail = useCallback(async (page = detailPage, customer = selectedCustomer, signal?: AbortSignal) => {
     const res = await api.get('/piutang-usaha/detail', {
       params: {
         ...baseParams,
         customer_key: customer?.key,
         page,
         limit: limitDetail,
-      },
+      }, signal,
     });
     setDetailRows(res.data.data || []);
     setDetailSummary(res.data.summary || { saldoAwal: 0, debit: 0, kredit: 0, saldoAkhir: 0 });
     setDetailTotalPages(res.data.totalPages || 1);
   }, [baseParams, detailPage, selectedCustomer]);
 
-  const fetchUangMuka = useCallback(async (page = uangMukaPage, selected = selectedUangMuka) => {
+  const fetchUangMuka = useCallback(async (page = uangMukaPage, selected = selectedUangMuka, signal?: AbortSignal) => {
     const res = await api.get('/piutang-usaha/uang-muka-interior', {
       params: {
         from,
@@ -186,7 +201,7 @@ function PiutangUsahaContent() {
         key: selected?.key,
         page,
         limit: selected ? limitDetail : limitRekap,
-      },
+      }, signal,
     });
     if (selected) setUangMukaHistory(res.data.data || []);
     else setUangMukaRows(res.data.data || []);
@@ -195,14 +210,22 @@ function PiutangUsahaContent() {
   }, [from, to, search, uangMukaPage, selectedUangMuka]);
 
   const fetchData = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
     setLoading(true);
+    setLoadError('');
     try {
-      if (viewPage === 'uangMuka') await fetchUangMuka(uangMukaPage, selectedUangMuka);
-      else await Promise.all([fetchRekap(rekapPage), fetchDetail(detailPage, selectedCustomer)]);
+      if (viewPage === 'uangMuka') await fetchUangMuka(uangMukaPage, selectedUangMuka, controller.signal);
+      else if (tab === 'detail' && selectedCustomer) await fetchDetail(detailPage, selectedCustomer, controller.signal);
+      else await fetchRekap(rekapPage, controller.signal);
+    } catch (error) {
+      if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : 'Gagal memuat data piutang');
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
-  }, [viewPage, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
+  }, [viewPage, tab, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -210,14 +233,6 @@ function PiutangUsahaContent() {
     setRekapPage(1);
     setDetailPage(1);
     setUangMukaPage(1);
-  };
-
-  const openViewPage = (page: ViewPage) => {
-    setViewPage(page);
-    setSelectedCustomer(null);
-    setSelectedUangMuka(null);
-    setTab('rekap');
-    resetPaging();
   };
 
   const openCustomerDetail = (row: RekapRow) => {
@@ -244,48 +259,59 @@ function PiutangUsahaContent() {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
-  const exportCsv = () => {
-    const rows = viewPage === 'uangMuka'
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      let exportRekapRows = rekapRows;
+      let exportDetailRows = detailRows;
+      let exportUangMukaRows = uangMukaRows;
+      let exportUangMukaHistory = uangMukaHistory;
+      if (viewPage === 'uangMuka') {
+        const res = await api.get('/piutang-usaha/uang-muka-interior', { params: { from, to, search: search || undefined, key: selectedUangMuka?.key, all: true } });
+        if (selectedUangMuka) exportUangMukaHistory = res.data.data || [];
+        else exportUangMukaRows = res.data.data || [];
+      } else {
+        const endpoint = tab === 'rekap' ? '/piutang-usaha/rekap' : '/piutang-usaha/detail';
+        const res = await api.get(endpoint, { params: { ...baseParams, customer_key: tab === 'detail' ? selectedCustomer?.key : undefined, all: true } });
+        if (tab === 'rekap') exportRekapRows = res.data.data || [];
+        else exportDetailRows = res.data.data || [];
+      }
+      const rows = viewPage === 'uangMuka'
       ? (selectedUangMuka
           ? [
               ['No', 'Tanggal', 'Customer', 'No PO', 'Jenis', 'Referensi', 'Masuk', 'Terpakai', 'Sisa'],
-              ...uangMukaHistory.map((r, i) => [i + 1 + (uangMukaPage - 1) * limitDetail, r.tanggal || '', r.nama_customer, r.no_po, r.jenis, r.referensi, r.masuk, r.terpakai, r.sisa]),
+              ...exportUangMukaHistory.map((r: UangMukaHistoryRow, i: number) => [i + 1, r.tanggal || '', r.nama_customer, r.no_po, r.jenis, r.referensi, r.masuk, r.terpakai, r.sisa]),
             ]
           : [
               ['No', 'Customer', 'No PO', 'Faktur', 'Uang Muka Masuk', 'Terpakai', 'Sisa', 'Status'],
-              ...uangMukaRows.map((r, i) => [i + 1 + (uangMukaPage - 1) * limitRekap, r.nama_customer, r.no_po, r.faktur, r.uang_muka_masuk, r.uang_muka_terpakai, r.sisa_uang_muka, r.status]),
+              ...exportUangMukaRows.map((r: UangMukaRow, i: number) => [i + 1, r.nama_customer, r.no_po, r.faktur, r.uang_muka_masuk, r.uang_muka_terpakai, r.sisa_uang_muka, r.status]),
             ])
       : tab === 'rekap'
       ? [
           ['No', 'Sumber', 'Faktur', 'Nama Customer', 'Saldo Awal', 'Debit', 'Kredit', 'Saldo Akhir'],
-          ...rekapRows.map((r, i) => [i + 1 + (rekapPage - 1) * limitRekap, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
+          ...exportRekapRows.map((r: RekapRow, i: number) => [i + 1, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
           ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Invoice', 'Kredit', 'Sisa Berjalan'],
-          ...detailRows.map((r, i) => [i + 1 + (detailPage - 1) * limitDetail, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
+          ...exportDetailRows.map((r: DetailRow, i: number) => [i + 1, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
-    const csv = rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const csv = '\uFEFF' + rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${viewPage === 'uangMuka' ? 'uang-muka-interior' : `piutang-usaha-${tab}`}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : jenis.includes('UANG_MUKA') ? 'orange' : 'slate';
   const uangMukaStatus = (status: string) => status === 'HABIS_TERPAKAI' ? 'Habis Terpakai' : status === 'TERPAKAI_SEBAGIAN' ? 'Terpakai Sebagian' : 'Belum Terpakai';
   const fakturLabel = (v?: string) => v === 'FAKTUR' ? 'Faktur' : v === 'NON_FAKTUR' ? 'Non Faktur' : v || '-';
   const filterButton = (active: boolean) => active ? { background: '#FA2F2F', color: '#fff', border: '1px solid #FA2F2F' } : { background: '#fff', color: '#475569', border: '1px solid #e2e8f0' };
-  const miniBreakdown = (sumber: 'OFFLINE' | 'INTERIOR') => {
-    const b = breakdown?.[sumber];
-    return [
-      ['Total', b?.total?.piutang || 0, b?.total?.customers || 0],
-      ['Faktur', b?.FAKTUR?.piutang || 0, b?.FAKTUR?.customers || 0],
-      ['Non Faktur', b?.NON_FAKTUR?.piutang || 0, b?.NON_FAKTUR?.customers || 0],
-    ] as const;
-  };
   const currentSourceLabel = viewPage === 'offline' ? 'Penjualan Offline' : viewPage === 'interior' ? 'Penjualan Interior' : 'Uang Muka Interior';
   const currentSourceTone: BadgeTone = viewPage === 'interior' ? 'purple' : viewPage === 'offline' ? 'blue' : viewPage === 'uangMuka' ? 'orange' : 'red';
   const pageTitle = viewPage === 'offline'
@@ -311,14 +337,18 @@ function PiutangUsahaContent() {
           <p className="text-sm mt-1 max-w-2xl leading-relaxed" style={{ color: '#64748b' }}>{pageDescription}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2">
-          <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
-            <FileDown className="h-4 w-4" /> Export CSV
+          <button onClick={exportCsv} disabled={exporting} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold disabled:opacity-50" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
+            <FileDown className="h-4 w-4" /> {exporting ? 'Menyiapkan...' : 'Export Semua CSV'}
           </button>
         </div>
       </div>
 
+      <FinanceSectionNav active={viewPage} />
 
-      {viewPage !== 'uangMuka' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+
+      {loadError && <div className="rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>{loadError}</div>}
+
+      {viewPage !== 'uangMuka' && tab === 'rekap' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
           <div className="text-xs font-bold mb-1" style={{ color: '#64748b' }}>Saldo Awal</div>
           {from ? (
@@ -377,9 +407,9 @@ function PiutangUsahaContent() {
           <div className="p-4 flex flex-col xl:flex-row xl:items-center gap-3" style={{ borderBottom: '1px solid #f1f5f9' }}>
             <Badge tone="orange">Uang Muka Interior</Badge>
             {selectedUangMuka && <button onClick={() => { setSelectedUangMuka(null); setUangMukaPage(1); }} className="min-h-[40px] px-3 rounded-xl text-xs font-black" style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>Kembali ke Rekap Uang Muka</button>}
-            <form onSubmit={e => { e.preventDefault(); setUangMukaPage(1); fetchData(); }} className="relative flex-1 min-w-[220px]">
+            <form onSubmit={e => { e.preventDefault(); setSearch(searchInput.trim()); setSelectedUangMuka(null); setUangMukaPage(1); }} className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
-              <input value={search} onChange={e => { setSearch(e.target.value); setUangMukaPage(1); }} placeholder="Cari customer atau no PO..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
+              <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Cari customer atau no PO, lalu Enter..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
             </form>
             <DateInput value={from} onChange={e => { setFrom(e.target.value); setUangMukaPage(1); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
             <DateInput value={to} onChange={e => { setTo(e.target.value); setUangMukaPage(1); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
@@ -460,9 +490,9 @@ function PiutangUsahaContent() {
             ))}
           </div>
 
-          <form onSubmit={e => { e.preventDefault(); resetPaging(); fetchData(); }} className="relative flex-1 min-w-[220px]">
+          <form onSubmit={e => { e.preventDefault(); setSearch(searchInput.trim()); setSelectedCustomer(null); setTab('rekap'); resetPaging(); }} className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
-            <input value={search} onChange={e => { setSearch(e.target.value); resetPaging(); }} placeholder="Cari customer, no PO, referensi..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Cari customer, no PO, referensi, lalu Enter..." className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
           </form>
           <DateInput value={from} onChange={e => { setFrom(e.target.value); resetPaging(); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />
           <DateInput value={to} onChange={e => { setTo(e.target.value); resetPaging(); }} className="min-h-[44px] px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />

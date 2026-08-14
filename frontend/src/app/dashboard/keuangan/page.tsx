@@ -6,6 +6,7 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import { CircularProgress, Pagination } from '@mui/material';
 import { ArrowRight, CheckCircle, Clock, RefreshCw, Info, ChevronDown, Download } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
+import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
 
 const today = () => new Date().toISOString().split('T')[0];
 const firstOfYear = () => {
@@ -373,14 +374,25 @@ export default function KeuanganPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>Keuangan</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{bulanLabel}</p>
+          <div className="text-xs font-black uppercase tracking-wider mb-1" style={{ color: '#dc2626' }}>Keuangan</div>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: '#0f172a' }}>Ringkasan Keuangan</h1>
+          <p className="text-sm mt-1" style={{ color: '#64748b' }}>Kondisi pembayaran per transaksi • {bulanLabel}</p>
         </div>
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
           style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
           <RefreshCw className="h-3 w-3" />
           Realtime
         </div>
+      </div>
+
+      <FinanceSectionNav active="ringkasan" />
+
+      <div className="rounded-2xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+        <div className="text-sm font-black" style={{ color: '#0f172a' }}>Apa yang ditampilkan halaman ini?</div>
+        <p className="text-sm mt-1 leading-relaxed" style={{ color: '#64748b' }}>
+          Ringkasan Keuangan memantau <strong>kondisi setiap transaksi penjualan</strong>: nilai transaksi, pembayaran, dan status pelunasan.
+          Untuk saldo tagihan per customer yang sudah berbasis invoice, buka <strong>Piutang Offline</strong> atau <strong>Piutang Interior</strong>.
+        </p>
       </div>
 
       {/* Filter tanggal */}
@@ -443,7 +455,7 @@ export default function KeuanganPage() {
               border: activeTab === t ? 'none' : '1px solid #e2e8f0',
               boxShadow: activeTab === t ? '0 2px 8px rgba(250,47,47,0.25)' : 'none',
             }}>
-            {t === 'offline' ? 'Offline' : 'Interior'}
+            {t === 'offline' ? 'Transaksi Offline' : 'Transaksi Interior'}
           </button>
         ))}
       </div>

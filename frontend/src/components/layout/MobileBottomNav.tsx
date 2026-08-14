@@ -24,8 +24,12 @@ const navItems = [
 export default function MobileBottomNav({ onMenuClick }: MobileBottomNavProps) {
   const pathname = usePathname();
 
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = (href: string, exact?: boolean) => {
+    if (href === '/dashboard/keuangan') {
+      return pathname.startsWith('/dashboard/keuangan') || pathname.startsWith('/dashboard/piutang-usaha') || pathname.startsWith('/dashboard/piutang-display');
+    }
+    return exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <nav
