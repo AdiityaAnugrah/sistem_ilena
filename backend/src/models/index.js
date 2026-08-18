@@ -29,6 +29,8 @@ const SuratPengantarInterior = require('./SuratPengantarInterior');
 const SuratPengantarInteriorItem = require('./SuratPengantarInteriorItem');
 const AppSetting = require('./AppSetting');
 const ChartOfAccount = require('./ChartOfAccount');
+const MutasiDisplay = require('./MutasiDisplay');
+const MutasiDisplayItem = require('./MutasiDisplayItem');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -73,6 +75,15 @@ SuratPengantar.belongsTo(PenjualanOffline, { foreignKey: 'penjualan_offline_id',
 SuratPengantar.hasMany(SuratPengantarSub, { foreignKey: 'surat_pengantar_id', as: 'subs' });
 SuratPengantarSub.belongsTo(SuratPengantar, { foreignKey: 'surat_pengantar_id', as: 'suratPengantar' });
 SuratPengantarSub.belongsTo(PenjualanOfflineItem, { foreignKey: 'penjualan_offline_item_id', as: 'item' });
+
+PenjualanOffline.hasMany(MutasiDisplay, { foreignKey: 'display_asal_id', as: 'mutasiDisplayKeluar' });
+PenjualanOffline.hasMany(MutasiDisplay, { foreignKey: 'display_tujuan_id', as: 'mutasiDisplayMasuk' });
+MutasiDisplay.belongsTo(PenjualanOffline, { foreignKey: 'display_asal_id', as: 'displayAsal' });
+MutasiDisplay.belongsTo(PenjualanOffline, { foreignKey: 'display_tujuan_id', as: 'displayTujuan' });
+MutasiDisplay.hasMany(MutasiDisplayItem, { foreignKey: 'mutasi_display_id', as: 'items' });
+MutasiDisplayItem.belongsTo(MutasiDisplay, { foreignKey: 'mutasi_display_id', as: 'mutasi' });
+MutasiDisplayItem.belongsTo(PenjualanOfflineItem, { foreignKey: 'item_asal_id', as: 'itemAsal' });
+MutasiDisplayItem.belongsTo(PenjualanOfflineItem, { foreignKey: 'item_tujuan_id', as: 'itemTujuan' });
 
 PenjualanOffline.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
@@ -163,4 +174,6 @@ module.exports = {
   SuratPengantarInteriorItem,
   AppSetting,
   ChartOfAccount,
+  MutasiDisplay,
+  MutasiDisplayItem,
 };

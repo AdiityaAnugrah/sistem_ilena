@@ -457,6 +457,18 @@ export default function PenjualanOfflineDetail() {
   const [jualForm, setJualForm] = useState<Record<number, { qty: number; harga: string }>>({});
   const [jualLoading, setJualLoading] = useState(false);
 
+  // States for Mutasi Display
+  const [mutasiModal, setMutasiModal] = useState(false);
+  const [mutasiLoading, setMutasiLoading] = useState(false);
+  const [mutasiForm, setMutasiForm] = useState({
+    tanggal: new Date().toISOString().split('T')[0],
+    nama_penerima: '',
+    no_hp_penerima: '',
+    no_po: '',
+    catatan: '',
+    items: {} as Record<number, number | ''>,
+  });
+
   // States for Edit Produk (varian koreksi)
   const [editProdukModal, setEditProdukModal] = useState(false);
   const [editProdukForm, setEditProdukForm] = useState<Record<number, { varian_nama: string; varian_id: string }>>({});
@@ -489,6 +501,20 @@ export default function PenjualanOfflineDetail() {
     setJualNoNpwp(data.no_npwp || '');
     setJualTanggal(new Date().toISOString().split('T')[0]);
     setJualModal(true);
+  };
+
+  const openMutasiModal = () => {
+    const initItems: Record<number, number | ''> = {};
+    data.items?.filter((it: any) => qtyNet(it) > 0).forEach((it: any) => { initItems[it.id] = ''; });
+    setMutasiForm({
+      tanggal: new Date().toISOString().split('T')[0],
+      nama_penerima: '',
+      no_hp_penerima: '',
+      no_po: data.no_po || '',
+      catatan: '',
+      items: initItems,
+    });
+    setMutasiModal(true);
   };
 
   const fetchData = async () => {
@@ -715,6 +741,46 @@ export default function PenjualanOfflineDetail() {
       toast.error(err.response?.data?.message || 'Gagal memproses item terjual');
     } finally {
       setJualLoading(false);
+    }
+  };
+
+  const prosesMutasiDisplay = async () => {
+    const selectedItems = Object.entries(mutasiForm.items)
+      .filter(([, qty]) => Number(qty) > 0)
+      .map(([item_id, qty]) => ({ item_id: Number(item_id), qty: Number(qty) }));
+    if (!mutasiForm.nama_penerima.trim()) { toast.error('Isi nama toko/customer tujuan'); return; }
+    if (selectedItems.length === 0) { toast.error('Pilih minimal 1 item untuk dimutasi'); return; }
+
+    setMutasiLoading(true);
+    try {
+      const res = await api.post(`/penjualan-offline/${id}/mutasi-display`, {
+        tanggal: mutasiForm.tanggal,
+        nama_penerima: mutasiForm.nama_penerima,
+        no_hp_penerima: mutasiForm.no_hp_penerima || '-',
+        no_po: mutasiForm.no_po || null,
+        catatan: mutasiForm.catatan || null,
+        items: selectedItems,
+      });
+      toast.success(
+        (t) => (
+          <span>
+            Mutasi display berhasil dibuat.
+            <button
+              onClick={() => { toast.dismiss(t.id); router.push(`/dashboard/penjualan/offline/${res.data.display_tujuan_id}`); }}
+              className="ml-2 font-bold underline text-red-600 dark:text-red-400"
+            >
+              Buka Display Tujuan
+            </button>
+          </span>
+        ),
+        { duration: 8000 }
+      );
+      setMutasiModal(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal membuat mutasi display');
+    } finally {
+      setMutasiLoading(false);
     }
   };
 
@@ -1004,6 +1070,15 @@ export default function PenjualanOfflineDetail() {
               {!isPenjualan && (
                 (data.suratPengantars?.length ?? 0) > 0 ? (
                   data.items?.some((it: any) => qtyNet(it) > 0) && (
+                    <>
+                    <button
+                      onClick={openMutasiModal}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
+                      style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff' }}
+                    >
+                      <Package className="w-4 h-4" />
+                      Mutasi ke Toko Lain
+                    </button>
                     <button
                       onClick={openJualModal}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-sm"
@@ -1012,6 +1087,7 @@ export default function PenjualanOfflineDetail() {
                       <ShoppingCart className="w-4 h-4" />
                       Pilih & Proses Barang Terjual
                     </button>
+                    </>
                   )
                 ) : (
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
@@ -1580,6 +1656,73 @@ export default function PenjualanOfflineDetail() {
                 style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}
               >
                 {bayarLoading ? 'Menyimpan...' : 'Simpan Pembayaran'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mutasiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-2xl rounded-2xl p-6 animate-fade-in" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)', maxHeight: '92vh', overflowY: 'auto' }}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#eef2ff' }}>
+                <Package className="h-5 w-5" style={{ color: '#4f46e5' }} />
+              </div>
+              <div>
+                <h3 className="font-bold" style={{ color: '#0f172a' }}>Mutasi Display ke Toko Lain</h3>
+                <p className="text-xs" style={{ color: '#64748b' }}>Bukan penjualan. Barang dipindah, display asal berkurang dan display tujuan dibuat otomatis dengan SP baru.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Tanggal Mutasi</label>
+                <DateInput value={mutasiForm.tanggal} onChange={e => setMutasiForm(f => ({ ...f, tanggal: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>No PO / Referensi</label>
+                <input value={mutasiForm.no_po} onChange={e => setMutasiForm(f => ({ ...f, no_po: e.target.value }))} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Toko/Customer Tujuan <span style={{ color: '#dc2626' }}>*</span></label>
+                <input value={mutasiForm.nama_penerima} onChange={e => setMutasiForm(f => ({ ...f, nama_penerima: e.target.value }))} placeholder="Contoh: Toko B" className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>No HP Tujuan</label>
+                <input value={mutasiForm.no_hp_penerima} onChange={e => setMutasiForm(f => ({ ...f, no_hp_penerima: e.target.value }))} placeholder="Opsional" className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }} />
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-4">
+              <div className="text-xs font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>Item yang dipindah</div>
+              {data.items?.filter((it: any) => qtyNet(it) > 0).map((item: any) => {
+                const qty = Number(mutasiForm.items[item.id] || 0);
+                return (
+                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px] gap-3 p-3 rounded-xl items-center" style={{ background: qty > 0 ? '#eef2ff' : '#f8fafc', border: `1px solid ${qty > 0 ? '#c7d2fe' : '#f1f5f9'}` }}>
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: '#1e293b' }}>{item.barang?.nama || item.barang_id}</div>
+                      <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>Sisa {qtyNet(item)} pcs · {formatRupiah(item.harga_satuan)}</div>
+                    </div>
+                    <input type="number" min={0} max={qtyNet(item)} value={mutasiForm.items[item.id] ?? ''} onChange={e => {
+                      const v = e.target.value === '' ? '' : Math.min(qtyNet(item), Math.max(0, Number(e.target.value)));
+                      setMutasiForm(f => ({ ...f, items: { ...f.items, [item.id]: v } }));
+                    }} className="px-3 py-2 rounded-lg text-sm outline-none" style={{ background: '#fff', border: '1px solid #e2e8f0', color: '#1e293b' }} placeholder="Qty" />
+                    <div className="text-sm font-black tabular-nums md:text-right" style={{ color: '#4f46e5' }}>{qty > 0 ? formatRupiah(qty * Number(item.harga_satuan || 0)) : '-'}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>Catatan</label>
+              <textarea value={mutasiForm.catatan} onChange={e => setMutasiForm(f => ({ ...f, catatan: e.target.value }))} rows={2} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none resize-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b' }} placeholder="Opsional" />
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setMutasiModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>Batal</button>
+              <button onClick={prosesMutasiDisplay} disabled={mutasiLoading} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }}>
+                {mutasiLoading ? 'Menyimpan...' : 'Buat Mutasi Display'}
               </button>
             </div>
           </div>

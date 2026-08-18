@@ -292,7 +292,7 @@ function PiutangUsahaContent() {
           ...exportRekapRows.map((r: RekapRow, i: number) => [i + 1, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
-          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Invoice', 'Kredit', 'Sisa Berjalan'],
+          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Debit Invoice/SP', 'Kredit', 'Sisa Berjalan'],
           ...exportDetailRows.map((r: DetailRow, i: number) => [i + 1, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
       const csv = '\uFEFF' + rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -308,7 +308,7 @@ function PiutangUsahaContent() {
     }
   };
 
-  const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : jenis.includes('UANG_MUKA') ? 'orange' : 'slate';
+  const jenisTone = (jenis: string): BadgeTone => jenis === 'INVOICE' ? 'red' : jenis === 'PEMBAYARAN' ? 'green' : jenis === 'RETUR' ? 'orange' : jenis.includes('SURAT_PENGANTAR') ? 'blue' : jenis.includes('DISPLAY_') ? 'purple' : jenis.includes('UANG_MUKA') ? 'orange' : 'slate';
   const uangMukaStatus = (status: string) => status === 'HABIS_TERPAKAI' ? 'Habis Terpakai' : status === 'TERPAKAI_SEBAGIAN' ? 'Terpakai Sebagian' : 'Belum Terpakai';
   const fakturLabel = (v?: string) => v === 'FAKTUR' ? 'Faktur' : v === 'NON_FAKTUR' ? 'Non Faktur' : v || '-';
   const filterButton = (active: boolean) => active ? { background: '#FA2F2F', color: '#fff', border: '1px solid #FA2F2F' } : { background: '#fff', color: '#475569', border: '1px solid #e2e8f0' };
@@ -320,7 +320,7 @@ function PiutangUsahaContent() {
       ? 'Piutang Interior'
       : 'Uang Muka Interior';
   const pageDescription = viewPage === 'offline'
-    ? 'Tagihan customer dari invoice Penjualan Offline. Gunakan tanggal Dari untuk melihat Saldo Awal.'
+    ? 'Tagihan customer dari Invoice Penjualan Offline dan SP Display. Gunakan tanggal Dari untuk melihat Saldo Awal.'
     : viewPage === 'interior'
       ? 'Tagihan customer dari invoice Penjualan Interior. DP sebelum invoice sudah dipisah ke Uang Muka Interior.'
       : 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.';
@@ -510,7 +510,7 @@ function PiutangUsahaContent() {
                   <div className="text-sm font-black" style={{ color: '#9a3412' }}>{selectedCustomer.name}</div>
                 </div>
                 <div className="text-xs mt-1" style={{ color: '#b45309' }}>
-                  Detail di bawah menjelaskan asal angka invoice, bayar/retur, dan sisa piutang pada rekap customer ini.
+                  Detail di bawah menjelaskan asal angka invoice/SP, bayar/retur, dan sisa piutang pada rekap customer ini.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -524,7 +524,7 @@ function PiutangUsahaContent() {
             </div>
             {selectedCustomer.debit !== undefined && (
               <div className="mt-3 text-xs leading-relaxed" style={{ color: '#b45309' }}>
-                Rumus detail: <strong>Sisa berjalan = Sisa sebelumnya + Invoice - Bayar/Retur</strong>. 
+                Rumus detail: <strong>Sisa berjalan = Sisa sebelumnya + Invoice/SP - Bayar/Retur/Transfer Display</strong>. 
                 Saldo terakhir di detail harus menjelaskan status pada rekap:
                 <strong> {(selectedCustomer.saldo_akhir || 0) >= 0 ? `Piutang ${formatRupiah(selectedCustomer.piutang || 0)}` : `Lebih Bayar / Uang Muka ${formatRupiah(selectedCustomer.lebih_bayar || 0)}`}</strong>.
               </div>
@@ -604,7 +604,7 @@ function PiutangUsahaContent() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Invoice', 'Kredit', 'Sisa Berjalan', 'Aksi'].map(h => (
+                  {['No', 'Tanggal', 'Jenis Mutasi', 'Keterangan / Deskripsi', 'Debit Invoice/SP', 'Kredit', 'Sisa Berjalan', 'Aksi'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
                   ))}
                 </tr>

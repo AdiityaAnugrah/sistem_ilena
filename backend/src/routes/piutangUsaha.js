@@ -2,6 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
+  SuratPengantar, MutasiDisplay, MutasiDisplayItem,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior,
   SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
 } = require('../models');
@@ -234,6 +235,30 @@ function selectLatestOfflineInvoices(invoices) {
   return [...bySale.values()];
 }
 
+function selectLatestDisplaySps(sps) {
+  const bySale = new Map();
+  for (const sp of sps || []) {
+    const saleId = Number(sp.penjualan_offline_id || sp.penjualan?.id);
+    if (!saleId) continue;
+    const current = bySale.get(saleId);
+    if (!current
+      || String(sp.tanggal).localeCompare(String(current.tanggal)) > 0
+      || (String(sp.tanggal) === String(current.tanggal) && Number(sp.id) > Number(current.id))) {
+      bySale.set(saleId, sp);
+    }
+  }
+  return [...bySale.values()];
+}
+
+function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationItemsOut = []) {
+  const sisaDisplay = (displayPenjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0);
+  const sudahDiprosesJual = (soldPenjualans || []).reduce((sum, sale) => (
+    sum + (sale.items || []).reduce((itemSum, item) => itemSum + itemSubtotal(item), 0)
+  ), 0);
+  const sudahMutasiKeluar = (mutationItemsOut || []).reduce((sum, item) => sum + itemSubtotal(item), 0);
+  return money(sisaDisplay + sudahDiprosesJual + sudahMutasiKeluar);
+}
+
 async function buildPiutangEntries(isTest) {
   const entries = [];
   const push = (entry) => {
@@ -250,7 +275,7 @@ async function buildPiutangEntries(isTest) {
     });
   };
 
-  const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all([
+  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all([
     Invoice.findAll({
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
     }),
@@ -263,6 +288,25 @@ async function buildPiutangEntries(isTest) {
         { model: PenjualanOfflineItem, as: 'item' },
       ],
     }),
+    SuratPengantar.findAll({
+      include: [{
+        model: PenjualanOffline,
+        as: 'penjualan',
+        where: { is_test: isTest, tipe: 'DISPLAY' },
+        include: [{ model: PenjualanOfflineItem, as: 'items' }],
+      }],
+    }),
+    PenjualanOffline.findAll({
+      where: { is_test: isTest, tipe: 'PENJUALAN', display_source_id: { [Op.not]: null } },
+      include: [{ model: PenjualanOfflineItem, as: 'items' }],
+    }),
+    MutasiDisplay.findAll({
+      include: [
+        { model: MutasiDisplayItem, as: 'items' },
+        { model: PenjualanOffline, as: 'displayAsal', where: { is_test: isTest }, required: true },
+        { model: PenjualanOffline, as: 'displayTujuan', where: { is_test: isTest }, required: true },
+      ],
+    }),
     InvoiceInterior.findAll({
       include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
     }),
@@ -273,6 +317,64 @@ async function buildPiutangEntries(isTest) {
       include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
     }),
   ]);
+
+  const displaySalesBySource = new Map();
+  for (const sale of offlineDisplaySales || []) {
+    const sourceId = Number(sale.display_source_id);
+    if (!sourceId) continue;
+    if (!displaySalesBySource.has(sourceId)) displaySalesBySource.set(sourceId, []);
+    displaySalesBySource.get(sourceId).push(sale);
+  }
+  const mutationItemsBySource = new Map();
+  for (const mutation of displayMutations || []) {
+    const sourceId = Number(mutation.display_asal_id);
+    if (!sourceId) continue;
+    if (!mutationItemsBySource.has(sourceId)) mutationItemsBySource.set(sourceId, []);
+    mutationItemsBySource.get(sourceId).push(...(mutation.items || []));
+  }
+  const displayById = new Map();
+
+  for (const sp of selectLatestDisplaySps(offlineDisplaySps)) {
+    const display = sp.penjualan;
+    const displayId = Number(sp.penjualan_offline_id || display?.id);
+    if (!displayId) continue;
+    displayById.set(displayId, display);
+    const amount = offlineDisplaySpTotal(display, displaySalesBySource.get(displayId) || [], mutationItemsBySource.get(displayId) || []);
+    if (amount <= 0) continue;
+    push({
+      id: `OFFLINE-DISPLAY-SP-${sp.id}`,
+      tanggal: sp.tanggal,
+      sumber: 'OFFLINE',
+      jenis: 'SURAT_PENGANTAR_DISPLAY',
+      referensi: sp.nomor_sp,
+      customer: display?.nama_penerima,
+      faktur: display?.faktur,
+      no_po: display?.no_po,
+      keterangan: `Surat Pengantar Display ${sp.nomor_sp}`,
+      debit: amount,
+      kredit: 0,
+      detail_url: `/dashboard/penjualan/offline/${displayId}`,
+    });
+  }
+
+  for (const mutation of displayMutations || []) {
+    const amount = money((mutation.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
+    if (amount <= 0) continue;
+    push({
+      id: `OFFLINE-DISPLAY-MUTASI-KELUAR-${mutation.id}`,
+      tanggal: mutation.tanggal,
+      sumber: 'OFFLINE',
+      jenis: 'MUTASI_DISPLAY_KELUAR',
+      referensi: mutation.nomor_mutasi,
+      customer: mutation.displayAsal?.nama_penerima,
+      faktur: mutation.displayAsal?.faktur,
+      no_po: mutation.displayAsal?.no_po,
+      keterangan: `Mutasi Display keluar ke ${mutation.displayTujuan?.nama_penerima || 'tujuan'} (${mutation.nomor_mutasi})`,
+      debit: 0,
+      kredit: amount,
+      detail_url: `/dashboard/penjualan/offline/${mutation.display_asal_id}`,
+    });
+  }
 
   for (const inv of selectLatestOfflineInvoices(offlineInvoices)) {
     const amount = offlineInvoiceTotal(inv.penjualan, inv);
@@ -291,6 +393,28 @@ async function buildPiutangEntries(isTest) {
       kredit: 0,
       detail_url: `/dashboard/penjualan/offline/${inv.penjualan_offline_id}`,
     });
+
+    const displaySourceId = Number(inv.penjualan?.display_source_id || 0);
+    if (displaySourceId) {
+      const display = displayById.get(displaySourceId);
+      const transferAmount = money((inv.penjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
+      if (transferAmount > 0) {
+        push({
+          id: `OFFLINE-DISPLAY-SP-TRANSFER-INVOICE-${inv.id}`,
+          tanggal: inv.tanggal,
+          sumber: 'OFFLINE',
+          jenis: 'DISPLAY_DIPINDAH_INVOICE',
+          referensi: inv.nomor_invoice,
+          customer: display?.nama_penerima || inv.penjualan?.nama_penerima,
+          faktur: display?.faktur || inv.penjualan?.faktur,
+          no_po: display?.no_po || inv.penjualan?.no_po,
+          keterangan: `Nilai display dipindah ke Invoice Offline ${inv.nomor_invoice}`,
+          debit: 0,
+          kredit: transferAmount,
+          detail_url: `/dashboard/penjualan/offline/${displaySourceId}`,
+        });
+      }
+    }
   }
 
   for (const p of offlinePayments) {
@@ -647,5 +771,11 @@ router.get('/uang-muka-interior', authenticate, async (req, res) => {
   }
 });
 
-router.__testables = { buildInteriorAdvanceState, filterLedgerBySearch, selectLatestOfflineInvoices };
+router.__testables = {
+  buildInteriorAdvanceState,
+  filterLedgerBySearch,
+  selectLatestOfflineInvoices,
+  selectLatestDisplaySps,
+  offlineDisplaySpTotal,
+};
 module.exports = router;

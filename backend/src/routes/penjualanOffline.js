@@ -5,7 +5,7 @@ const fs = require('fs');
 const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar, SuratPengantarSub, Barang,
-  Provinsi, Kabupaten, Kecamatan, Kelurahan, ReturOffline, sequelize,
+  Provinsi, Kabupaten, Kecamatan, Kelurahan, ReturOffline, MutasiDisplay, MutasiDisplayItem, sequelize,
 } = require('../models');
 const BarangTest = require('../models/BarangTest');
 
@@ -86,7 +86,7 @@ const includeAlamat = [
 ];
 const { authenticate, requireAdminOrAbove } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
-const { generateNomorSJ, generateNomorInvoice, generateNomorSP } = require('../utils/generateNomor');
+const { generateNomorSJ, generateNomorInvoice, generateNomorSP, generateNomorMutasiDisplay } = require('../utils/generateNomor');
 const { emitDataUpdated } = require('../socket');
 
 const router = express.Router();
@@ -751,6 +751,174 @@ router.post('/:id/proses-jual-item', authenticate, async (req, res) => {
     }
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/penjualan-offline/:id/mutasi-display
+// Pindahkan sebagian/seluruh barang display ke toko/customer lain.
+// Ini bukan penjualan dan bukan pembayaran: asal dikredit, tujuan dibuat DISPLAY + SP baru.
+router.post('/:id/mutasi-display', authenticate, async (req, res) => {
+  const t = await sequelize.transaction();
+  try {
+    const {
+      items,
+      tanggal,
+      catatan,
+      nama_penerima,
+      no_hp_penerima,
+      no_po,
+      pengirim_provinsi_id,
+      pengirim_kabupaten_id,
+      pengirim_kecamatan_id,
+      pengirim_kelurahan_id,
+      pengirim_detail,
+      pengirim_kode_pos,
+    } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Pilih minimal 1 item untuk dimutasi.' });
+    }
+    if (!nama_penerima || !String(nama_penerima).trim()) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Nama toko/customer tujuan wajib diisi.' });
+    }
+
+    const displayAsal = await PenjualanOffline.findByPk(req.params.id, {
+      include: [{ model: PenjualanOfflineItem, as: 'items' }],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (!displayAsal || displayAsal.tipe !== 'DISPLAY') {
+      await t.rollback();
+      return res.status(404).json({ message: 'Data display asal tidak ditemukan.' });
+    }
+
+    const tanggalMutasi = tanggal || new Date().toISOString().split('T')[0];
+    const nomor_mutasi = await generateNomorMutasiDisplay(tanggalMutasi, displayAsal.is_test === 1);
+    const nomor_sp = await generateNomorSP('FAKTUR', tanggalMutasi, displayAsal.is_test === 1);
+
+    const tujuan = await PenjualanOffline.create({
+      tipe: 'DISPLAY',
+      faktur: displayAsal.faktur,
+      nama_penerima: String(nama_penerima).trim(),
+      no_hp_penerima: no_hp_penerima || '-',
+      no_po: no_po !== undefined ? no_po : displayAsal.no_po,
+      tanggal: tanggalMutasi,
+      nama_npwp: displayAsal.nama_npwp,
+      no_npwp: displayAsal.no_npwp,
+      pengirim_provinsi_id: pengirim_provinsi_id ?? displayAsal.pengirim_provinsi_id,
+      pengirim_kabupaten_id: pengirim_kabupaten_id ?? displayAsal.pengirim_kabupaten_id,
+      pengirim_kecamatan_id: pengirim_kecamatan_id ?? displayAsal.pengirim_kecamatan_id,
+      pengirim_kelurahan_id: pengirim_kelurahan_id ?? displayAsal.pengirim_kelurahan_id,
+      pengirim_detail: pengirim_detail !== undefined ? pengirim_detail : displayAsal.pengirim_detail,
+      pengirim_kode_pos: pengirim_kode_pos !== undefined ? pengirim_kode_pos : displayAsal.pengirim_kode_pos,
+      tagihan_sama_pengirim: displayAsal.tagihan_sama_pengirim,
+      tagihan_provinsi_id: displayAsal.tagihan_provinsi_id,
+      tagihan_kabupaten_id: displayAsal.tagihan_kabupaten_id,
+      tagihan_kecamatan_id: displayAsal.tagihan_kecamatan_id,
+      tagihan_kelurahan_id: displayAsal.tagihan_kelurahan_id,
+      tagihan_detail: displayAsal.tagihan_detail,
+      tagihan_kode_pos: displayAsal.tagihan_kode_pos,
+      status: 'ACTIVE',
+      is_test: displayAsal.is_test,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    const mutasi = await MutasiDisplay.create({
+      nomor_mutasi,
+      display_asal_id: displayAsal.id,
+      display_tujuan_id: tujuan.id,
+      tanggal: tanggalMutasi,
+      catatan: catatan || null,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    const createdItems = [];
+    for (const row of items) {
+      const itemId = Number(row.item_id);
+      const qtyMutasi = parseInt(row.qty, 10);
+      if (!itemId || !qtyMutasi || qtyMutasi <= 0) continue;
+
+      const itemAsal = await PenjualanOfflineItem.findOne({
+        where: { id: itemId, penjualan_offline_id: displayAsal.id },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!itemAsal) throw new Error(`Item display #${itemId} tidak ditemukan.`);
+      if (qtyMutasi > Number(itemAsal.qty || 0)) {
+        throw new Error(`Qty mutasi ${qtyMutasi} melebihi sisa item ${itemAsal.varian_nama || itemAsal.barang_id}. Sisa: ${itemAsal.qty}.`);
+      }
+
+      const hargaSatuan = Number(itemAsal.harga_satuan || 0);
+      const subtotalMutasi = money(hargaSatuan * qtyMutasi);
+      const sisaQty = Number(itemAsal.qty || 0) - qtyMutasi;
+      await itemAsal.update({
+        qty: sisaQty,
+        subtotal: sisaQty > 0 ? money(hargaSatuan * sisaQty) : 0,
+      }, { transaction: t });
+
+      const itemTujuan = await PenjualanOfflineItem.create({
+        penjualan_offline_id: tujuan.id,
+        barang_id: itemAsal.barang_id,
+        varian_nama: itemAsal.varian_nama || null,
+        varian_id: itemAsal.varian_id || null,
+        qty: qtyMutasi,
+        harga_satuan: hargaSatuan,
+        diskon: itemAsal.diskon || 0,
+        subtotal: subtotalMutasi,
+      }, { transaction: t });
+
+      await MutasiDisplayItem.create({
+        mutasi_display_id: mutasi.id,
+        item_asal_id: itemAsal.id,
+        item_tujuan_id: itemTujuan.id,
+        barang_id: itemAsal.barang_id,
+        varian_nama: itemAsal.varian_nama || null,
+        varian_id: itemAsal.varian_id || null,
+        qty: qtyMutasi,
+        harga_satuan: hargaSatuan,
+        subtotal: subtotalMutasi,
+      }, { transaction: t });
+      createdItems.push(itemTujuan);
+    }
+
+    if (createdItems.length === 0) throw new Error('Tidak ada qty valid untuk dimutasi.');
+
+    const sp = await SuratPengantar.create({
+      penjualan_offline_id: tujuan.id,
+      nomor_sp,
+      tanggal: tanggalMutasi,
+      catatan: `Display hasil mutasi ${nomor_mutasi}${catatan ? ` - ${catatan}` : ''}`,
+      created_by: req.user.id,
+    }, { transaction: t });
+
+    const sisaAsal = await PenjualanOfflineItem.sum('qty', {
+      where: { penjualan_offline_id: displayAsal.id },
+      transaction: t,
+    }) || 0;
+    if (Number(sisaAsal) <= 0) {
+      await displayAsal.update({ status: 'COMPLETED' }, { transaction: t });
+    }
+
+    await t.commit();
+
+    await logAction(req.user.id, 'MUTASI_DISPLAY', `${nomor_mutasi}: Display #${displayAsal.id} ke #${tujuan.id}`, req.ip);
+    emitDataUpdated(`penjualan-offline:${displayAsal.id}`, { updatedBy: req.user.id });
+    emitDataUpdated(`penjualan-offline:${tujuan.id}`, { updatedBy: req.user.id });
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
+
+    return res.status(201).json({
+      message: 'Mutasi display berhasil dibuat',
+      nomor_mutasi,
+      nomor_sp,
+      mutasi_id: mutasi.id,
+      display_tujuan_id: tujuan.id,
+      sp_id: sp.id,
+    });
+  } catch (err) {
+    await t.rollback().catch(() => {});
+    return res.status(400).json({ message: err.message || 'Gagal membuat mutasi display' });
   }
 });
 

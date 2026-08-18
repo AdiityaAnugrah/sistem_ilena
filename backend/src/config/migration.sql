@@ -110,6 +110,37 @@ CREATE TABLE IF NOT EXISTS surat_pengantar (
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
+-- Mutasi Display antar toko/customer
+CREATE TABLE IF NOT EXISTS mutasi_display (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nomor_mutasi VARCHAR(60) UNIQUE NOT NULL,
+  display_asal_id INT NOT NULL,
+  display_tujuan_id INT NOT NULL,
+  tanggal DATE NOT NULL,
+  catatan TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (display_asal_id) REFERENCES penjualan_offline(id),
+  FOREIGN KEY (display_tujuan_id) REFERENCES penjualan_offline(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS mutasi_display_item (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  mutasi_display_id INT NOT NULL,
+  item_asal_id INT NOT NULL,
+  item_tujuan_id INT NOT NULL,
+  barang_id VARCHAR(50) NOT NULL,
+  varian_nama VARCHAR(50) NULL DEFAULT NULL,
+  varian_id VARCHAR(10) NULL DEFAULT NULL,
+  qty INT NOT NULL DEFAULT 1,
+  harga_satuan DECIMAL(15,2) NOT NULL,
+  subtotal DECIMAL(15,2) NOT NULL,
+  FOREIGN KEY (mutasi_display_id) REFERENCES mutasi_display(id),
+  FOREIGN KEY (item_asal_id) REFERENCES penjualan_offline_items(id),
+  FOREIGN KEY (item_tujuan_id) REFERENCES penjualan_offline_items(id)
+);
+
 -- Penjualan Interior
 CREATE TABLE IF NOT EXISTS penjualan_interior (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -239,8 +270,7 @@ CREATE TABLE IF NOT EXISTS retur_offline (
 -- Counter Nomor Dokumen
 CREATE TABLE IF NOT EXISTS document_counter (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  tipe ENUM('SJ_FAKTUR', 'SJ_NON_FAKTUR', 'INV_FAKTUR', 'INV_NON_FAKTUR',
-            'SP_FAKTUR', 'SP_NON_FAKTUR', 'PROFORMA') NOT NULL,
+  tipe VARCHAR(30) NOT NULL,
   bulan INT NOT NULL,
   tahun INT NOT NULL,
   last_number INT NOT NULL DEFAULT 0,

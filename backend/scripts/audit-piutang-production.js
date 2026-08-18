@@ -19,6 +19,7 @@ const { Op } = require('sequelize');
 const {
   sequelize,
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
+  SuratPengantar, MutasiDisplay, MutasiDisplayItem,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior,
   SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
 } = require('../src/models');
@@ -70,6 +71,30 @@ function offlineInvoiceTotal(penjualan, invoice) {
   const subtotal = money((penjualan?.items || []).reduce((s, item) => s + itemSubtotal(item), 0));
   const ppn = money(subtotal * Number(invoice?.ppn_persen || 0) / 100);
   return money(subtotal + ppn);
+}
+
+function selectLatestBySale(rows, idField, dateField) {
+  const bySale = new Map();
+  for (const row of rows || []) {
+    const saleId = Number(row[idField] || row.penjualan?.id);
+    if (!saleId) continue;
+    const current = bySale.get(saleId);
+    if (!current
+      || String(row[dateField]).localeCompare(String(current[dateField])) > 0
+      || (String(row[dateField]) === String(current[dateField]) && Number(row.id) > Number(current.id))) {
+      bySale.set(saleId, row);
+    }
+  }
+  return [...bySale.values()];
+}
+
+function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationItemsOut = []) {
+  const sisaDisplay = (displayPenjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0);
+  const sudahDiprosesJual = (soldPenjualans || []).reduce((sum, sale) => (
+    sum + (sale.items || []).reduce((itemSum, item) => itemSum + itemSubtotal(item), 0)
+  ), 0);
+  const sudahMutasiKeluar = (mutationItemsOut || []).reduce((sum, item) => sum + itemSubtotal(item), 0);
+  return money(sisaDisplay + sudahDiprosesJual + sudahMutasiKeluar);
 }
 
 function latestOfflinePpn(penjualan) {
@@ -207,16 +232,72 @@ async function collectPiutangEntries() {
   if (await tableExists('invoice')) jobs.push(Invoice.findAll({ include: [{ model: PenjualanOffline, as: 'penjualan', include: [{ model: PenjualanOfflineItem, as: 'items' }] }] })); else jobs.push(Promise.resolve([]));
   if (await tableExists('pembayaran_offline')) jobs.push(PembayaranOffline.findAll({ include: [{ model: PenjualanOffline, as: 'penjualan' }] })); else jobs.push(Promise.resolve([]));
   if (await tableExists('retur_offline')) jobs.push(ReturOffline.findAll({ include: [{ model: PenjualanOffline, as: 'penjualan', include: [{ model: Invoice, as: 'invoices' }] }, { model: PenjualanOfflineItem, as: 'item' }] })); else jobs.push(Promise.resolve([]));
+  if (await tableExists('surat_pengantar')) jobs.push(SuratPengantar.findAll({ include: [{ model: PenjualanOffline, as: 'penjualan', where: { tipe: 'DISPLAY' }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }] })); else jobs.push(Promise.resolve([]));
+  if (await tableExists('penjualan_offline')) jobs.push(PenjualanOffline.findAll({ where: { tipe: 'PENJUALAN', display_source_id: { [Op.not]: null } }, include: [{ model: PenjualanOfflineItem, as: 'items' }] })); else jobs.push(Promise.resolve([]));
+  if (await tableExists('mutasi_display')) jobs.push(MutasiDisplay.findAll({ include: [{ model: MutasiDisplayItem, as: 'items' }, { model: PenjualanOffline, as: 'displayAsal', required: true }, { model: PenjualanOffline, as: 'displayTujuan', required: true }] })); else jobs.push(Promise.resolve([]));
   if (await tableExists('invoice_interior')) jobs.push(InvoiceInterior.findAll({ include: [{ model: PenjualanInterior, as: 'penjualan', include: [{ model: PenjualanInteriorItem, as: 'items' }] }] })); else jobs.push(Promise.resolve([]));
   if (await tableExists('pembayaran_interior')) jobs.push(PembayaranInterior.findAll({ include: [{ model: PenjualanInterior, as: 'penjualan' }] })); else jobs.push(Promise.resolve([]));
   if (await tableExists('retur_sj_interior')) jobs.push(ReturSJInterior.findAll({ include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan' }] }] })); else jobs.push(Promise.resolve([]));
 
-  const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all(jobs);
+  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all(jobs);
 
-  for (const inv of offlineInvoices) {
+  const displaySalesBySource = new Map();
+  for (const sale of offlineDisplaySales || []) {
+    const sourceId = Number(sale.display_source_id);
+    if (!sourceId) continue;
+    if (!displaySalesBySource.has(sourceId)) displaySalesBySource.set(sourceId, []);
+    displaySalesBySource.get(sourceId).push(sale);
+  }
+  const mutationItemsBySource = new Map();
+  for (const mutation of displayMutations || []) {
+    const sourceId = Number(mutation.display_asal_id);
+    if (!sourceId) continue;
+    if (!mutationItemsBySource.has(sourceId)) mutationItemsBySource.set(sourceId, []);
+    mutationItemsBySource.get(sourceId).push(...(mutation.items || []));
+  }
+  const displayById = new Map();
+  for (const sp of selectLatestBySale(offlineDisplaySps, 'penjualan_offline_id', 'tanggal')) {
+    const display = sp.penjualan;
+    const displayId = Number(sp.penjualan_offline_id || display?.id);
+    if (!displayId) continue;
+    displayById.set(displayId, display);
+    const amount = offlineDisplaySpTotal(display, displaySalesBySource.get(displayId) || [], mutationItemsBySource.get(displayId) || []);
+    if (amount <= 0) continue;
+    push({
+      sumber: 'OFFLINE', jenis: 'SURAT_PENGANTAR_DISPLAY', tanggal: sp.tanggal,
+      reference_no: sp.nomor_sp, customer: display?.nama_penerima, no_po: display?.no_po,
+      is_test: display?.is_test, debit: amount, kredit: 0,
+    });
+  }
+
+  for (const mutation of displayMutations || []) {
+    const amount = money((mutation.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
+    if (amount <= 0) continue;
+    push({
+      sumber: 'OFFLINE', jenis: 'MUTASI_DISPLAY_KELUAR', tanggal: mutation.tanggal,
+      reference_no: mutation.nomor_mutasi, customer: mutation.displayAsal?.nama_penerima,
+      no_po: mutation.displayAsal?.no_po, is_test: mutation.displayAsal?.is_test,
+      debit: 0, kredit: amount,
+    });
+  }
+
+  for (const inv of selectLatestBySale(offlineInvoices, 'penjualan_offline_id', 'tanggal')) {
     const amount = offlineInvoiceTotal(inv.penjualan, inv);
     if (amount <= 0) continue;
     push({ sumber: 'OFFLINE', jenis: 'INVOICE', tanggal: inv.tanggal, reference_no: inv.nomor_invoice, customer: inv.penjualan?.nama_penerima, no_po: inv.penjualan?.no_po, is_test: inv.penjualan?.is_test, debit: amount, kredit: 0 });
+    const displaySourceId = Number(inv.penjualan?.display_source_id || 0);
+    if (displaySourceId) {
+      const display = displayById.get(displaySourceId);
+      const transferAmount = money((inv.penjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
+      if (transferAmount > 0) {
+        push({
+          sumber: 'OFFLINE', jenis: 'DISPLAY_DIPINDAH_INVOICE', tanggal: inv.tanggal,
+          reference_no: inv.nomor_invoice, customer: display?.nama_penerima || inv.penjualan?.nama_penerima,
+          no_po: display?.no_po || inv.penjualan?.no_po, is_test: display?.is_test ?? inv.penjualan?.is_test,
+          debit: 0, kredit: transferAmount,
+        });
+      }
+    }
   }
   for (const p of offlinePayments) {
     const amount = money(p.jumlah);
@@ -321,7 +402,7 @@ function writeCsv(file, rows, columns) {
   try {
     const [dbInfo] = await sequelize.query('SELECT DATABASE() AS db, @@hostname AS host');
     const tableCounts = {};
-    for (const t of ['penjualan_offline', 'penjualan_interior', 'invoice', 'invoice_interior', 'pembayaran_offline', 'pembayaran_interior', 'retur_offline', 'retur_sj_interior']) {
+    for (const t of ['penjualan_offline', 'penjualan_interior', 'surat_pengantar', 'mutasi_display', 'mutasi_display_item', 'invoice', 'invoice_interior', 'pembayaran_offline', 'pembayaran_interior', 'retur_offline', 'retur_sj_interior']) {
       tableCounts[t] = await safeCount(t);
     }
 

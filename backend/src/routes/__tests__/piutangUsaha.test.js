@@ -1,6 +1,12 @@
 const router = require('../piutangUsaha');
 
-const { buildInteriorAdvanceState, filterLedgerBySearch, selectLatestOfflineInvoices } = router.__testables;
+const {
+  buildInteriorAdvanceState,
+  filterLedgerBySearch,
+  selectLatestOfflineInvoices,
+  selectLatestDisplaySps,
+  offlineDisplaySpTotal,
+} = router.__testables;
 
 const penjualan = {
   id: 10,
@@ -23,6 +29,30 @@ describe('piutang usaha calculations', () => {
 
     expect(result).toHaveLength(2);
     expect(result.find(row => row.penjualan_offline_id === 7)?.nomor_invoice).toBe('INV-BARU');
+  });
+
+  test('beberapa SP Display tetap mewakili satu dasar piutang display', () => {
+    const sps = [
+      { id: 1, penjualan_offline_id: 7, tanggal: '2026-01-01', nomor_sp: '001/SP' },
+      { id: 2, penjualan_offline_id: 7, tanggal: '2026-02-01', nomor_sp: '002/SP' },
+      { id: 3, penjualan_offline_id: 8, tanggal: '2026-01-15', nomor_sp: '003/SP' },
+    ];
+
+    const result = selectLatestDisplaySps(sps);
+
+    expect(result).toHaveLength(2);
+    expect(result.find(row => row.penjualan_offline_id === 7)?.nomor_sp).toBe('002/SP');
+  });
+
+  test('nilai SP Display merekonstruksi sisa display, item yang terjual, dan item yang dimutasi keluar', () => {
+    const display = { items: [{ qty: 2, subtotal: 2000 }] };
+    const sold = [
+      { items: [{ qty: 1, subtotal: 1000 }] },
+      { items: [{ qty: 3, subtotal: 3000 }] },
+    ];
+    const mutationOut = [{ qty: 2, subtotal: 2000 }];
+
+    expect(offlineDisplaySpTotal(display, sold, mutationOut)).toBe(8000);
   });
 
   test('pencarian referensi mempertahankan semua mutasi ledger customer yang cocok', () => {

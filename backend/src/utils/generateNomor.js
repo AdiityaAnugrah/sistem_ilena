@@ -116,10 +116,28 @@ const generateNomorSPInt = async (tanggal, isTest = false) => {
     : `${padded}/SP/INT/${mm}/${tahun}`;
 };
 
+/**
+ * Generate Mutasi Display number
+ * 0001/MD/04/2026 | TEST: TEST-0001/MD/04/2026
+ */
+const generateNomorMutasiDisplay = async (tanggal, isTest = false) => {
+  const d = dayjs(tanggal);
+  const bulan = d.month() + 1;
+  const tahun = d.year();
+  const tipe = isTest ? 'TEST_MUTASI_DISPLAY' : 'MUTASI_DISPLAY';
+  const num = await getNextNumber(tipe, tahun);
+  const padded = String(num).padStart(4, '0');
+  const mm = String(bulan).padStart(2, '0');
+  return isTest
+    ? `TEST-${padded}/MD/${mm}/${tahun}`
+    : `${padded}/MD/${mm}/${tahun}`;
+};
+
 module.exports = {
   generateNomorSJ,
   generateNomorInvoice,
   generateNomorSP,
   generateNomorProforma,
   generateNomorSPInt,
+  generateNomorMutasiDisplay,
 };
