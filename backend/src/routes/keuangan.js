@@ -257,18 +257,25 @@ router.get('/offline', authenticate, async (req, res) => {
           .reduce((s, i) => s + itemNetSubtotal(i, returQtyMap[i.id] || 0), 0);
       const nilaiTerjual = terjualMap[d.id] || 0;
       const nilaiTerjualBelumLunas = terjualBelumLunasMap[d.id] || 0;
+      const nilaiSisaM = money(nilaiSisa);
+      const nilaiTerjualBelumLunasM = money(nilaiTerjualBelumLunas);
+      const statusEfektif = (nilaiSisaM <= 0 && nilaiTerjualBelumLunasM <= 0) ? 'COMPLETED' : 'ACTIVE';
       return {
         id: d.id,
         tanggal: d.tanggal,
         nomor_sp: d.suratPengantars?.[0]?.nomor_sp || null,
         tanggal_sp: d.suratPengantars?.[0]?.tanggal || null,
         nama_penerima: d.nama_penerima,
-        status: d.status,
-        nilaiSisa: money(nilaiSisa),
+        status: statusEfektif,
+        status_asli: d.status,
+        status_reason: statusEfektif === 'COMPLETED'
+          ? 'Tidak ada sisa display beredar dan tidak ada tagihan display belum lunas'
+          : nilaiSisaM > 0 ? 'Masih ada sisa display beredar' : 'Display sudah habis, tetapi tagihan display belum lunas',
+        nilaiSisa: nilaiSisaM,
         nilaiTerjual: money(nilaiTerjual),
-        nilaiTerjualBelumLunas: money(nilaiTerjualBelumLunas),
+        nilaiTerjualBelumLunas: nilaiTerjualBelumLunasM,
         nilaiTotal: money(nilaiSisa + nilaiTerjual),
-        adaSisa: money(nilaiSisa) > 0,
+        adaSisa: nilaiSisaM > 0,
       };
     });
 
