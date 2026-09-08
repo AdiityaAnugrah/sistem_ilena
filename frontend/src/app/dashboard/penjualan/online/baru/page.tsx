@@ -18,6 +18,7 @@ const emptyAlamat = { provinsi_id: null as number | null, kabupaten_id: null as 
 
 export default function PenjualanOnlineBaru() {
   const router = useRouter();
+  const [faktur, setFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
   const [channel, setChannel] = useState('SHOPEE');
   const [metode, setMetode] = useState('MARKETPLACE');
   const [kurangiStok, setKurangiStok] = useState(true);
@@ -47,8 +48,8 @@ export default function PenjualanOnlineBaru() {
     setLoading(true);
     try {
       const payload = {
-        id_pesanan: form.id_pesanan, channel, nama_pelanggan: form.nama_pelanggan, no_hp: form.no_hp,
-        metode_pembayaran: metode, jasa_kirim: form.jasa_kirim, nomor_resi: form.nomor_resi || null,
+        id_pesanan: form.id_pesanan, faktur, channel, nama_pelanggan: form.nama_pelanggan, no_hp: form.no_hp,
+        metode_pembayaran: metode,
         tanggal: form.tanggal, provinsi_id: alamat.provinsi_id, kabupaten_id: alamat.kabupaten_id,
         kecamatan_id: alamat.kecamatan_id, kelurahan_id: alamat.kelurahan_id, alamat_detail: alamat.detail,
         kode_pos: alamat.kode_pos || null, ongkir: form.ongkir || 0, biaya_lain: form.biaya_lain || 0,
@@ -70,8 +71,7 @@ export default function PenjualanOnlineBaru() {
         <div><Label>Tanggal *</Label><DateInput {...register('tanggal', { required: true })} className="w-full h-10 px-3 rounded-md border" /></div>
         <div><Label>Channel</Label><select value={channel} onChange={e => setChannel(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{['SHOPEE','TOKOPEDIA','TIKTOK','WEBSITE','WHATSAPP','INSTAGRAM','LAINNYA'].map(x => <option key={x} value={x}>{x}</option>)}</select></div>
         <div><Label>Metode Pembayaran</Label><select value={metode} onChange={e => setMetode(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{['MARKETPLACE','TRANSFER','COD','QRIS','EDC','LAINNYA'].map(x => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div><Label>Jasa Kirim *</Label><Input {...register('jasa_kirim', { required: true })} placeholder="JNE / J&T / SPX / Gojek" />{errors.jasa_kirim && <p className="text-xs text-red-500 mt-1">Jasa kirim wajib diisi</p>}</div>
-        <div><Label>Nomor Resi</Label><Input {...register('nomor_resi')} placeholder="Opsional" /></div>
+        <div><Label>Faktur</Label><select value={faktur} onChange={e => setFaktur(e.target.value as 'FAKTUR' | 'NON_FAKTUR')} className="w-full h-10 px-3 rounded-md border bg-white text-sm"><option value="NON_FAKTUR">Non Faktur</option><option value="FAKTUR">Faktur</option></select></div>
         <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <Label className="text-sm font-bold text-slate-700">Pengaruh ke Stok</Label>

@@ -4,6 +4,7 @@ const sequelize = require('../config/database');
 const PenjualanOnline = sequelize.define('penjualan_online', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   id_pesanan: { type: DataTypes.STRING(80), allowNull: false },
+  faktur: { type: DataTypes.ENUM('FAKTUR', 'NON_FAKTUR'), allowNull: false, defaultValue: 'NON_FAKTUR' },
   channel: {
     type: DataTypes.ENUM('SHOPEE', 'TOKOPEDIA', 'TIKTOK', 'WEBSITE', 'WHATSAPP', 'INSTAGRAM', 'LAINNYA'),
     allowNull: false,
@@ -15,7 +16,7 @@ const PenjualanOnline = sequelize.define('penjualan_online', {
     type: DataTypes.ENUM('TRANSFER', 'COD', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA'),
     allowNull: false,
   },
-  jasa_kirim: { type: DataTypes.STRING(80), allowNull: false },
+  jasa_kirim: { type: DataTypes.STRING(80), allowNull: true, defaultValue: null },
   nomor_resi: { type: DataTypes.STRING(100), defaultValue: null },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   provinsi_id: { type: DataTypes.INTEGER, defaultValue: null },

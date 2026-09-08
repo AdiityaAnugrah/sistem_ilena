@@ -136,7 +136,7 @@ router.get('/semua', authenticate, async (req, res) => {
     if (includeOnline) {
       unionParts.push(`
         SELECT id, 'ONLINE' AS sumber, tanggal, nama_pelanggan AS nama_customer,
-               id_pesanan AS no_po, 'NON_FAKTUR' AS faktur,
+               id_pesanan AS no_po, faktur,
                CASE WHEN status = 'SELESAI' THEN 'COMPLETED' ELSE 'ACTIVE' END AS status,
                created_at,
                (SELECT COUNT(*) FROM penjualan_online_items WHERE penjualan_online_id = po2.id) AS jumlah_item

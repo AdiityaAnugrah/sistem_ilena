@@ -6,6 +6,8 @@ const {
   PenjualanOnlineItem,
   PembayaranOnline,
   ReturOnline,
+  SuratJalanOnline,
+  InvoiceOnline,
   Barang,
   Provinsi,
   Kabupaten,
@@ -16,6 +18,7 @@ const BarangTest = require('../models/BarangTest');
 const { authenticate } = require('../middleware/auth');
 const { logAction } = require('../middleware/logger');
 const { emitDataUpdated } = require('../socket');
+const { generateNomorSJOnline, generateNomorInvoiceOnline } = require('../utils/generateNomor');
 
 const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
@@ -34,6 +37,8 @@ const includeAlamat = [
 const fullInclude = [
   { model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
   { model: PembayaranOnline, as: 'pembayarans' },
+  { model: SuratJalanOnline, as: 'suratJalans' },
+  { model: InvoiceOnline, as: 'invoices' },
   { model: ReturOnline, as: 'returs', include: [{ model: PenjualanOnlineItem, as: 'item' }] },
   ...includeAlamat,
 ];
@@ -121,14 +126,14 @@ router.post('/', authenticate, async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const {
-      id_pesanan, channel, nama_pelanggan, no_hp, metode_pembayaran, jasa_kirim, nomor_resi,
+      id_pesanan, faktur, channel, nama_pelanggan, no_hp, metode_pembayaran, jasa_kirim, nomor_resi,
       tanggal, provinsi_id, kabupaten_id, kecamatan_id, kelurahan_id, alamat_detail, kode_pos,
       ongkir = 0, biaya_lain = 0, diskon_order = 0, kurangi_stok = true, catatan, items,
     } = req.body;
 
-    if (!id_pesanan || !nama_pelanggan || !no_hp || !jasa_kirim || !alamat_detail) {
+    if (!id_pesanan || !nama_pelanggan || !no_hp || !alamat_detail) {
       await t.rollback();
-      return res.status(400).json({ message: 'ID Pesanan, nama pelanggan, nomor telepon, jasa kirim, dan alamat wajib diisi' });
+      return res.status(400).json({ message: 'ID Pesanan, nama pelanggan, nomor telepon, dan alamat wajib diisi' });
     }
     if (!Array.isArray(items) || items.length === 0) {
       await t.rollback();
@@ -144,11 +149,12 @@ router.post('/', authenticate, async (req, res) => {
 
     const online = await PenjualanOnline.create({
       id_pesanan: String(id_pesanan).trim(),
+      faktur: faktur === 'FAKTUR' ? 'FAKTUR' : 'NON_FAKTUR',
       channel: CHANNELS.includes(String(channel).toUpperCase()) ? String(channel).toUpperCase() : 'LAINNYA',
       nama_pelanggan,
       no_hp,
       metode_pembayaran: METODE.includes(String(metode_pembayaran).toUpperCase()) ? String(metode_pembayaran).toUpperCase() : 'LAINNYA',
-      jasa_kirim,
+      jasa_kirim: jasa_kirim || null,
       nomor_resi: nomor_resi || null,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
       provinsi_id: provinsi_id || null,
@@ -248,6 +254,8 @@ router.get('/', authenticate, async (req, res) => {
       include: [
         { model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }], separate: true },
         { model: PembayaranOnline, as: 'pembayarans', separate: true },
+        { model: SuratJalanOnline, as: 'suratJalans', separate: true },
+        { model: InvoiceOnline, as: 'invoices', separate: true },
         { model: ReturOnline, as: 'returs', separate: true },
       ],
       order: [['created_at', 'DESC']],
@@ -268,6 +276,50 @@ router.get('/', authenticate, async (req, res) => {
         totalQty: summary.totalQty,
       },
     });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+router.post('/:id/surat-jalan', authenticate, async (req, res) => {
+  try {
+    const online = await PenjualanOnline.findByPk(req.params.id);
+    if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
+    const nomor_surat = await generateNomorSJOnline(online.faktur, tanggal, online.is_test === 1);
+    const sj = await SuratJalanOnline.create({
+      penjualan_online_id: online.id,
+      nomor_surat,
+      tanggal,
+      catatan: req.body.catatan || null,
+      created_by: req.user.id,
+    });
+    await logAction(req.user.id, 'BUAT_SJ_ONLINE', `Nomor: ${nomor_surat}`, req.ip);
+    emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
+    return res.status(201).json({ id: sj.id, nomor_surat, message: 'Surat Jalan Online berhasil dibuat' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+router.post('/:id/invoice', authenticate, async (req, res) => {
+  try {
+    const online = await PenjualanOnline.findByPk(req.params.id);
+    if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
+    const nomor_invoice = await generateNomorInvoiceOnline(online.faktur, tanggal, online.is_test === 1);
+    const jatuh_tempo = new Date(new Date(tanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const inv = await InvoiceOnline.create({
+      penjualan_online_id: online.id,
+      nomor_invoice,
+      tanggal,
+      jatuh_tempo,
+      catatan: req.body.catatan || null,
+      created_by: req.user.id,
+    });
+    await logAction(req.user.id, 'BUAT_INVOICE_ONLINE', `Nomor: ${nomor_invoice}`, req.ip);
+    emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
+    return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice Online berhasil dibuat' });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

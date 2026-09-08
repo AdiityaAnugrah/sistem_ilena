@@ -133,6 +133,46 @@ const generateNomorMutasiDisplay = async (tanggal, isTest = false) => {
     : `${padded}/MD/${mm}/${tahun}`;
 };
 
+/**
+ * Generate Surat Jalan Online
+ * FAKTUR:     0001/SJ-OL/09/2026
+ * NON_FAKTUR: NF0001/SJ-OL/09/2026
+ */
+const generateNomorSJOnline = async (faktur, tanggal, isTest = false) => {
+  const d = dayjs(tanggal);
+  const bulan = d.month() + 1;
+  const tahun = d.year();
+  const base = faktur === 'FAKTUR' ? 'SJ_ONLINE_FAKTUR' : 'SJ_ONLINE_NON_FAKTUR';
+  const tipe = isTest ? `TEST_${base}` : base;
+  const num = await getNextNumber(tipe, tahun);
+  const padded = String(num).padStart(4, '0');
+  const mm = String(bulan).padStart(2, '0');
+  const prefix = faktur === 'FAKTUR' ? '' : 'NF';
+  return isTest
+    ? `TEST-${prefix}${padded}/SJ-OL/${mm}/${tahun}`
+    : `${prefix}${padded}/SJ-OL/${mm}/${tahun}`;
+};
+
+/**
+ * Generate Invoice Online
+ * FAKTUR:     0001/INV-OL/CBM/09/2026
+ * NON_FAKTUR: NF0001/INV-OL/CBM/09/2026
+ */
+const generateNomorInvoiceOnline = async (faktur, tanggal, isTest = false) => {
+  const d = dayjs(tanggal);
+  const bulan = d.month() + 1;
+  const tahun = d.year();
+  const base = faktur === 'FAKTUR' ? 'INV_ONLINE_FAKTUR' : 'INV_ONLINE_NON_FAKTUR';
+  const tipe = isTest ? `TEST_${base}` : base;
+  const num = await getNextNumber(tipe, tahun);
+  const padded = String(num).padStart(4, '0');
+  const mm = String(bulan).padStart(2, '0');
+  const prefix = faktur === 'FAKTUR' ? '' : 'NF';
+  return isTest
+    ? `TEST-${prefix}${padded}/INV-OL/CBM/${mm}/${tahun}`
+    : `${prefix}${padded}/INV-OL/CBM/${mm}/${tahun}`;
+};
+
 module.exports = {
   generateNomorSJ,
   generateNomorInvoice,
@@ -140,4 +180,6 @@ module.exports = {
   generateNomorProforma,
   generateNomorSPInt,
   generateNomorMutasiDisplay,
+  generateNomorSJOnline,
+  generateNomorInvoiceOnline,
 };

@@ -271,11 +271,12 @@ CREATE TABLE IF NOT EXISTS retur_offline (
 CREATE TABLE IF NOT EXISTS penjualan_online (
   id INT AUTO_INCREMENT PRIMARY KEY,
   id_pesanan VARCHAR(80) NOT NULL,
+  faktur ENUM('FAKTUR', 'NON_FAKTUR') NOT NULL DEFAULT 'NON_FAKTUR',
   channel ENUM('SHOPEE', 'TOKOPEDIA', 'TIKTOK', 'WEBSITE', 'WHATSAPP', 'INSTAGRAM', 'LAINNYA') NOT NULL DEFAULT 'LAINNYA',
   nama_pelanggan VARCHAR(120) NOT NULL,
   no_hp VARCHAR(25) NOT NULL,
   metode_pembayaran ENUM('TRANSFER', 'COD', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA') NOT NULL,
-  jasa_kirim VARCHAR(80) NOT NULL,
+  jasa_kirim VARCHAR(80) NULL,
   nomor_resi VARCHAR(100) NULL,
   tanggal DATE NOT NULL,
   provinsi_id INT NULL,
@@ -333,6 +334,29 @@ CREATE TABLE IF NOT EXISTS retur_online (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id),
   FOREIGN KEY (penjualan_online_item_id) REFERENCES penjualan_online_items(id)
+);
+
+CREATE TABLE IF NOT EXISTS surat_jalan_online (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_online_id INT NOT NULL,
+  nomor_surat VARCHAR(50) UNIQUE NOT NULL,
+  tanggal DATE NOT NULL,
+  catatan TEXT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id)
+);
+
+CREATE TABLE IF NOT EXISTS invoice_online (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_online_id INT NOT NULL,
+  nomor_invoice VARCHAR(50) UNIQUE NOT NULL,
+  tanggal DATE NOT NULL,
+  jatuh_tempo DATE NULL,
+  catatan TEXT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id)
 );
 
 -- Counter Nomor Dokumen

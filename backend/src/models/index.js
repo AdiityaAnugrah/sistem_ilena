@@ -35,6 +35,8 @@ const PenjualanOnline = require('./PenjualanOnline');
 const PenjualanOnlineItem = require('./PenjualanOnlineItem');
 const PembayaranOnline = require('./PembayaranOnline');
 const ReturOnline = require('./ReturOnline');
+const SuratJalanOnline = require('./SuratJalanOnline');
+const InvoiceOnline = require('./InvoiceOnline');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -160,6 +162,12 @@ PenjualanOnlineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang', c
 PenjualanOnline.hasMany(PembayaranOnline, { foreignKey: 'penjualan_online_id', as: 'pembayarans' });
 PembayaranOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
 
+PenjualanOnline.hasMany(SuratJalanOnline, { foreignKey: 'penjualan_online_id', as: 'suratJalans' });
+SuratJalanOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+
+PenjualanOnline.hasMany(InvoiceOnline, { foreignKey: 'penjualan_online_id', as: 'invoices' });
+InvoiceOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+
 PenjualanOnline.hasMany(ReturOnline, { foreignKey: 'penjualan_online_id', as: 'returs' });
 ReturOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
 ReturOnline.belongsTo(PenjualanOnlineItem, { foreignKey: 'penjualan_online_item_id', as: 'item' });
@@ -203,4 +211,6 @@ module.exports = {
   PenjualanOnlineItem,
   PembayaranOnline,
   ReturOnline,
+  SuratJalanOnline,
+  InvoiceOnline,
 };
