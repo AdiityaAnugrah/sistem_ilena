@@ -20,6 +20,7 @@ export default function PenjualanOnlineBaru() {
   const router = useRouter();
   const [channel, setChannel] = useState('SHOPEE');
   const [metode, setMetode] = useState('MARKETPLACE');
+  const [kurangiStok, setKurangiStok] = useState(true);
   const [alamat, setAlamat] = useState(emptyAlamat);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,7 +52,7 @@ export default function PenjualanOnlineBaru() {
         tanggal: form.tanggal, provinsi_id: alamat.provinsi_id, kabupaten_id: alamat.kabupaten_id,
         kecamatan_id: alamat.kecamatan_id, kelurahan_id: alamat.kelurahan_id, alamat_detail: alamat.detail,
         kode_pos: alamat.kode_pos || null, ongkir: form.ongkir || 0, biaya_lain: form.biaya_lain || 0,
-        diskon_order: form.diskon_order || 0, catatan: form.catatan || null,
+        diskon_order: form.diskon_order || 0, kurangi_stok: kurangiStok, catatan: form.catatan || null,
         items: items.map(i => ({ barang_id: i.barang_id, varian_nama: i.varian_nama, varian_id: i.varian_id, qty: Number(i.qty), harga_satuan: Number(i.harga_satuan), diskon: Number(i.diskon || 0) })),
       };
       const res = await api.post('/penjualan-online', payload);
@@ -71,6 +72,18 @@ export default function PenjualanOnlineBaru() {
         <div><Label>Metode Pembayaran</Label><select value={metode} onChange={e => setMetode(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{['MARKETPLACE','TRANSFER','COD','QRIS','EDC','LAINNYA'].map(x => <option key={x} value={x}>{x}</option>)}</select></div>
         <div><Label>Jasa Kirim *</Label><Input {...register('jasa_kirim', { required: true })} placeholder="JNE / J&T / SPX / Gojek" />{errors.jasa_kirim && <p className="text-xs text-red-500 mt-1">Jasa kirim wajib diisi</p>}</div>
         <div><Label>Nomor Resi</Label><Input {...register('nomor_resi')} placeholder="Opsional" /></div>
+        <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <Label className="text-sm font-bold text-slate-700">Pengaruh ke Stok</Label>
+            <p className="text-xs text-slate-500 mt-1">
+              Aktifkan jika pesanan online ini harus langsung mengurangi stok barang/varian.
+            </p>
+          </div>
+          <label className="inline-flex items-center gap-3 cursor-pointer select-none">
+            <input type="checkbox" checked={kurangiStok} onChange={e => setKurangiStok(e.target.checked)} className="h-5 w-5 rounded border-slate-300 text-red-600 focus:ring-red-500" />
+            <span className="text-sm font-semibold text-slate-700">{kurangiStok ? 'Kurangi Stok' : 'Tidak Kurangi Stok'}</span>
+          </label>
+        </div>
       </CardContent></Card>
 
       <Card className="border-0 shadow-sm bg-white ring-1 ring-slate-200/60"><CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9]"><CardTitle className="flex items-center gap-2 text-base"><User className="w-4 h-4"/>Data Pelanggan</CardTitle></CardHeader><CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">

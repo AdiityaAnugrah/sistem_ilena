@@ -123,7 +123,7 @@ router.post('/', authenticate, async (req, res) => {
     const {
       id_pesanan, channel, nama_pelanggan, no_hp, metode_pembayaran, jasa_kirim, nomor_resi,
       tanggal, provinsi_id, kabupaten_id, kecamatan_id, kelurahan_id, alamat_detail, kode_pos,
-      ongkir = 0, biaya_lain = 0, diskon_order = 0, catatan, items,
+      ongkir = 0, biaya_lain = 0, diskon_order = 0, kurangi_stok = true, catatan, items,
     } = req.body;
 
     if (!id_pesanan || !nama_pelanggan || !no_hp || !jasa_kirim || !alamat_detail) {
@@ -160,6 +160,7 @@ router.post('/', authenticate, async (req, res) => {
       ongkir: money(ongkir),
       biaya_lain: money(biaya_lain),
       diskon_order: money(diskon_order),
+      kurangi_stok: kurangi_stok ? 1 : 0,
       catatan: catatan || null,
       status: nomor_resi ? 'DIKIRIM' : 'DIPROSES',
       is_test,
@@ -190,7 +191,9 @@ router.post('/', authenticate, async (req, res) => {
     }, { transaction: t });
 
     await t.commit();
-    await adjustStok(itemRows, is_test === 1, 'deduct');
+    if (online.kurangi_stok === 1) {
+      await adjustStok(itemRows, is_test === 1, 'deduct');
+    }
     await logAction(req.user.id, 'BUAT_PENJUALAN_ONLINE', `ID Pesanan: ${online.id_pesanan}, Channel: ${online.channel}`, req.ip);
     emitDataUpdated('penjualan-online-list', { updatedBy: req.user.id });
     return res.status(201).json({ id: online.id, message: 'Penjualan online berhasil dibuat' });
@@ -359,7 +362,9 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     }
     await online.update({ status: 'RETUR' }, { transaction: t });
     await t.commit();
-    await adjustStok(restoreItems, online.is_test === 1, 'restore');
+    if (online.kurangi_stok === 1) {
+      await adjustStok(restoreItems, online.is_test === 1, 'restore');
+    }
     await logAction(req.user.id, 'CATAT_RETUR_ONLINE', `Penjualan Online #${online.id}, ${restoreItems.length} item`, req.ip);
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
     emitDataUpdated('penjualan-online-list', { updatedBy: req.user.id });
