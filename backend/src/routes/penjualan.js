@@ -4,6 +4,8 @@ const { authenticate } = require('../middleware/auth');
 const { QueryTypes } = require('sequelize');
 
 const router = express.Router();
+const TXT_COLLATION = 'utf8mb4_unicode_ci';
+const txt = (expr) => `CONVERT(${expr} USING utf8mb4) COLLATE ${TXT_COLLATION}`;
 
 router.get('/semua', authenticate, async (req, res) => {
   try {
@@ -113,8 +115,14 @@ router.get('/semua', authenticate, async (req, res) => {
 
     if (includeOffline) {
       unionParts.push(`
-        SELECT id, 'OFFLINE' AS sumber, tanggal, nama_penerima AS nama_customer,
-               no_po, faktur, status, created_at,
+        SELECT id,
+               ${txt("'OFFLINE'")} AS sumber,
+               tanggal,
+               ${txt('nama_penerima')} AS nama_customer,
+               ${txt('COALESCE(no_po, "")')} AS no_po,
+               ${txt('faktur')} AS faktur,
+               ${txt('status')} AS status,
+               created_at,
                (SELECT COUNT(*) FROM penjualan_offline_items WHERE penjualan_offline_id = po.id) AS jumlah_item
         FROM penjualan_offline po
         ${offlineWhereClause}
@@ -124,8 +132,14 @@ router.get('/semua', authenticate, async (req, res) => {
 
     if (includeInterior) {
       unionParts.push(`
-        SELECT id, 'INTERIOR' AS sumber, tanggal, nama_customer,
-               no_po, faktur, status, created_at,
+        SELECT id,
+               ${txt("'INTERIOR'")} AS sumber,
+               tanggal,
+               ${txt('nama_customer')} AS nama_customer,
+               ${txt('COALESCE(no_po, "")')} AS no_po,
+               ${txt('faktur')} AS faktur,
+               ${txt('status')} AS status,
+               created_at,
                (SELECT COUNT(*) FROM penjualan_interior_items WHERE penjualan_interior_id = pi.id) AS jumlah_item
         FROM penjualan_interior pi
         ${interiorWhereClause}
@@ -135,9 +149,13 @@ router.get('/semua', authenticate, async (req, res) => {
 
     if (includeOnline) {
       unionParts.push(`
-        SELECT id, 'ONLINE' AS sumber, tanggal, nama_pelanggan AS nama_customer,
-               id_pesanan AS no_po, faktur,
-               CASE WHEN status = 'SELESAI' THEN 'COMPLETED' ELSE 'ACTIVE' END AS status,
+        SELECT id,
+               ${txt("'ONLINE'")} AS sumber,
+               tanggal,
+               ${txt('nama_pelanggan')} AS nama_customer,
+               ${txt('id_pesanan')} AS no_po,
+               ${txt('faktur')} AS faktur,
+               ${txt("CASE WHEN status = 'SELESAI' THEN 'COMPLETED' ELSE 'ACTIVE' END")} AS status,
                created_at,
                (SELECT COUNT(*) FROM penjualan_online_items WHERE penjualan_online_id = po2.id) AS jumlah_item
         FROM penjualan_online po2
