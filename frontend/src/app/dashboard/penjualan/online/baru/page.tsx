@@ -19,13 +19,14 @@ const emptyAlamat = { provinsi_id: null as number | null, kabupaten_id: null as 
 export default function PenjualanOnlineBaru() {
   const router = useRouter();
   const [faktur, setFaktur] = useState<'FAKTUR' | 'NON_FAKTUR'>('NON_FAKTUR');
-  const [channel, setChannel] = useState('SHOPEE');
+  const [platform, setPlatform] = useState('SHOPEE');
   const [metode, setMetode] = useState('MARKETPLACE');
   const [kurangiStok, setKurangiStok] = useState(true);
   const [alamat, setAlamat] = useState(emptyAlamat);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<any>({ defaultValues: { tanggal: new Date().toISOString().split('T')[0], ongkir: 0, biaya_lain: 0, diskon_order: 0 } });
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({ defaultValues: { tanggal: new Date().toISOString().split('T')[0], ongkir: 0, biaya_lain: 0, diskon_order: 0 } });
+  const tanggalPesanan = watch('tanggal');
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -48,7 +49,7 @@ export default function PenjualanOnlineBaru() {
     setLoading(true);
     try {
       const payload = {
-        id_pesanan: form.id_pesanan, faktur, channel, nama_pelanggan: form.nama_pelanggan, no_hp: form.no_hp,
+        id_pesanan: form.id_pesanan, faktur, channel: platform, nama_pelanggan: form.nama_pelanggan, no_hp: form.no_hp,
         metode_pembayaran: metode,
         tanggal: form.tanggal, provinsi_id: alamat.provinsi_id, kabupaten_id: alamat.kabupaten_id,
         kecamatan_id: alamat.kecamatan_id, kelurahan_id: alamat.kelurahan_id, alamat_detail: alamat.detail,
@@ -68,9 +69,9 @@ export default function PenjualanOnlineBaru() {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <Card className="border-0 shadow-sm bg-white ring-1 ring-slate-200/60"><CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9]"><CardTitle className="flex items-center gap-2 text-base"><Wallet2 className="w-4 h-4"/>Informasi Pesanan</CardTitle></CardHeader><CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div><Label>ID Pesanan *</Label><Input {...register('id_pesanan', { required: true })} placeholder="Contoh: 250908ABC123" />{errors.id_pesanan && <p className="text-xs text-red-500 mt-1">ID Pesanan wajib diisi</p>}</div>
-        <div><Label>Tanggal *</Label><DateInput {...register('tanggal', { required: true })} className="w-full h-10 px-3 rounded-md border" /></div>
-        <div><Label>Channel</Label><select value={channel} onChange={e => setChannel(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{['SHOPEE','TOKOPEDIA','TIKTOK','WEBSITE','WHATSAPP','INSTAGRAM','LAINNYA'].map(x => <option key={x} value={x}>{x}</option>)}</select></div>
-        <div><Label>Metode Pembayaran</Label><select value={metode} onChange={e => setMetode(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{['MARKETPLACE','TRANSFER','COD','QRIS','EDC','LAINNYA'].map(x => <option key={x} value={x}>{x}</option>)}</select></div>
+        <div><Label>Tanggal *</Label><DateInput value={tanggalPesanan} onChange={e => setValue('tanggal', e.target.value, { shouldValidate: true })} className="w-full h-10 px-3 rounded-md border" /></div>
+        <div><Label>Platform</Label><Input list="platform-online-options" value={platform} onChange={e => setPlatform(e.target.value)} placeholder="Shopee / Website / custom" /><datalist id="platform-online-options">{['SHOPEE','TOKOPEDIA','TIKTOK','WEBSITE','WHATSAPP','INSTAGRAM'].map(x => <option key={x} value={x} />)}</datalist><p className="text-[11px] text-slate-400 mt-1">Bisa ketik platform baru sendiri.</p></div>
+        <div><Label>Metode Pembayaran</Label><Input list="metode-online-options" value={metode} onChange={e => setMetode(e.target.value)} placeholder="Marketplace / Transfer / custom" /><datalist id="metode-online-options">{['MARKETPLACE','TRANSFER','COD','QRIS','EDC'].map(x => <option key={x} value={x} />)}</datalist><p className="text-[11px] text-slate-400 mt-1">Bisa ketik metode baru sendiri.</p></div>
         <div><Label>Faktur</Label><select value={faktur} onChange={e => setFaktur(e.target.value as 'FAKTUR' | 'NON_FAKTUR')} className="w-full h-10 px-3 rounded-md border bg-white text-sm"><option value="NON_FAKTUR">Non Faktur</option><option value="FAKTUR">Faktur</option></select></div>
         <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>

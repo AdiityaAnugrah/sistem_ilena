@@ -23,9 +23,11 @@ const { generateNomorSJOnline, generateNomorInvoiceOnline } = require('../utils/
 const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
 
-const CHANNELS = ['SHOPEE', 'TOKOPEDIA', 'TIKTOK', 'WEBSITE', 'WHATSAPP', 'INSTAGRAM', 'LAINNYA'];
-const METODE = ['TRANSFER', 'COD', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA'];
 const STATUS = ['DIPROSES', 'DIKIRIM', 'SELESAI', 'DIBATALKAN', 'RETUR'];
+const cleanText = (value, fallback = '') => {
+  const text = String(value || '').trim();
+  return text || fallback;
+};
 
 const includeAlamat = [
   { model: Provinsi, as: 'provinsi' },
@@ -150,10 +152,10 @@ router.post('/', authenticate, async (req, res) => {
     const online = await PenjualanOnline.create({
       id_pesanan: String(id_pesanan).trim(),
       faktur: faktur === 'FAKTUR' ? 'FAKTUR' : 'NON_FAKTUR',
-      channel: CHANNELS.includes(String(channel).toUpperCase()) ? String(channel).toUpperCase() : 'LAINNYA',
+      channel: cleanText(channel, 'LAINNYA').toUpperCase(),
       nama_pelanggan,
       no_hp,
-      metode_pembayaran: METODE.includes(String(metode_pembayaran).toUpperCase()) ? String(metode_pembayaran).toUpperCase() : 'LAINNYA',
+      metode_pembayaran: cleanText(metode_pembayaran, 'LAINNYA').toUpperCase(),
       jasa_kirim: jasa_kirim || null,
       nomor_resi: nomor_resi || null,
       tanggal: tanggal || new Date().toISOString().split('T')[0],
@@ -213,7 +215,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { search, channel, status, tanggal_dari, tanggal_sampai, page = 1, limit = 20 } = req.query;
     const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
-    if (channel) where.channel = String(channel).toUpperCase();
+    if (channel) where.channel = { [Op.like]: `%${String(channel).trim()}%` };
     if (status) where.status = String(status).toUpperCase();
     if (tanggal_dari || tanggal_sampai) {
       where.tanggal = {};
