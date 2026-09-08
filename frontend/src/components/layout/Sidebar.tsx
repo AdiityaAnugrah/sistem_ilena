@@ -41,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { label: 'Master Barang', href: '/dashboard/master/barang', icon: Package },
+  { label: 'Master Online', href: '/dashboard/master/online', icon: Settings, devOrSuperAdminOnly: true },
   { label: 'Semua Surat', href: '/dashboard/surat', icon: Folder },
   {
     label: 'Keuangan',

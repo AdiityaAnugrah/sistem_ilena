@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -25,8 +25,24 @@ export default function PenjualanOnlineBaru() {
   const [alamat, setAlamat] = useState(emptyAlamat);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [platformOptions, setPlatformOptions] = useState<string[]>(['SHOPEE']);
+  const [metodeOptions, setMetodeOptions] = useState<string[]>(['MARKETPLACE']);
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({ defaultValues: { tanggal: new Date().toISOString().split('T')[0], ongkir: 0, biaya_lain: 0, diskon_order: 0 } });
   const tanggalPesanan = watch('tanggal');
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/online-options', { params: { tipe: 'PLATFORM', active: 1 } }),
+      api.get('/online-options', { params: { tipe: 'METODE_PEMBAYARAN', active: 1 } }),
+    ]).then(([p, m]) => {
+      const platforms = (p.data || []).map((x: any) => x.nama);
+      const metodes = (m.data || []).map((x: any) => x.nama);
+      setPlatformOptions(platforms);
+      setMetodeOptions(metodes);
+      if (platforms.length && !platforms.includes(platform)) setPlatform(platforms[0]);
+      if (metodes.length && !metodes.includes(metode)) setMetode(metodes[0]);
+    }).catch(() => {});
+  }, []);
 
   const addItem = (barang: any) => {
     let varianList: any[] = [];
@@ -70,8 +86,8 @@ export default function PenjualanOnlineBaru() {
       <Card className="border-0 shadow-sm bg-white ring-1 ring-slate-200/60"><CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9]"><CardTitle className="flex items-center gap-2 text-base"><Wallet2 className="w-4 h-4"/>Informasi Pesanan</CardTitle></CardHeader><CardContent className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div><Label>ID Pesanan *</Label><Input {...register('id_pesanan', { required: true })} placeholder="Contoh: 250908ABC123" />{errors.id_pesanan && <p className="text-xs text-red-500 mt-1">ID Pesanan wajib diisi</p>}</div>
         <div><Label>Tanggal *</Label><DateInput value={tanggalPesanan} onChange={e => setValue('tanggal', e.target.value, { shouldValidate: true })} className="w-full h-10 px-3 rounded-md border" /></div>
-        <div><Label>Platform</Label><Input list="platform-online-options" value={platform} onChange={e => setPlatform(e.target.value)} placeholder="Shopee / Website / custom" /><datalist id="platform-online-options">{['SHOPEE','TOKOPEDIA','TIKTOK','WEBSITE','WHATSAPP','INSTAGRAM'].map(x => <option key={x} value={x} />)}</datalist><p className="text-[11px] text-slate-400 mt-1">Bisa ketik platform baru sendiri.</p></div>
-        <div><Label>Metode Pembayaran</Label><Input list="metode-online-options" value={metode} onChange={e => setMetode(e.target.value)} placeholder="Marketplace / Transfer / custom" /><datalist id="metode-online-options">{['MARKETPLACE','TRANSFER','COD','QRIS','EDC'].map(x => <option key={x} value={x} />)}</datalist><p className="text-[11px] text-slate-400 mt-1">Bisa ketik metode baru sendiri.</p></div>
+        <div><Label>Platform</Label><select value={platform} onChange={e => setPlatform(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{platformOptions.map(x => <option key={x} value={x}>{x}</option>)}</select><p className="text-[11px] text-slate-400 mt-1">Tambah pilihan di menu Master Online.</p></div>
+        <div><Label>Metode Pembayaran</Label><select value={metode} onChange={e => setMetode(e.target.value)} className="w-full h-10 px-3 rounded-md border bg-white text-sm">{metodeOptions.map(x => <option key={x} value={x}>{x}</option>)}</select><p className="text-[11px] text-slate-400 mt-1">Tambah pilihan di menu Master Online.</p></div>
         <div><Label>Faktur</Label><select value={faktur} onChange={e => setFaktur(e.target.value as 'FAKTUR' | 'NON_FAKTUR')} className="w-full h-10 px-3 rounded-md border bg-white text-sm"><option value="NON_FAKTUR">Non Faktur</option><option value="FAKTUR">Faktur</option></select></div>
         <div className="md:col-span-3 rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>

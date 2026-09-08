@@ -359,6 +359,18 @@ CREATE TABLE IF NOT EXISTS invoice_online (
   FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id)
 );
 
+CREATE TABLE IF NOT EXISTS online_options (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  tipe ENUM('PLATFORM', 'METODE_PEMBAYARAN') NOT NULL,
+  nama VARCHAR(80) NOT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  is_test TINYINT(1) NOT NULL DEFAULT 0,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_options (tipe, nama, is_test)
+);
+
 -- Counter Nomor Dokumen
 CREATE TABLE IF NOT EXISTS document_counter (
   id INT AUTO_INCREMENT PRIMARY KEY,

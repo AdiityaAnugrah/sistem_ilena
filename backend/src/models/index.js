@@ -37,6 +37,7 @@ const PembayaranOnline = require('./PembayaranOnline');
 const ReturOnline = require('./ReturOnline');
 const SuratJalanOnline = require('./SuratJalanOnline');
 const InvoiceOnline = require('./InvoiceOnline');
+const OnlineOption = require('./OnlineOption');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -213,4 +214,5 @@ module.exports = {
   ReturOnline,
   SuratJalanOnline,
   InvoiceOnline,
+  OnlineOption,
 };
