@@ -42,7 +42,7 @@ interface PenjualanRow {
   tanggal: string;
   nama_customer: string;
   no_po: string | null;
-  sumber: 'OFFLINE' | 'INTERIOR';
+  sumber: 'OFFLINE' | 'ONLINE' | 'INTERIOR';
   faktur: string;
   status: string;
   jumlah_item: number;
@@ -54,7 +54,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: "default" | "primary
   COMPLETED: { label: 'Selesai', color: 'success' },
 };
 
-type SumberFilter = '' | 'OFFLINE' | 'INTERIOR';
+type SumberFilter = '' | 'OFFLINE' | 'ONLINE' | 'INTERIOR';
 type StatusFilter = '' | 'DRAFT' | 'ACTIVE' | 'COMPLETED';
 type FakturFilter = '' | 'FAKTUR' | 'NON_FAKTUR';
 type PenjualanSummary = {
@@ -132,6 +132,7 @@ export default function SemuaPenjualanPage() {
 
   const getDetailHref = (row: PenjualanRow) => {
     if (row.sumber === 'OFFLINE') return `/dashboard/penjualan/offline/${row.id}`;
+    if (row.sumber === 'ONLINE') return `/dashboard/penjualan/online/${row.id}`;
     return `/dashboard/penjualan/interior/${row.id}`;
   };
 
@@ -181,6 +182,7 @@ export default function SemuaPenjualanPage() {
                   <Select labelId="kat-label" value={sumberFilter} label="Sumber" onChange={e => setSumberFilter(e.target.value as SumberFilter)} sx={{ borderRadius: '10px', bgcolor: '#fff' }}>
                     <MenuItem value="">Semua</MenuItem>
                     <MenuItem value="OFFLINE">Offline</MenuItem>
+                    <MenuItem value="ONLINE">Online</MenuItem>
                     <MenuItem value="INTERIOR">Interior</MenuItem>
                   </Select>
                 </FormControl>
@@ -223,10 +225,10 @@ export default function SemuaPenjualanPage() {
                       <div className="mobile-record-meta">No. PO: {row.no_po || '-'}</div>
                     </div>
                     <Chip
-                      label={row.sumber === 'INTERIOR' ? 'Interior' : 'Offline'}
+                              label={row.sumber === 'INTERIOR' ? 'Interior' : row.sumber === 'ONLINE' ? 'Online' : 'Offline'}
                       size="small"
                       variant="outlined"
-                      color={row.sumber === 'INTERIOR' ? 'secondary' : 'primary'}
+                              color={row.sumber === 'INTERIOR' ? 'secondary' : row.sumber === 'ONLINE' ? 'success' : 'primary'}
                       sx={{ fontWeight: 800, borderRadius: '8px', flexShrink: 0 }}
                     />
                   </div>
@@ -289,7 +291,7 @@ export default function SemuaPenjualanPage() {
                       label={row.sumber}
                       size="small"
                       variant="outlined"
-                      color={row.sumber === 'INTERIOR' ? 'secondary' : 'primary'}
+                          color={row.sumber === 'INTERIOR' ? 'secondary' : row.sumber === 'ONLINE' ? 'success' : 'primary'}
                       sx={{ fontWeight: 700, fontSize: '10px', borderRadius: '4px' }}
                     />
                   </TableCell>

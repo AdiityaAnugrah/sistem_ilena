@@ -2,7 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const { authenticate } = require('../middleware/auth');
 const {
-  PenjualanOffline, PenjualanInterior,
+  PenjualanOffline, PenjualanInterior, PenjualanOnline,
   SuratJalan, Invoice, SuratPengantar,
   SuratJalanInterior, InvoiceInterior, ProformaInvoice, SuratPengantarInterior,
 } = require('../models');
@@ -21,6 +21,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const [
       offlinePenjualan,
+      onlinePenjualan,
       interiorPenjualan,
       sjOffline,
       invOffline,
@@ -33,6 +34,11 @@ router.get('/', authenticate, async (req, res) => {
       PenjualanOffline.findAll({
         where: { nama_penerima: like, tipe: 'PENJUALAN' },
         attributes: ['id', 'nama_penerima', 'no_po', 'tanggal'],
+        limit: LIMIT,
+      }),
+      PenjualanOnline.findAll({
+        where: { [Op.or]: [{ nama_pelanggan: like }, { id_pesanan: like }, { no_hp: like }, { nomor_resi: like }] },
+        attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'tanggal'],
         limit: LIMIT,
       }),
       PenjualanInterior.findAll({
@@ -85,6 +91,14 @@ router.get('/', authenticate, async (req, res) => {
       sub: r.no_po ? `PO: ${r.no_po}` : r.tanggal,
       href: `/dashboard/penjualan/offline/${r.id}`,
       category: 'Penjualan Offline',
+    }));
+
+    onlinePenjualan.forEach(r => results.push({
+      type: 'penjualan_online',
+      label: r.nama_pelanggan,
+      sub: `ID Pesanan: ${r.id_pesanan || r.tanggal}`,
+      href: `/dashboard/penjualan/online/${r.id}`,
+      category: 'Penjualan Online',
     }));
 
     interiorPenjualan.forEach(r => results.push({

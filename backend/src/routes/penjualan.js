@@ -13,8 +13,8 @@ router.get('/semua', authenticate, async (req, res) => {
       page = '1', limit = '20',
     } = req.query;
 
-    if (sumber && sumber !== 'OFFLINE' && sumber !== 'INTERIOR') {
-      return res.status(400).json({ message: 'Parameter sumber tidak valid. Gunakan OFFLINE atau INTERIOR.' });
+    if (sumber && !['OFFLINE', 'ONLINE', 'INTERIOR'].includes(String(sumber))) {
+      return res.status(400).json({ message: 'Parameter sumber tidak valid. Gunakan OFFLINE, ONLINE, atau INTERIOR.' });
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -31,6 +31,9 @@ router.get('/semua', authenticate, async (req, res) => {
     const interiorWhere = ['is_test = ?'];
     const interiorReplacements = [isTest];
 
+    const onlineWhere = ['is_test = ?'];
+    const onlineReplacements = [isTest];
+
     if (search) {
       const likeVal = `%${search}%`;
       offlineWhere.push('(nama_penerima LIKE ? OR no_po LIKE ?)');
@@ -38,6 +41,9 @@ router.get('/semua', authenticate, async (req, res) => {
 
       interiorWhere.push('(nama_customer LIKE ? OR no_po LIKE ?)');
       interiorReplacements.push(likeVal, likeVal);
+
+      onlineWhere.push('(nama_pelanggan LIKE ? OR id_pesanan LIKE ? OR no_hp LIKE ?)');
+      onlineReplacements.push(likeVal, likeVal, likeVal);
     }
 
     if (status) {
@@ -46,6 +52,18 @@ router.get('/semua', authenticate, async (req, res) => {
 
       interiorWhere.push('status = ?');
       interiorReplacements.push(status);
+
+      if (status === 'COMPLETED') {
+        onlineWhere.push('status = ?');
+        onlineReplacements.push('SELESAI');
+      } else if (status === 'ACTIVE') {
+        onlineWhere.push("status IN ('DIPROSES', 'DIKIRIM', 'RETUR')");
+      } else if (status === 'DRAFT') {
+        onlineWhere.push('1 = 0');
+      } else {
+        onlineWhere.push('status = ?');
+        onlineReplacements.push(status);
+      }
     }
 
     if (faktur) {
@@ -54,6 +72,8 @@ router.get('/semua', authenticate, async (req, res) => {
 
       interiorWhere.push('faktur = ?');
       interiorReplacements.push(faktur);
+
+      if (faktur !== 'NON_FAKTUR') onlineWhere.push('1 = 0');
     }
 
     if (tanggal_dari) {
@@ -62,6 +82,9 @@ router.get('/semua', authenticate, async (req, res) => {
 
       interiorWhere.push('tanggal >= ?');
       interiorReplacements.push(tanggal_dari);
+
+      onlineWhere.push('tanggal >= ?');
+      onlineReplacements.push(tanggal_dari);
     }
 
     if (tanggal_sampai) {
@@ -70,13 +93,18 @@ router.get('/semua', authenticate, async (req, res) => {
 
       interiorWhere.push('tanggal <= ?');
       interiorReplacements.push(tanggal_sampai);
+
+      onlineWhere.push('tanggal <= ?');
+      onlineReplacements.push(tanggal_sampai);
     }
 
     const offlineWhereClause = offlineWhere.length > 0 ? `WHERE ${offlineWhere.join(' AND ')}` : '';
     const interiorWhereClause = interiorWhere.length > 0 ? `WHERE ${interiorWhere.join(' AND ')}` : '';
+    const onlineWhereClause = onlineWhere.length > 0 ? `WHERE ${onlineWhere.join(' AND ')}` : '';
 
     // Determine which branches to include based on sumber filter
     const includeOffline = !sumber || sumber === 'OFFLINE';
+    const includeOnline = !sumber || sumber === 'ONLINE';
     const includeInterior = !sumber || sumber === 'INTERIOR';
 
     // Build UNION ALL parts for main query
@@ -105,6 +133,19 @@ router.get('/semua', authenticate, async (req, res) => {
       mainReplacements.push(...interiorReplacements);
     }
 
+    if (includeOnline) {
+      unionParts.push(`
+        SELECT id, 'ONLINE' AS sumber, tanggal, nama_pelanggan AS nama_customer,
+               id_pesanan AS no_po, 'NON_FAKTUR' AS faktur,
+               CASE WHEN status = 'SELESAI' THEN 'COMPLETED' ELSE 'ACTIVE' END AS status,
+               created_at,
+               (SELECT COUNT(*) FROM penjualan_online_items WHERE penjualan_online_id = po2.id) AS jumlah_item
+        FROM penjualan_online po2
+        ${onlineWhereClause}
+      `);
+      mainReplacements.push(...onlineReplacements);
+    }
+
     const unionSQL = unionParts.join(' UNION ALL ');
     const mainSQL = `${unionSQL} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
     mainReplacements.push(limitNum, offset);
@@ -127,6 +168,14 @@ router.get('/semua', authenticate, async (req, res) => {
         ${interiorWhereClause}
       `);
       countReplacements.push(...interiorReplacements);
+    }
+
+    if (includeOnline) {
+      countParts.push(`
+        SELECT id FROM penjualan_online
+        ${onlineWhereClause}
+      `);
+      countReplacements.push(...onlineReplacements);
     }
 
     const countUnionSQL = countParts.join(' UNION ALL ');
@@ -165,6 +214,19 @@ router.get('/semua', authenticate, async (req, res) => {
         ${interiorWhereClause}
       `);
       summaryReplacements.push(...interiorReplacements);
+    }
+
+    if (includeOnline) {
+      summaryParts.push(`
+        SELECT COALESCE(SUM((
+          SELECT COALESCE(SUM(subtotal), 0)
+          FROM penjualan_online_items
+          WHERE penjualan_online_id = po2.id
+        ) + COALESCE(po2.ongkir, 0) + COALESCE(po2.biaya_lain, 0) - COALESCE(po2.diskon_order, 0)), 0) AS totalNilai
+        FROM penjualan_online po2
+        ${onlineWhereClause}
+      `);
+      summaryReplacements.push(...onlineReplacements);
     }
 
     const summaryUnionSQL = summaryParts.join(' UNION ALL ');

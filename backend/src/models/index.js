@@ -31,6 +31,10 @@ const AppSetting = require('./AppSetting');
 const ChartOfAccount = require('./ChartOfAccount');
 const MutasiDisplay = require('./MutasiDisplay');
 const MutasiDisplayItem = require('./MutasiDisplayItem');
+const PenjualanOnline = require('./PenjualanOnline');
+const PenjualanOnlineItem = require('./PenjualanOnlineItem');
+const PembayaranOnline = require('./PembayaranOnline');
+const ReturOnline = require('./ReturOnline');
 
 // User associations
 User.hasMany(LogActivity, { foreignKey: 'user_id', as: 'activities' });
@@ -142,6 +146,25 @@ PenjualanInterior.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 // Barang associations
 PenjualanOfflineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang', constraints: false });
 
+// PenjualanOnline - Alamat associations
+PenjualanOnline.belongsTo(Provinsi, { foreignKey: 'provinsi_id', as: 'provinsi' });
+PenjualanOnline.belongsTo(Kabupaten, { foreignKey: 'kabupaten_id', as: 'kabupaten' });
+PenjualanOnline.belongsTo(Kecamatan, { foreignKey: 'kecamatan_id', as: 'kecamatan' });
+PenjualanOnline.belongsTo(Kelurahan, { foreignKey: 'kelurahan_id', as: 'kelurahan' });
+
+// PenjualanOnline associations
+PenjualanOnline.hasMany(PenjualanOnlineItem, { foreignKey: 'penjualan_online_id', as: 'items' });
+PenjualanOnlineItem.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+PenjualanOnlineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang', constraints: false });
+
+PenjualanOnline.hasMany(PembayaranOnline, { foreignKey: 'penjualan_online_id', as: 'pembayarans' });
+PembayaranOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+
+PenjualanOnline.hasMany(ReturOnline, { foreignKey: 'penjualan_online_id', as: 'returs' });
+ReturOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+ReturOnline.belongsTo(PenjualanOnlineItem, { foreignKey: 'penjualan_online_item_id', as: 'item' });
+PenjualanOnline.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+
 module.exports = {
   sequelize,
   User,
@@ -176,4 +199,8 @@ module.exports = {
   ChartOfAccount,
   MutasiDisplay,
   MutasiDisplayItem,
+  PenjualanOnline,
+  PenjualanOnlineItem,
+  PembayaranOnline,
+  ReturOnline,
 };

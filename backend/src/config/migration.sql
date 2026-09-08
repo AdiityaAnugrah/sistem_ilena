@@ -267,6 +267,73 @@ CREATE TABLE IF NOT EXISTS retur_offline (
   FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
+-- Penjualan Online
+CREATE TABLE IF NOT EXISTS penjualan_online (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_pesanan VARCHAR(80) NOT NULL,
+  channel ENUM('SHOPEE', 'TOKOPEDIA', 'TIKTOK', 'WEBSITE', 'WHATSAPP', 'INSTAGRAM', 'LAINNYA') NOT NULL DEFAULT 'LAINNYA',
+  nama_pelanggan VARCHAR(120) NOT NULL,
+  no_hp VARCHAR(25) NOT NULL,
+  metode_pembayaran ENUM('TRANSFER', 'COD', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA') NOT NULL,
+  jasa_kirim VARCHAR(80) NOT NULL,
+  nomor_resi VARCHAR(100) NULL,
+  tanggal DATE NOT NULL,
+  provinsi_id INT NULL,
+  kabupaten_id INT NULL,
+  kecamatan_id INT NULL,
+  kelurahan_id INT NULL,
+  alamat_detail TEXT NOT NULL,
+  kode_pos VARCHAR(10) NULL,
+  ongkir DECIMAL(15,2) NOT NULL DEFAULT 0,
+  biaya_lain DECIMAL(15,2) NOT NULL DEFAULT 0,
+  diskon_order DECIMAL(15,2) NOT NULL DEFAULT 0,
+  catatan TEXT NULL,
+  status ENUM('DIPROSES', 'DIKIRIM', 'SELESAI', 'DIBATALKAN', 'RETUR') NOT NULL DEFAULT 'DIPROSES',
+  is_test TINYINT(1) NOT NULL DEFAULT 0,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_order_test (id_pesanan, is_test)
+);
+
+CREATE TABLE IF NOT EXISTS penjualan_online_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_online_id INT NOT NULL,
+  barang_id VARCHAR(50) NOT NULL,
+  varian_nama VARCHAR(50) NULL,
+  varian_id VARCHAR(10) NULL,
+  qty INT NOT NULL DEFAULT 1,
+  harga_satuan DECIMAL(15,2) NOT NULL,
+  diskon FLOAT DEFAULT 0,
+  subtotal DECIMAL(15,2) NOT NULL,
+  FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pembayaran_online (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_online_id INT NOT NULL,
+  metode ENUM('TRANSFER', 'COD', 'QRIS', 'EDC', 'MARKETPLACE', 'LAINNYA') NOT NULL,
+  jumlah DECIMAL(15,2) NOT NULL,
+  tanggal DATE NOT NULL,
+  catatan TEXT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id)
+);
+
+CREATE TABLE IF NOT EXISTS retur_online (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  penjualan_online_id INT NOT NULL,
+  penjualan_online_item_id INT NOT NULL,
+  qty_retur INT NOT NULL,
+  tanggal DATE NOT NULL,
+  catatan TEXT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (penjualan_online_id) REFERENCES penjualan_online(id),
+  FOREIGN KEY (penjualan_online_item_id) REFERENCES penjualan_online_items(id)
+);
+
 -- Counter Nomor Dokumen
 CREATE TABLE IF NOT EXISTS document_counter (
   id INT AUTO_INCREMENT PRIMARY KEY,

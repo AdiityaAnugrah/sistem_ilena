@@ -35,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Semua Penjualan', href: '/dashboard/penjualan' },
       { label: 'Penjualan Offline', href: '/dashboard/penjualan/offline' },
+      { label: 'Penjualan Online', href: '/dashboard/penjualan/online' },
       { label: 'Display', href: '/dashboard/display' },
       { label: 'Penjualan Interior', href: '/dashboard/penjualan/interior' },
     ],
