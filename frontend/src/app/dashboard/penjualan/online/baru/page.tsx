@@ -44,14 +44,26 @@ export default function PenjualanOnlineBaru() {
     }).catch(() => {});
   }, []);
 
+  const hargaAsli = (barang: any) => Number(barang.harga ?? 0);
+
   const addItem = (barang: any) => {
     let varianList: any[] = [];
     try { varianList = barang.varian ? JSON.parse(barang.varian) : []; } catch { varianList = []; }
     varianList = varianList.filter((v: any) => v.nama && v.nama.trim() !== '');
     const defaultVarian = varianList[0] || null;
     if (items.find(i => i.barang_id === barang.id && i.varian_id === (defaultVarian?.id || null))) { toast.error('Produk dan varian ini sudah ditambahkan'); return; }
-    const harga = Number(barang.harga_ilena ?? barang.harga ?? 0);
-    setItems(prev => [...prev, { barang_id: barang.id, nama: barang.nama, varian_list: varianList, varian_nama: defaultVarian?.nama || null, varian_id: defaultVarian?.id || null, qty: 1, harga_satuan: harga, diskon: barang.diskon_efektif ?? 0 }]);
+    const harga = hargaAsli(barang);
+    setItems(prev => [...prev, {
+      barang_id: barang.id,
+      nama: barang.nama,
+      varian_list: varianList,
+      varian_nama: defaultVarian?.nama || null,
+      varian_id: defaultVarian?.id || null,
+      qty: 1,
+      harga_satuan: harga,
+      harga_asli: harga,
+      diskon: barang.diskon_efektif ?? 0,
+    }]);
   };
   const updateItem = (idx:number, field:string, val:any) => setItems(prev => prev.map((item,i) => i === idx ? { ...item, [field]: val } : item));
   const removeItem = (idx:number) => setItems(prev => prev.filter((_,i) => i !== idx));
