@@ -235,15 +235,59 @@ router.get('/', authenticate, async (req, res) => {
     const limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const offset = (pageInt - 1) * limitInt;
 
-    const summaryRows = await PenjualanOnline.findAll({
-      where,
-      include: [
-        { model: PenjualanOnlineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
-        { model: PembayaranOnline, as: 'pembayarans', attributes: ['jumlah'] },
-        { model: ReturOnline, as: 'returs', attributes: ['penjualan_online_item_id', 'qty_retur'] },
-      ],
-    });
-    const summary = summaryRows.map(applyOnlineSummary).reduce((acc, row) => {
+    const [count, summaryRows, rows] = await Promise.all([
+      PenjualanOnline.count({ where }),
+      PenjualanOnline.findAll({ where }),
+      PenjualanOnline.findAll({
+        where,
+        order: [['created_at', 'DESC']],
+        limit: limitInt,
+        offset,
+      }),
+    ]);
+
+    const attachOnlineRelations = async (onlineRows, includeBarang = false) => {
+      const ids = onlineRows.map(row => Number(row.id)).filter(Boolean);
+      if (ids.length === 0) return onlineRows;
+
+      const itemInclude = includeBarang ? [{ model: Barang, as: 'barang' }] : [];
+      const [items, pembayarans, suratJalans, invoices, returs] = await Promise.all([
+        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, include: itemInclude }).catch(err => { console.error('[GET /api/penjualan-online] items error:', err.message, err.sql || ''); return []; }),
+        PembayaranOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] pembayaran error:', err.message, err.sql || ''); return []; }),
+        SuratJalanOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] surat jalan error:', err.message, err.sql || ''); return []; }),
+        InvoiceOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] invoice error:', err.message, err.sql || ''); return []; }),
+        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] retur error:', err.message, err.sql || ''); return []; }),
+      ]);
+
+      const groupByPenjualan = (list) => list.reduce((acc, row) => {
+        const key = Number(row.penjualan_online_id);
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(row);
+        return acc;
+      }, {});
+
+      const itemMap = groupByPenjualan(items);
+      const pembayaranMap = groupByPenjualan(pembayarans);
+      const suratJalanMap = groupByPenjualan(suratJalans);
+      const invoiceMap = groupByPenjualan(invoices);
+      const returMap = groupByPenjualan(returs);
+
+      return onlineRows.map(row => {
+        const data = row.toJSON ? row.toJSON() : row;
+        const id = Number(data.id);
+        return {
+          ...data,
+          items: itemMap[id] || [],
+          pembayarans: pembayaranMap[id] || [],
+          suratJalans: suratJalanMap[id] || [],
+          invoices: invoiceMap[id] || [],
+          returs: returMap[id] || [],
+        };
+      });
+    };
+
+    const summaryWithRelations = await attachOnlineRelations(summaryRows, false);
+    const summary = summaryWithRelations.map(applyOnlineSummary).reduce((acc, row) => {
       acc.totalNilai += Number(row.total_tagihan || 0);
       acc.totalBayar += Number(row.total_bayar || 0);
       acc.totalRetur += Number(row.total_retur || 0);
@@ -251,23 +295,10 @@ router.get('/', authenticate, async (req, res) => {
       return acc;
     }, { totalNilai: 0, totalBayar: 0, totalRetur: 0, totalQty: 0 });
 
-    const { count, rows } = await PenjualanOnline.findAndCountAll({
-      where,
-      include: [
-        { model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }], separate: true },
-        { model: PembayaranOnline, as: 'pembayarans', separate: true },
-        { model: SuratJalanOnline, as: 'suratJalans', separate: true },
-        { model: InvoiceOnline, as: 'invoices', separate: true },
-        { model: ReturOnline, as: 'returs', separate: true },
-      ],
-      order: [['created_at', 'DESC']],
-      limit: limitInt,
-      offset,
-      distinct: true,
-    });
+    const rowsWithRelations = await attachOnlineRelations(rows, true);
 
     return res.json({
-      data: rows.map(applyOnlineSummary),
+      data: rowsWithRelations.map(applyOnlineSummary),
       total: count,
       page: pageInt,
       totalPages: Math.ceil(count / limitInt),
@@ -279,6 +310,7 @@ router.get('/', authenticate, async (req, res) => {
       },
     });
   } catch (err) {
+    console.error('[GET /api/penjualan-online] Error:', err.message, err.sql || '');
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
