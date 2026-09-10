@@ -37,7 +37,7 @@ const includeAlamat = [
 ];
 
 const fullInclude = [
-  { model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] },
+  { model: PenjualanOnlineItem, as: 'items' },
   { model: PembayaranOnline, as: 'pembayarans' },
   { model: SuratJalanOnline, as: 'suratJalans' },
   { model: InvoiceOnline, as: 'invoices' },
@@ -250,9 +250,8 @@ router.get('/', authenticate, async (req, res) => {
       const ids = onlineRows.map(row => Number(row.id)).filter(Boolean);
       if (ids.length === 0) return onlineRows;
 
-      const itemInclude = includeBarang ? [{ model: Barang, as: 'barang' }] : [];
       const [items, pembayarans, suratJalans, invoices, returs] = await Promise.all([
-        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, include: itemInclude }).catch(err => { console.error('[GET /api/penjualan-online] items error:', err.message, err.sql || ''); return []; }),
+        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] items error:', err.message, err.sql || ''); return []; }),
         PembayaranOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] pembayaran error:', err.message, err.sql || ''); return []; }),
         SuratJalanOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] surat jalan error:', err.message, err.sql || ''); return []; }),
         InvoiceOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } } }).catch(err => { console.error('[GET /api/penjualan-online] invoice error:', err.message, err.sql || ''); return []; }),
@@ -266,7 +265,21 @@ router.get('/', authenticate, async (req, res) => {
         return acc;
       }, {});
 
-      const itemMap = groupByPenjualan(items);
+      let itemsWithBarang = items;
+      if (includeBarang && items.length > 0) {
+        const barangIds = [...new Set(items.map(item => item.barang_id).filter(Boolean))];
+        const barangs = await Barang.findAll({ where: { id: { [Op.in]: barangIds } } }).catch(err => {
+          console.error('[GET /api/penjualan-online] barang error:', err.message, err.sql || '');
+          return [];
+        });
+        const barangMap = barangs.reduce((acc, barang) => { acc[String(barang.id)] = barang; return acc; }, {});
+        itemsWithBarang = items.map(item => {
+          const data = item.toJSON ? item.toJSON() : item;
+          return { ...data, barang: barangMap[String(data.barang_id)] || null };
+        });
+      }
+
+      const itemMap = groupByPenjualan(itemsWithBarang);
       const pembayaranMap = groupByPenjualan(pembayarans);
       const suratJalanMap = groupByPenjualan(suratJalans);
       const invoiceMap = groupByPenjualan(invoices);
@@ -363,7 +376,19 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const online = await PenjualanOnline.findByPk(req.params.id, { include: fullInclude });
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
-    return res.json(applyOnlineSummary(online));
+
+    const data = online.toJSON ? online.toJSON() : online;
+    const barangIds = [...new Set((data.items || []).map(item => item.barang_id).filter(Boolean))];
+    if (barangIds.length > 0) {
+      const barangs = await Barang.findAll({ where: { id: { [Op.in]: barangIds } } }).catch(err => {
+        console.error('[GET /api/penjualan-online/:id] barang error:', err.message, err.sql || '');
+        return [];
+      });
+      const barangMap = barangs.reduce((acc, barang) => { acc[String(barang.id)] = barang; return acc; }, {});
+      data.items = (data.items || []).map(item => ({ ...item, barang: barangMap[String(item.barang_id)] || null }));
+    }
+
+    return res.json(applyOnlineSummary(data));
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
