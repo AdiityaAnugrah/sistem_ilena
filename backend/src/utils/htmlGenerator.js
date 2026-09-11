@@ -1368,7 +1368,7 @@ const generateHTMLInvoice = (inv) => {
 
   // Lunas Watermark (If Status is COMPLETED or paid)
   // We don't have exact status here, but if needed, we can show it.
-  const lunasWatermark = penjualan.status === 'COMPLETED' ? `
+  const lunasWatermark = (isOnline || penjualan.status === 'COMPLETED') ? `
     <div class="print-lunas">
         <p>LUNAS</p>
     </div>
