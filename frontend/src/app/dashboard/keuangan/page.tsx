@@ -29,6 +29,11 @@ const StatusBadge = ({ status }: { status: string }) => {
     DRAFT:     { label: 'Draft',    bg: '#f8fafc', color: '#64748b' },
     ACTIVE:    { label: 'Aktif',    bg: '#eff6ff', color: '#2563eb' },
     COMPLETED: { label: 'Selesai', bg: '#f0fdf4', color: '#16a34a' },
+    DIPROSES: { label: 'Diproses', bg: '#fef2f2', color: '#dc2626' },
+    DIKIRIM: { label: 'Dikirim', bg: '#eff6ff', color: '#2563eb' },
+    SELESAI: { label: 'Selesai', bg: '#f0fdf4', color: '#16a34a' },
+    DIBATALKAN: { label: 'Dibatalkan', bg: '#f1f5f9', color: '#64748b' },
+    RETUR: { label: 'Retur', bg: '#fff7ed', color: '#c2410c' },
   };
   const s = map[status] || map.DRAFT;
   return (
@@ -102,9 +107,19 @@ function downloadExcelXml(filename: string, xml: string) {
   URL.revokeObjectURL(url);
 }
 
+interface OnlineFinanceRow {
+  id: number; id_pesanan: string; nama_pelanggan: string; channel: string; tanggal: string; status: string;
+  total: number; pendapatan_bersih: number | null; selisih: number | null;
+}
+
+interface OnlineFinanceData {
+  summary: { totalNilai: number; totalNilaiSelesai: number; totalPendapatanBersih: number; totalSelisih: number; menungguPendapatan: number };
+  list: OnlineFinanceRow[]; total: number; totalPages: number; page: number;
+}
+
 export default function KeuanganPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'offline' | 'interior'>('offline');
+  const [activeTab, setActiveTab] = useState<'offline' | 'interior' | 'online'>('offline');
   const [offlineSubTab, setOfflineSubTab] = useState<'penjualan' | 'display'>('penjualan');
   const [showInfo, setShowInfo] = useState(false);
 
@@ -122,10 +137,13 @@ export default function KeuanganPage() {
   const [interiorData, setInteriorData] = useState<any>(null);
   const [interiorPage, setInteriorPage] = useState(1);
   const [interiorLoading, setInteriorLoading] = useState(true);
+  const [onlineData, setOnlineData] = useState<OnlineFinanceData | null>(null);
+  const [onlinePage, setOnlinePage] = useState(1);
+  const [onlineLoading, setOnlineLoading] = useState(true);
 
   // Realtime: simpan filter & tab terbaru di ref agar bisa dipakai di socket handler
-  const stateRef = useRef({ offlinePage, offlineSubTab, interiorPage, from, to });
-  useEffect(() => { stateRef.current = { offlinePage, offlineSubTab, interiorPage, from, to }; });
+  const stateRef = useRef({ offlinePage, offlineSubTab, interiorPage, onlinePage, from, to });
+  useEffect(() => { stateRef.current = { offlinePage, offlineSubTab, interiorPage, onlinePage, from, to }; });
 
   const fetchOffline = useCallback(async (page: number, tab: string, f: string, t: string) => {
     setOfflineLoading(true);
@@ -147,49 +165,67 @@ export default function KeuanganPage() {
     finally { setInteriorLoading(false); }
   }, []);
 
+  const fetchOnline = useCallback(async (page: number, f: string, t: string) => {
+    setOnlineLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20', ...(f ? { from: f } : {}), ...(t ? { to: t } : {}) });
+      const res = await api.get(`/keuangan/online?${params}`);
+      setOnlineData(res.data);
+    } catch { setOnlineData(null); }
+    finally { setOnlineLoading(false); }
+  }, []);
+
   useEffect(() => { fetchOffline(offlinePage, offlineSubTab, from, to); }, [offlinePage, offlineSubTab, fetchOffline]);
   useEffect(() => { fetchInterior(interiorPage, from, to); }, [interiorPage, fetchInterior]);
+  useEffect(() => { fetchOnline(onlinePage, from, to); }, [onlinePage, fetchOnline]);
 
   // Realtime — listen ke room penjualan offline & interior
   useEffect(() => {
     const socket = getSocket();
     socket.emit('room:join', { room: 'penjualan-offline-list' });
     socket.emit('room:join', { room: 'penjualan-interior-list' });
+    socket.emit('room:join', { room: 'penjualan-online-list' });
 
     const refresh = () => {
       const s = stateRef.current;
       fetchOffline(s.offlinePage, s.offlineSubTab, s.from, s.to);
       fetchInterior(s.interiorPage, s.from, s.to);
+      fetchOnline(s.onlinePage, s.from, s.to);
     };
 
     socket.on('data:updated', refresh);
     return () => {
       socket.emit('room:leave', { room: 'penjualan-offline-list' });
       socket.emit('room:leave', { room: 'penjualan-interior-list' });
+      socket.emit('room:leave', { room: 'penjualan-online-list' });
       socket.off('data:updated', refresh);
     };
-  }, [fetchOffline, fetchInterior]);
+  }, [fetchOffline, fetchInterior, fetchOnline]);
 
   const handleFilter = () => {
     setOfflinePage(1);
     setInteriorPage(1);
+    setOnlinePage(1);
     fetchOffline(1, offlineSubTab, from, to);
     fetchInterior(1, from, to);
+    fetchOnline(1, from, to);
   };
 
   const handleReset = () => {
     const f = firstOfYear(), t = today();
     setFrom(f); setTo(t);
-    setOfflinePage(1); setInteriorPage(1);
+    setOfflinePage(1); setInteriorPage(1); setOnlinePage(1);
     fetchOffline(1, offlineSubTab, f, t);
     fetchInterior(1, f, t);
+    fetchOnline(1, f, t);
   };
 
   const handleAllData = () => {
     setFrom(''); setTo('');
-    setOfflinePage(1); setInteriorPage(1);
+    setOfflinePage(1); setInteriorPage(1); setOnlinePage(1);
     fetchOffline(1, offlineSubTab, '', '');
     fetchInterior(1, '', '');
+    fetchOnline(1, '', '');
   };
 
   const fetchAllKeuangan = async (kind: 'offline' | 'interior', tab?: 'penjualan' | 'display') => {
@@ -361,6 +397,7 @@ export default function KeuanganPage() {
 
   const summary = offlineData?.summary;
   const intSummary = interiorData?.summary;
+  const onlineSummary = onlineData?.summary;
 
   const bulanLabel = (() => {
     if (!from && !to) return 'Semua Waktu';
@@ -446,7 +483,7 @@ export default function KeuanganPage() {
 
       {/* Tab utama */}
       <div className="flex gap-2">
-        {(['offline', 'interior'] as const).map(t => (
+        {(['offline', 'interior', 'online'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)}
             className="px-5 py-2 rounded-xl text-sm font-semibold transition-all"
             style={{
@@ -455,7 +492,7 @@ export default function KeuanganPage() {
               border: activeTab === t ? 'none' : '1px solid #e2e8f0',
               boxShadow: activeTab === t ? '0 2px 8px rgba(250,47,47,0.25)' : 'none',
             }}>
-            {t === 'offline' ? 'Transaksi Offline' : 'Transaksi Interior'}
+            {t === 'offline' ? 'Transaksi Offline' : t === 'interior' ? 'Transaksi Interior' : 'Transaksi Online'}
           </button>
         ))}
       </div>
@@ -801,6 +838,18 @@ export default function KeuanganPage() {
                 onChange={(_, v) => setInteriorPage(v)} color="primary" size="small" />
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'online' && (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <SummaryCard label="Total Nilai Penjualan" value={onlineSummary ? formatRupiah(onlineSummary.totalNilai) : '-'} color="#0f172a" />
+            <SummaryCard label="Pendapatan Bersih" value={onlineSummary ? formatRupiah(onlineSummary.totalPendapatanBersih) : '-'} sub="Nominal bersih pesanan selesai" color="#16a34a" />
+            <SummaryCard label="Selisih Marketplace/Biaya" value={onlineSummary ? formatRupiah(onlineSummary.totalSelisih) : '-'} sub="Nilai transaksi dikurangi pendapatan bersih" color="#f97316" />
+          </div>
+          {onlineLoading ? <div className="flex justify-center py-16"><CircularProgress size={28} sx={{ color: '#FA2F2F' }} /></div> : !onlineData?.list?.length ? <div className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>Tidak ada data online</div> : <div className="space-y-3">{onlineData.list.map((row: any) => <div key={row.id} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800">{row.nama_pelanggan}</span><StatusBadge status={row.status}/><span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{row.channel}</span></div><p className="text-xs mt-1 text-slate-400">ID Pesanan: {row.id_pesanan} · {formatDate(row.tanggal)}</p></div><button onClick={() => router.push(`/dashboard/penjualan/online/${row.id}`)} className="p-1.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}><ArrowRight className="h-3.5 w-3.5 text-slate-400"/></button></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t"><div><p className="text-xs text-slate-400">Nilai transaksi</p><p className="text-sm font-bold">{formatRupiah(row.total)}</p></div><div><p className="text-xs text-slate-400">Pendapatan bersih</p><p className="text-sm font-bold text-green-600">{row.pendapatan_bersih === null ? 'Belum diisi' : formatRupiah(row.pendapatan_bersih)}</p></div><div><p className="text-xs text-slate-400">Selisih</p><p className="text-sm font-bold text-orange-600">{row.selisih === null ? '-' : formatRupiah(row.selisih)}</p></div></div></div>)}</div>}
+          {(onlineData?.totalPages ?? 0) > 1 && <div className="flex justify-center"><Pagination count={onlineData?.totalPages ?? 1} page={onlinePage} onChange={(_, v) => setOnlinePage(v)} color="primary" size="small"/></div>}
         </div>
       )}
     </div>

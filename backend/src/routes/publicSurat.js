@@ -1,14 +1,14 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  Invoice, InvoiceInterior,
-  PenjualanOffline, PenjualanInterior,
-  PenjualanOfflineItem, PenjualanInteriorItem,
+  Invoice, InvoiceInterior, InvoiceOnline,
+  PenjualanOffline, PenjualanInterior, PenjualanOnline,
+  PenjualanOfflineItem, PenjualanInteriorItem, PenjualanOnlineItem,
   PembayaranInterior,
   ReturOffline,
   SuratJalan, SuratPengantar, SuratPengantarSub,
   ProformaInvoice, SuratJalanInterior,
-  SuratPengantarInterior,
+  SuratPengantarInterior, SuratJalanOnline, ReturOnline,
 } = require('../models');
 
 const router = express.Router();
@@ -28,10 +28,11 @@ router.get('/', async (req, res) => {
 
     const offlineInclude = [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'no_po', 'is_test'] }];
     const interiorInclude = [{ model: PenjualanInterior, as: 'penjualan', attributes: ['id', 'nama_customer', 'no_po', 'is_test'] }];
+    const onlineInclude = [{ model: PenjualanOnline, as: 'penjualan', attributes: ['id', 'nama_pelanggan', 'id_pesanan', 'is_test'] }];
 
     const spSubOffInclude = [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['id', 'tanggal', 'penjualan_offline_id'], include: [{ model: PenjualanOffline, as: 'penjualan', attributes: ['id', 'nama_penerima', 'no_po', 'is_test'] }] }];
 
-    const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt, spSubOff, subInv] = await Promise.all([
+    const [sjOff, invOff, spOff, sjInt, invInt, proforma, spInt, spSubOff, subInv, sjOnline, invOnline] = await Promise.all([
       SuratJalan.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
       Invoice.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
       SuratPengantar.findAll({ include: offlineInclude, order: [['tanggal', 'DESC']] }),
@@ -41,6 +42,8 @@ router.get('/', async (req, res) => {
       SuratPengantarInterior.findAll({ include: interiorInclude, order: [['tanggal', 'DESC']] }),
       SuratPengantarSub.findAll({ include: spSubOffInclude, order: [['created_at', 'DESC']] }),
       ProformaInvoice.findAll({ where: { nomor_sub_invoice: { [Op.ne]: null } }, include: interiorInclude, order: [['tanggal', 'DESC']] }),
+      SuratJalanOnline.findAll({ include: onlineInclude, order: [['tanggal', 'DESC']] }),
+      InvoiceOnline.findAll({ include: onlineInclude, order: [['tanggal', 'DESC']] }),
     ]);
 
     const row = (r, nomor, tipeDoc, sumber, penjualanId, nama, noPo) => ({
@@ -67,6 +70,8 @@ router.get('/', async (req, res) => {
       ...proforma.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_proforma, 'Proforma', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
       ...subInv.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_sub_invoice, 'Sub Invoice', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
       ...spInt.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Pengantar', 'INTERIOR', r.penjualan_interior_id, r.penjualan?.nama_customer, r.penjualan?.no_po)),
+      ...sjOnline.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_surat, 'Surat Jalan', 'ONLINE', r.penjualan_online_id, r.penjualan?.nama_pelanggan, r.penjualan?.id_pesanan)),
+      ...invOnline.filter(r => !r.penjualan?.is_test).map(r => row(r, r.nomor_invoice, 'Invoice', 'ONLINE', r.penjualan_online_id, r.penjualan?.nama_pelanggan, r.penjualan?.id_pesanan)),
     ]
       .filter(r => {
         if (tipe && r.tipe !== tipe) return false;
@@ -229,7 +234,37 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
       });
     }
 
-    return res.status(400).json({ message: 'Sumber tidak valid. Gunakan OFFLINE atau INTERIOR.' });
+    if (sumber === 'ONLINE') {
+      const penjualan = await PenjualanOnline.findByPk(penjualanId, {
+        attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'no_hp', 'tanggal', 'status', 'ongkir', 'biaya_lain', 'diskon_order', 'pendapatan_bersih', 'is_test'],
+      });
+      if (!penjualan || penjualan.is_test) return res.status(404).json({ message: 'Tidak ditemukan' });
+
+      const [items, returs, invoices, suratJalans] = await Promise.all([
+        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] }),
+        ReturOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
+        InvoiceOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'nomor_invoice', 'tanggal'], order: [['tanggal', 'ASC']] }),
+        SuratJalanOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'nomor_surat', 'tanggal'], order: [['tanggal', 'ASC']] }),
+      ]);
+      const returByItemId = returs.reduce((map, retur) => {
+        map[retur.penjualan_online_item_id] = (map[retur.penjualan_online_item_id] || 0) + Number(retur.qty_retur || 0);
+        return map;
+      }, {});
+      const subtotal = items.reduce((sum, item) => sum + itemNetSubtotal(item, returByItemId[item.id] || 0), 0);
+      const totalNilai = Math.max(0, subtotal + Number(penjualan.ongkir || 0) + Number(penjualan.biaya_lain || 0) - Number(penjualan.diskon_order || 0));
+      const totalQty = items.reduce((sum, item) => sum + Math.max(0, Number(item.qty || 0) - Number(returByItemId[item.id] || 0)), 0);
+      return res.json({
+        penjualan: penjualan.toJSON(),
+        sumber: 'ONLINE',
+        ringkasan: { total_nilai: totalNilai, total_qty: totalQty, jumlah_sj: suratJalans.length, pendapatan_bersih: penjualan.pendapatan_bersih },
+        dokumen: {
+          invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, tipe: 'invoice-online' })),
+          suratJalans: suratJalans.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'surat-jalan-online' })),
+        },
+      });
+    }
+
+    return res.status(400).json({ message: 'Sumber tidak valid. Gunakan OFFLINE, INTERIOR, atau ONLINE.' });
   } catch (err) {
     console.error('[GET /api/public/surat/:sumber/:id]', err.message);
     return res.status(500).json({ message: 'Server error', error: err.message });

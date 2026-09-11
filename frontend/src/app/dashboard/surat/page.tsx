@@ -20,7 +20,7 @@ const TIPE_CONFIG: Record<string, { color: 'default' | 'primary' | 'secondary' |
 interface SuratRow {
   nomor: string;
   tipe: string;
-  sumber: 'OFFLINE' | 'INTERIOR';
+  sumber: 'OFFLINE' | 'INTERIOR' | 'ONLINE';
   nama_penerima: string;
   tanggal: string;
   penjualan_id: number;
@@ -43,9 +43,9 @@ export default function SemuaSuratPage() {
       const params: Record<string, string | number> = { page: p, limit: 20 };
       if (s) params.search = s;
       if (t) params.tipe = t;
+      if (sumber) params.sumber = sumber;
       const res = await api.get('/public/surat', { params });
-      let rows = res.data.data as SuratRow[];
-      if (sumber) rows = rows.filter((r) => r.sumber === sumber);
+      const rows = res.data.data as SuratRow[];
       setData(rows);
       setTotalPages(res.data.totalPages);
       setTotal(res.data.total);
@@ -71,7 +71,8 @@ export default function SemuaSuratPage() {
 
   const goToDetail = (row: SuratRow) => {
     if (row.sumber === 'OFFLINE') router.push(`/dashboard/penjualan/offline/${row.penjualan_id}`);
-    else router.push(`/dashboard/penjualan/interior/${row.penjualan_id}`);
+    else if (row.sumber === 'INTERIOR') router.push(`/dashboard/penjualan/interior/${row.penjualan_id}`);
+    else router.push(`/dashboard/penjualan/online/${row.penjualan_id}`);
   };
 
   return (

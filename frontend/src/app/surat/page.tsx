@@ -9,7 +9,7 @@ interface SuratItem {
   tipe: string;
   tanggal: string;
   nama_penerima: string;
-  sumber: 'OFFLINE' | 'INTERIOR';
+  sumber: 'OFFLINE' | 'INTERIOR' | 'ONLINE';
   penjualan_id: number;
 }
 
@@ -185,6 +185,7 @@ export default function SemuaSuratPage() {
             <option value="">Semua Sumber</option>
             <option value="OFFLINE">Offline</option>
             <option value="INTERIOR">Interior</option>
+            <option value="ONLINE">Online</option>
           </select>
           <select
             className={`sf-select ${tipeFilter ? 'sf-select-active' : ''}`}
@@ -257,9 +258,9 @@ export default function SemuaSuratPage() {
                           {item.tipe}
                         </span>
                         <span className="sc-badge" style={{
-                          background: item.sumber === 'OFFLINE' ? '#eff6ff' : '#f0fdf4',
-                          color: item.sumber === 'OFFLINE' ? '#2563eb' : '#15803d',
-                          border: `1px solid ${item.sumber === 'OFFLINE' ? '#bfdbfe' : '#bbf7d0'}`,
+                          background: item.sumber === 'OFFLINE' ? '#eff6ff' : item.sumber === 'INTERIOR' ? '#f0fdf4' : '#fff1f2',
+                          color: item.sumber === 'OFFLINE' ? '#2563eb' : item.sumber === 'INTERIOR' ? '#15803d' : '#dc2626',
+                          border: `1px solid ${item.sumber === 'OFFLINE' ? '#bfdbfe' : item.sumber === 'INTERIOR' ? '#bbf7d0' : '#fecdd3'}`,
                         }}>
                           {item.sumber}
                         </span>

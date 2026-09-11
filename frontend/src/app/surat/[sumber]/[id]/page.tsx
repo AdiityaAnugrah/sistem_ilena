@@ -25,6 +25,7 @@ interface TreeData {
     id: number;
     nama_penerima?: string;
     nama_customer?: string;
+    nama_pelanggan?: string;
     no_hp_penerima?: string;
     no_hp?: string;
     tanggal: string;
@@ -33,7 +34,7 @@ interface TreeData {
     pakai_ppn?: number;
     ppn_persen?: string;
   };
-  sumber: 'OFFLINE' | 'INTERIOR';
+  sumber: 'OFFLINE' | 'INTERIOR' | 'ONLINE';
   ringkasan: {
     total_nilai?: number;
     total_qty?: number;
@@ -45,6 +46,7 @@ interface TreeData {
     persen_bayar?: number;
     sudah_kirim?: number;
     persen_kirim?: number;
+    pendapatan_bersih?: number | null;
   };
   pembayarans?: Pembayaran[];
   dokumen: {
@@ -66,6 +68,8 @@ const TIPE_LABEL: Record<string, string> = {
   'surat-jalan-interior': 'Surat Jalan Interior',
   'invoice-interior': 'Invoice Interior',
   'sp-interior': 'Surat Pengantar Interior',
+  'surat-jalan-online': 'Surat Jalan Online',
+  'invoice-online': 'Invoice Online',
 };
 
 const TIPE_COLOR: Record<string, string> = {
@@ -78,6 +82,8 @@ const TIPE_COLOR: Record<string, string> = {
   'surat-jalan-interior': '#0369a1',
   'invoice-interior': '#15803d',
   'sp-interior': '#b45309',
+  'surat-jalan-online': '#dc2626',
+  'invoice-online': '#15803d',
 };
 
 const TIPE_BAYAR: Record<string, string> = {
@@ -92,6 +98,11 @@ const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }>
   'DRAFT': { label: 'Draft', color: '#92400e', bg: '#fffbeb' },
   'ACTIVE': { label: 'Aktif', color: '#1d4ed8', bg: '#eff6ff' },
   'COMPLETED': { label: 'Selesai', color: '#15803d', bg: '#f0fdf4' },
+  'DIPROSES': { label: 'Diproses', color: '#b91c1c', bg: '#fef2f2' },
+  'DIKIRIM': { label: 'Dikirim', color: '#1d4ed8', bg: '#eff6ff' },
+  'SELESAI': { label: 'Selesai', color: '#15803d', bg: '#f0fdf4' },
+  'DIBATALKAN': { label: 'Dibatalkan', color: '#64748b', bg: '#f1f5f9' },
+  'RETUR': { label: 'Retur', color: '#c2410c', bg: '#fff7ed' },
 };
 
 const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api').replace(/\/api$/, '');
@@ -167,7 +178,7 @@ export default function TreeSuratPage() {
   );
 
   const { penjualan, sumber: src, ringkasan, dokumen, pembayarans = [] } = data;
-  const nama = penjualan.nama_penerima || penjualan.nama_customer || '-';
+  const nama = penjualan.nama_penerima || penjualan.nama_customer || penjualan.nama_pelanggan || '-';
   const noHp = penjualan.no_hp_penerima || penjualan.no_hp || null;
   const status = STATUS_LABEL[penjualan.status] || STATUS_LABEL['ACTIVE'];
 
@@ -186,7 +197,14 @@ export default function TreeSuratPage() {
     { label: 'Lunas', done: (ringkasan.sisa_tagihan || 0) === 0 && (ringkasan.total_bayar || 0) > 0, icon: CheckCircle2 },
   ];
 
-  const steps = src === 'OFFLINE' ? stepsOffline : stepsInterior;
+  const stepsOnline = [
+    { label: 'Dibuat', done: true, icon: Package },
+    { label: 'Invoice', done: (dokumen.invoices?.length || 0) > 0, icon: FileText },
+    { label: 'Dikirim', done: ['DIKIRIM', 'SELESAI', 'RETUR'].includes(penjualan.status), icon: Truck },
+    { label: 'Selesai', done: penjualan.status === 'SELESAI', icon: CheckCircle2 },
+  ];
+
+  const steps = src === 'OFFLINE' ? stepsOffline : src === 'INTERIOR' ? stepsInterior : stepsOnline;
   const lastDoneIdx = steps.reduce((acc, s, i) => s.done ? i : acc, -1);
 
   const allDokumen = [

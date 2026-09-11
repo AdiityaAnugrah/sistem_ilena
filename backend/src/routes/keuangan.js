@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
+  PenjualanOnline, PenjualanOnlineItem, ReturOnline,
   ReturOffline, ReturSJInterior,
   sequelize,
 } = require('../models');
@@ -379,6 +380,69 @@ router.get('/interior', authenticate, async (req, res) => {
       totalPages: Math.ceil(count / limitInt),
       page: pageInt,
     });
+  } catch (err) {
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// GET /api/keuangan/online
+router.get('/online', authenticate, async (req, res) => {
+  try {
+    const isTest = req.user.role === 'TEST' ? 1 : 0;
+    const { from, to, page = 1, limit = 20 } = req.query;
+    const pageInt = Math.max(1, parseInt(page, 10) || 1);
+    const limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const dateWhere = {};
+    if (from) dateWhere[Op.gte] = from;
+    if (to) dateWhere[Op.lte] = to;
+    const where = { is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
+
+    const attachFinancials = async (sales) => {
+      const ids = sales.map(sale => Number(sale.id));
+      if (ids.length === 0) return [];
+      const [items, returs] = await Promise.all([
+        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['id', 'penjualan_online_id', 'qty', 'subtotal'] }),
+        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
+      ]);
+      const returMap = returs.reduce((map, retur) => {
+        map[retur.penjualan_online_item_id] = (map[retur.penjualan_online_item_id] || 0) + Number(retur.qty_retur || 0);
+        return map;
+      }, {});
+      const itemMap = items.reduce((map, item) => {
+        const key = Number(item.penjualan_online_id);
+        if (!map[key]) map[key] = [];
+        map[key].push(item);
+        return map;
+      }, {});
+      return sales.map(sale => {
+        const subtotal = sumItemsNetAfterRetur(itemMap[Number(sale.id)] || [], returMap);
+        const total = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0)));
+        const pendapatanBersih = sale.pendapatan_bersih === null ? null : money(sale.pendapatan_bersih);
+        return {
+          id: sale.id, id_pesanan: sale.id_pesanan, nama_pelanggan: sale.nama_pelanggan,
+          channel: sale.channel, tanggal: sale.tanggal, status: sale.status,
+          total, pendapatan_bersih: pendapatanBersih,
+          selisih: pendapatanBersih === null ? null : money(total - pendapatanBersih),
+        };
+      });
+    };
+
+    const [allSales, paged] = await Promise.all([
+      PenjualanOnline.findAll({ where, attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'channel', 'tanggal', 'status', 'ongkir', 'biaya_lain', 'diskon_order', 'pendapatan_bersih'] }),
+      PenjualanOnline.findAndCountAll({ where, attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'channel', 'tanggal', 'status', 'ongkir', 'biaya_lain', 'diskon_order', 'pendapatan_bersih'], order: [['tanggal', 'DESC'], ['created_at', 'DESC']], limit: limitInt, offset: (pageInt - 1) * limitInt }),
+    ]);
+    const [allRows, list] = await Promise.all([attachFinancials(allSales), attachFinancials(paged.rows)]);
+    const summary = allRows.reduce((acc, row) => {
+      acc.totalNilai += row.total;
+      if (row.pendapatan_bersih !== null) {
+        acc.totalNilaiSelesai += row.total;
+        acc.totalPendapatanBersih += row.pendapatan_bersih;
+      }
+      if (row.status === 'SELESAI' && row.pendapatan_bersih === null) acc.menungguPendapatan += 1;
+      return acc;
+    }, { totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
+    summary.totalSelisih = money(summary.totalNilaiSelesai - summary.totalPendapatanBersih);
+    return res.json({ summary, list, total: paged.count, totalPages: Math.ceil(paged.count / limitInt), page: pageInt });
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
