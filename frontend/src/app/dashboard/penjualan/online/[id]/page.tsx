@@ -28,6 +28,28 @@ type OnlineData = {
   metode_pembayaran: string; faktur: string; kurangi_stok: number; qty_net: number;
 };
 
+function StatusTimeline({ status, completed }: { status: string; completed: boolean }) {
+  const normalStages = ['DIPROSES', 'DIKIRIM', 'SELESAI'];
+  const terminal = status === 'DIBATALKAN' || status === 'RETUR' ? status : null;
+  const activeIndex = normalStages.indexOf(status);
+  const stages = terminal ? [...normalStages, terminal] : normalStages;
+  const isPassed = (stage: string, index: number) => {
+    if (!terminal) return index < activeIndex;
+    if (status === 'DIBATALKAN') return stage === 'DIPROSES';
+    if (status === 'RETUR') return stage === 'DIPROSES' || stage === 'DIKIRIM' || (stage === 'SELESAI' && completed);
+    return false;
+  };
+
+  return <div className="flex flex-wrap items-center justify-end gap-1.5" aria-label="Riwayat status">
+    {stages.map((stage, index) => {
+      const active = stage === status;
+      const passed = isPassed(stage, index);
+      const colors = active ? 'bg-red-600 text-white ring-red-200' : passed ? 'bg-green-600 text-white ring-green-200' : 'bg-slate-200 text-slate-500 ring-slate-100';
+      return <div key={`${stage}-${index}`} className="flex items-center gap-1.5">{index > 0 && <span className={`h-0.5 w-4 ${passed || active ? 'bg-green-500' : 'bg-slate-200'}`}/>}<span className={`rounded-full px-3 py-1.5 text-xs font-bold ring-2 ${colors}`}>{stage}</span></div>;
+    })}
+  </div>;
+}
+
 export default function PenjualanOnlineDetail() {
   const params = useParams();
   const id = params.id as string;
@@ -113,7 +135,7 @@ export default function PenjualanOnlineDetail() {
   return <div className="max-w-6xl mx-auto pb-12 space-y-6">
     <div className="flex items-center justify-between gap-3">
       <div><Link href="/dashboard/penjualan/online" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-red-600 mb-3"><ArrowLeft className="w-4 h-4"/>Kembali</Link><h1 className="text-2xl font-bold text-slate-800">Pesanan {data.id_pesanan}</h1><p className="text-sm text-slate-500">{data.channel} · {formatDate(data.tanggal)}</p></div>
-      <div className="flex gap-2 flex-wrap justify-end"><span className="rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700">{data.status}</span>{data.status === 'DIPROSES' && <><Button disabled={saving || !suratJalan} onClick={() => setStatusTarget('DIKIRIM')}>Ubah ke DIKIRIM</Button><Button disabled={saving} variant="outline" onClick={() => setStatusTarget('DIBATALKAN')}>Batalkan</Button></>}{data.status === 'DIKIRIM' && <Button disabled={saving} onClick={() => setStatusTarget('SELESAI')}>Selesaikan Pesanan</Button>}</div>
+      <div className="space-y-3"><StatusTimeline status={data.status} completed={data.pendapatan_bersih !== null && data.pendapatan_bersih !== undefined}/><div className="flex gap-2 flex-wrap justify-end">{data.status === 'DIPROSES' && <><Button disabled={saving || !suratJalan} onClick={() => setStatusTarget('DIKIRIM')}>Ubah ke DIKIRIM</Button><Button disabled={saving} variant="outline" onClick={() => setStatusTarget('DIBATALKAN')}>Batalkan</Button></>}{data.status === 'DIKIRIM' && <Button disabled={saving} onClick={() => setStatusTarget('SELESAI')}>Selesaikan Pesanan</Button>}</div></div>
     </div>
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

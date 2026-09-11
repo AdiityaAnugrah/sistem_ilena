@@ -135,7 +135,7 @@ async function fetchInvoiceOnline(id) {
   if (!inv) return null;
   const penjualan = normalizeOnlinePenjualan(await attachBarangOnline(inv.penjualan));
   return {
-    html: generateHTMLInvoice({ ...inv.toJSON(), enable_signature: true, ppn_persen: 0, penjualan }),
+    html: generateHTMLInvoice({ ...inv.toJSON(), enable_signature: true, online_document: true, ppn_persen: 0, penjualan }),
     nomor: inv.nomor_invoice,
     tanggal: inv.tanggal,
     nama: penjualan.nama_penerima,

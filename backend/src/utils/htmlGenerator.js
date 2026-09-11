@@ -1297,6 +1297,7 @@ const generateHTMLInvoice = (inv) => {
   const items = penjualan.items || [];
   const suratJalans = penjualan.suratJalans || [];
   const enableSignature = inv.enable_signature === true;
+  const isOnline = inv.online_document === true;
   
   const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
   const jatuhTempoFormat = inv.jatuh_tempo ? dayjs(inv.jatuh_tempo).format('DD MMMM YYYY') : '-';
@@ -1320,7 +1321,7 @@ const generateHTMLInvoice = (inv) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10.5px; color:#6b7280; font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const isSpesial = diskon !== 0;
+    const isSpesial = !isOnline && diskon !== 0;
     const spesialHtml = isSpesial
       ? `<br><span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 5px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
@@ -1537,11 +1538,8 @@ const generateHTMLInvoice = (inv) => {
                             <i style="font-size:11.5px;">${terbilang(grandTotal)}</i>
                         </td>
                     </tr>
-                    <tr>
-                        <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">PO</td>
-                        <td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.no_po || '-'}</td>
-                    </tr>
-                    <tr>
+                    <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">${isOnline ? 'ID Pesanan' : 'PO'}</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.no_po || '-'}</td></tr>
+                    ${!isOnline ? `<tr>
                         <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Surat Jalan</td>
                         <td style="white-space:nowrap; font-size:11.5px;">:
                             <span class="text-muted">${sjString || '-'}</span>
@@ -1550,13 +1548,13 @@ const generateHTMLInvoice = (inv) => {
                     <tr>
                         <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Jatuh Tempo</td>
                         <td style="white-space:nowrap; font-size:11.5px;">: ${jatuhTempoFormat}</td>
-                    </tr>
+                    </tr>` : ''}
                 </tbody>
             </table>
         </div>
 
         <!-- Footer -->
-        <div class="d-flex justify-content-between mt-5 mb-3">
+        ${isOnline ? `<div class="d-flex justify-content-end mt-5 mb-3"><div style="width:200px;text-align:center"><p class="m-0">Dibuat Oleh :</p><div style="height:86px;position:relative"></div><div style="font-weight:700">Admin</div><p class="m-0">____________________</p></div></div>` : `<div class="d-flex justify-content-between mt-5 mb-3">
             <div class="d-flex flex-column kotak-pembayaran">
                 <p class="m-0" style="font-size:12px;">
                     Pembayaran mohon dapat ditransfer ke rekening: <br>
@@ -1567,7 +1565,7 @@ const generateHTMLInvoice = (inv) => {
                 Bagian Keuangan <br><br><br><br><br>
                 <p class="tw-bold-italic" style="font-size:12px;">Amaroh U'un Setiawan</p>
             </div>
-        </div>
+        </div>`}
     </div>
     ${enableSignature
       ? buildFullToolbarJS(`invoice-${inv.nomor_invoice || 'dokumen'}.pdf`)
