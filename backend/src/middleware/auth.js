@@ -1,6 +1,20 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 
+const sendPrintAuthError = (res, message, status = 401) => {
+  res.status(status).type('html').send(`<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cetak Ulang</title></head>
+<body style="font-family:Arial,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#f8fafc;color:#334155">
+  <div style="text-align:center;padding:24px"><h2 style="color:#b91c1c">Sesi cetak berakhir</h2><p>${message}. Silakan cetak ulang dari aplikasi.</p><button onclick="window.close()" style="border:0;border-radius:8px;background:#dc2626;color:white;padding:10px 18px;cursor:pointer">Kembali ke aplikasi</button></div>
+  <script>
+    if (window.opener) {
+      window.opener.postMessage({ type: 'ILENA_PRINT_TOKEN_EXPIRED' }, '*');
+      setTimeout(function () { window.close(); }, 500);
+    }
+  </script>
+</body></html>`);
+};
+
 const authenticate = async (req, res, next) => {
   try {
     let token = null;
@@ -32,24 +46,24 @@ const authenticatePrint = async (req, res, next) => {
   try {
     const token = req.query.token;
     if (!token) {
-      return res.status(401).json({ message: 'Print token tidak ditemukan' });
+      return sendPrintAuthError(res, 'Print token tidak ditemukan');
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (decoded.purpose !== 'print') {
-      return res.status(403).json({ message: 'Token tidak valid untuk akses print' });
+      return sendPrintAuthError(res, 'Token tidak valid untuk akses print', 403);
     }
 
     const user = await User.findOne({ where: { id: decoded.id, active: 1 } });
     if (!user) {
-      return res.status(401).json({ message: 'User tidak valid' });
+      return sendPrintAuthError(res, 'User tidak valid');
     }
 
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ message: 'Print token tidak valid atau sudah kadaluarsa' });
+    return sendPrintAuthError(res, 'Print token tidak valid atau sudah kedaluwarsa');
   }
 };
 

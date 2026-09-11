@@ -1,16 +1,31 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Sidebar from '@/components/layout/Sidebar';
 import MobileBottomNav from '@/components/layout/MobileBottomNav';
 import GlobalSearch from '@/components/GlobalSearch';
 import { Menu, X } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
+import toast from 'react-hot-toast';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const user = useAuthStore((s: { user: { role?: string } | null }) => s.user);
   const isTestMode = user?.role === 'TEST';
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    let apiOrigin = '';
+    try { apiOrigin = new URL(apiUrl, window.location.origin).origin; } catch { /* abaikan URL invalid */ }
+    const handlePrintMessage = (event: MessageEvent) => {
+      if (apiOrigin && event.origin !== apiOrigin) return;
+      if (event.data?.type === 'ILENA_PRINT_TOKEN_EXPIRED') {
+        toast.error('Sesi cetak sudah berakhir. Silakan tekan tombol Cetak lagi.');
+      }
+    };
+    window.addEventListener('message', handlePrintMessage);
+    return () => window.removeEventListener('message', handlePrintMessage);
+  }, []);
 
   return (
     <AuthGuard>
