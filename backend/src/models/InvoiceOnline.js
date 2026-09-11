@@ -8,6 +8,7 @@ const InvoiceOnline = sequelize.define('invoice_online', {
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   jatuh_tempo: { type: DataTypes.DATEONLY, allowNull: true },
   catatan: { type: DataTypes.TEXT },
+  printed_at: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   created_by: { type: DataTypes.INTEGER },
 }, {
   timestamps: true,

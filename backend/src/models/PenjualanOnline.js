@@ -23,6 +23,7 @@ const PenjualanOnline = sequelize.define('penjualan_online', {
   diskon_order: { type: DataTypes.DECIMAL(15, 2), allowNull: false, defaultValue: 0 },
   kurangi_stok: { type: DataTypes.TINYINT(1), allowNull: false, defaultValue: 1 },
   catatan: { type: DataTypes.TEXT, defaultValue: null },
+  pendapatan_bersih: { type: DataTypes.DECIMAL(15, 2), allowNull: true, defaultValue: null },
   status: {
     type: DataTypes.ENUM('DIPROSES', 'DIKIRIM', 'SELESAI', 'DIBATALKAN', 'RETUR'),
     allowNull: false,

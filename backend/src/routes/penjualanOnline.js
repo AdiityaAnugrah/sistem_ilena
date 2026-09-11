@@ -24,6 +24,15 @@ const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
 
 const STATUS = ['DIPROSES', 'DIKIRIM', 'SELESAI', 'DIBATALKAN', 'RETUR'];
+const STATUS_TRANSITIONS = {
+  DIPROSES: ['DIKIRIM', 'DIBATALKAN'],
+  DIKIRIM: ['SELESAI'],
+  SELESAI: [],
+  DIBATALKAN: [],
+  RETUR: [],
+};
+const isAllowedStatusTransition = (current, next) => (STATUS_TRANSITIONS[current] || []).includes(next);
+const isFullReturn = (totalQty, previousReturQty, newReturQty) => previousReturQty + newReturQty >= totalQty;
 const cleanText = (value, fallback = '') => {
   const text = String(value || '').trim();
   return text || fallback;
@@ -170,7 +179,7 @@ router.post('/', authenticate, async (req, res) => {
       diskon_order: money(diskon_order),
       kurangi_stok: kurangi_stok ? 1 : 0,
       catatan: catatan || null,
-      status: nomor_resi ? 'DIKIRIM' : 'DIPROSES',
+      status: 'DIPROSES',
       is_test,
       created_by: req.user.id,
     }, { transaction: t });
@@ -332,6 +341,19 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
   try {
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    if (['DIBATALKAN', 'RETUR'].includes(online.status)) {
+      return res.status(400).json({ message: `Surat Jalan tidak dapat dibuat saat status ${online.status}` });
+    }
+    const invoicePrinted = await InvoiceOnline.findOne({
+      where: { penjualan_online_id: online.id, printed_at: { [Op.ne]: null } },
+    });
+    if (!invoicePrinted) {
+      return res.status(400).json({ message: 'Cetak Invoice terlebih dahulu sebelum membuat Surat Jalan' });
+    }
+    const existing = await SuratJalanOnline.findOne({ where: { penjualan_online_id: online.id } });
+    if (existing) {
+      return res.status(400).json({ message: 'Surat Jalan untuk pesanan ini sudah dibuat' });
+    }
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
     const nomor_surat = await generateNomorSJOnline(online.faktur, tanggal, online.is_test === 1);
     const sj = await SuratJalanOnline.create({
@@ -353,6 +375,13 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
   try {
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    if (['DIBATALKAN', 'RETUR'].includes(online.status)) {
+      return res.status(400).json({ message: `Invoice tidak dapat dibuat saat status ${online.status}` });
+    }
+    const existing = await InvoiceOnline.findOne({ where: { penjualan_online_id: online.id } });
+    if (existing) {
+      return res.status(400).json({ message: 'Invoice untuk pesanan ini sudah dibuat' });
+    }
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoiceOnline(online.faktur, tanggal, online.is_test === 1);
     const jatuh_tempo = new Date(new Date(tanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -400,7 +429,34 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
     const status = String(req.body.status || '').toUpperCase();
     if (!STATUS.includes(status)) return res.status(400).json({ message: 'Status tidak valid' });
-    await online.update({ status });
+    if (status === online.status) return res.json({ message: 'Status tidak berubah', status });
+    if (!isAllowedStatusTransition(online.status, status)) {
+      return res.status(400).json({
+        message: `Status tidak dapat diubah dari ${online.status} ke ${status}. Status yang sudah maju tidak dapat dikembalikan.`,
+      });
+    }
+
+    const updates = { status };
+    if (status === 'DIKIRIM') {
+      const [invoicePrinted, suratJalan] = await Promise.all([
+        InvoiceOnline.findOne({ where: { penjualan_online_id: online.id, printed_at: { [Op.ne]: null } } }),
+        SuratJalanOnline.findOne({ where: { penjualan_online_id: online.id } }),
+      ]);
+      if (!invoicePrinted) return res.status(400).json({ message: 'Invoice wajib dicetak sebelum pesanan dikirim' });
+      if (!suratJalan) return res.status(400).json({ message: 'Surat Jalan wajib dibuat sebelum pesanan dikirim' });
+    }
+    if (status === 'SELESAI') {
+      const rawPendapatan = req.body.pendapatan_bersih;
+      if (rawPendapatan === '' || rawPendapatan === null || rawPendapatan === undefined) {
+        return res.status(400).json({ message: 'Pendapatan bersih wajib diisi sebelum menyelesaikan pesanan' });
+      }
+      const pendapatanBersih = Number(rawPendapatan);
+      if (!Number.isFinite(pendapatanBersih) || pendapatanBersih < 0) {
+        return res.status(400).json({ message: 'Pendapatan bersih harus berupa angka nol atau lebih' });
+      }
+      updates.pendapatan_bersih = money(pendapatanBersih);
+    }
+    await online.update(updates);
     await logAction(req.user.id, 'UPDATE_STATUS_ONLINE', `Penjualan Online #${online.id} → ${status}`, req.ip);
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
     emitDataUpdated('penjualan-online-list', { updatedBy: req.user.id });
@@ -414,10 +470,12 @@ router.patch('/:id/resi', authenticate, async (req, res) => {
   try {
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
+    if (req.body.nomor_resi && online.status === 'DIPROSES') {
+      return res.status(400).json({ message: 'Ubah status ke DIKIRIM melalui tombol status setelah Invoice dicetak dan Surat Jalan dibuat' });
+    }
     await online.update({
       nomor_resi: req.body.nomor_resi || null,
       jasa_kirim: req.body.jasa_kirim || online.jasa_kirim,
-      status: req.body.nomor_resi ? 'DIKIRIM' : online.status,
     });
     await logAction(req.user.id, 'UPDATE_RESI_ONLINE', `Penjualan Online #${online.id}, Resi: ${req.body.nomor_resi || '-'}`, req.ip);
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
@@ -439,7 +497,15 @@ router.post('/:id/retur', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(404).json({ message: 'Penjualan online tidak ditemukan' });
     }
+    if (!['DIKIRIM', 'SELESAI'].includes(online.status)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Retur hanya dapat dicatat setelah pesanan DIKIRIM atau SELESAI' });
+    }
     const { tanggal, catatan, items } = req.body;
+    if (!String(catatan || '').trim()) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Alasan retur wajib diisi' });
+    }
     if (!Array.isArray(items) || items.length === 0) {
       await t.rollback();
       return res.status(400).json({ message: 'Minimal 1 item retur wajib diisi' });
@@ -471,7 +537,11 @@ router.post('/:id/retur', authenticate, async (req, res) => {
       }, { transaction: t });
       restoreItems.push({ ...item.dataValues, qty: qtyRetur });
     }
-    await online.update({ status: 'RETUR' }, { transaction: t });
+    const totalQty = (online.items || []).reduce((sum, item) => sum + Number(item.qty || 0), 0);
+    const previousReturQty = Object.values(existing).reduce((sum, qty) => sum + Number(qty || 0), 0);
+    const newReturQty = restoreItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+    const isReturPenuh = isFullReturn(totalQty, previousReturQty, newReturQty);
+    if (isReturPenuh) await online.update({ status: 'RETUR' }, { transaction: t });
     await t.commit();
     if (online.kurangi_stok === 1) {
       await adjustStok(restoreItems, online.is_test === 1, 'restore');
@@ -479,11 +549,17 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     await logAction(req.user.id, 'CATAT_RETUR_ONLINE', `Penjualan Online #${online.id}, ${restoreItems.length} item`, req.ip);
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
     emitDataUpdated('penjualan-online-list', { updatedBy: req.user.id });
-    return res.status(201).json({ message: 'Retur online berhasil dicatat' });
+    return res.status(201).json({
+      message: isReturPenuh ? 'Retur penuh berhasil dicatat' : 'Retur sebagian berhasil dicatat',
+      retur_penuh: isReturPenuh,
+      status: isReturPenuh ? 'RETUR' : online.status,
+    });
   } catch (err) {
     await t.rollback().catch(() => {});
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+router.__testables = { isAllowedStatusTransition, isFullReturn };
 
 module.exports = router;

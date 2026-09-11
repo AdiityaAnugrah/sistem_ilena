@@ -128,6 +128,10 @@ router.get('/invoice-online/:id/print', authenticatePrint, async (req, res) => {
   try {
     const doc = await fetchInvoiceOnline(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Invoice Online tidak ditemukan' });
+    await InvoiceOnline.update(
+      { printed_at: new Date() },
+      { where: { id: req.params.id, printed_at: null } },
+    );
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(doc.html);
   } catch (err) {
