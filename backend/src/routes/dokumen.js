@@ -142,6 +142,14 @@ async function fetchInvoiceOnline(id) {
   };
 }
 
+// Template print memakai JavaScript inline dan CDN untuk toolbar TTD/cetak/PDF.
+// Harus dipasang sebelum seluruh route print, termasuk dokumen online.
+router.use((_req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  res.removeHeader('X-Content-Type-Options');
+  next();
+});
+
 router.get('/surat-jalan-online/:id/print', authenticatePrint, async (req, res) => {
   try {
     const doc = await fetchSuratJalanOnline(req.params.id);
@@ -166,13 +174,6 @@ router.get('/invoice-online/:id/print', authenticatePrint, async (req, res) => {
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
-});
-
-// Hapus CSP untuk semua dokumen print (template HTML butuh inline script + CDN)
-router.use((_req, res, next) => {
-  res.removeHeader('Content-Security-Policy');
-  res.removeHeader('X-Content-Type-Options'); // agar gambar dari origin lain bisa dimuat
-  next();
 });
 
 async function fetchSuratJalan(id) {
