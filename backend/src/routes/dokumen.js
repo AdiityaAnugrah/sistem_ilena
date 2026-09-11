@@ -121,7 +121,7 @@ async function fetchSuratJalanOnline(id) {
   if (!sj) return null;
   const penjualan = normalizeOnlinePenjualan(await attachBarangOnline(sj.penjualan));
   return {
-    html: generateHTMLSuratJalan({ ...sj.toJSON(), penjualan }),
+    html: generateHTMLSuratJalan({ ...sj.toJSON(), online_document: true, penjualan }),
     nomor: sj.nomor_surat,
     tanggal: sj.tanggal,
     nama: penjualan.nama_penerima,

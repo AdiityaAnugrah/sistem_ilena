@@ -581,6 +581,7 @@ const terbilang = (num) => {
 const generateHTMLSuratJalan = (sj) => {
   const penjualan = sj.penjualan || {};
   const items = penjualan.items || [];
+  const isOnline = sj.online_document === true;
   
   // Tanggal format: Kendal, 10 Maret 2026
   const tanggalFormat = dayjs(sj.tanggal).format('DD MMMM YYYY');
@@ -606,7 +607,7 @@ const generateHTMLSuratJalan = (sj) => {
     const warnaHtml = item.varian_nama?.trim()
       ? `<span style="font-size:10px; color:var(--muted); font-style:italic;">(${item.varian_nama.trim().toUpperCase()})</span>`
       : '';
-    const isSpesial = diskon !== 0;
+    const isSpesial = !isOnline && diskon !== 0;
     const spesialHtml = isSpesial
       ? `<span style="font-size:9px; color:#b45309; font-weight:700; background:#fef3c7; border-radius:3px; padding:1px 4px; white-space:nowrap;">[SPESIAL PRICE]</span>`
       : '';
