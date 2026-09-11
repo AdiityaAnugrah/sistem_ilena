@@ -57,6 +57,7 @@ const { sendDocumentEmail } = require('../utils/mailer');
 const { htmlToPdf } = require('../utils/htmlToPdf');
 const fs = require('fs');
 const path = require('path');
+const BarangTest = require('../models/BarangTest');
 const SIGS_DIR = path.join(__dirname, '../../uploads/signatures');
 
 // Inject signature image into the first sig-body (Dibuat Oleh) of a document HTML
@@ -86,31 +87,54 @@ const onlineDocHtml = (title, nomor, tanggal, penjualan) => {
     return `<tr><td>${idx + 1}</td><td>${esc(it.barang_id)}</td><td>${esc(it.barang?.nama || it.barang_id)}</td><td>${esc(it.varian_nama || '-')}</td><td class="num">${qty}</td><td class="num">${rupiah(it.harga_satuan)}</td><td class="num">${rupiah(subtotal)}</td></tr>`;
   }).join('');
   const subtotal = (p.items || []).reduce((s, it) => s + Number(it.subtotal || 0), 0);
-  const total = Math.max(0, subtotal + Number(p.biaya_lain || 0) - Number(p.diskon_order || 0));
+  const total = Math.max(0, subtotal + Number(p.ongkir || 0) + Number(p.biaya_lain || 0) - Number(p.diskon_order || 0));
   const alamat = [p.alamat_detail, p.kelurahan?.label, p.kecamatan?.label, p.kabupaten?.label, p.provinsi?.label, p.kode_pos].filter(Boolean).join(', ');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} ${esc(nomor)}</title><style>
     body{font-family:Arial,sans-serif;color:#111827;margin:36px;font-size:12px}.head{display:flex;justify-content:space-between;border-bottom:2px solid #111827;padding-bottom:14px;margin-bottom:18px}.brand{font-size:22px;font-weight:800}.doc{font-size:18px;font-weight:800;text-align:right}.muted{color:#64748b}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}.box{border:1px solid #e5e7eb;border-radius:10px;padding:12px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{border:1px solid #e5e7eb;padding:8px;text-align:left}th{background:#f8fafc}.num{text-align:right}.total{margin-left:auto;width:320px;margin-top:14px}.total div{display:flex;justify-content:space-between;padding:6px 0}.grand{font-size:15px;font-weight:800;border-top:2px solid #111827}.sign{margin-top:42px;display:flex;justify-content:flex-end}.sign div{text-align:center;width:180px}.space{height:64px}
   </style></head><body><div class="head"><div><div class="brand">ILENA</div><div class="muted">Online Sales Document</div></div><div><div class="doc">${esc(title)}</div><div>${esc(nomor)}</div><div>${esc(tanggal)}</div></div></div>
   <div class="grid"><div class="box"><b>Pelanggan</b><br>${esc(p.nama_pelanggan)}<br>${esc(p.no_hp)}<br><span class="muted">${esc(alamat)}</span></div><div class="box"><b>Pesanan</b><br>ID Pesanan: ${esc(p.id_pesanan)}<br>Platform: ${esc(p.channel)}<br>Faktur: ${esc(p.faktur)}</div></div>
   <table><thead><tr><th>No</th><th>Kode</th><th>Produk</th><th>Varian</th><th>Qty</th><th>Harga</th><th>Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="total"><div><span>Subtotal</span><b>${rupiah(subtotal)}</b></div><div><span>Biaya lain</span><b>${rupiah(p.biaya_lain)}</b></div><div><span>Diskon</span><b>- ${rupiah(p.diskon_order)}</b></div><div class="grand"><span>Total</span><span>${rupiah(total)}</span></div></div>
+  <div class="total"><div><span>Subtotal</span><b>${rupiah(subtotal)}</b></div><div><span>Ongkir</span><b>${rupiah(p.ongkir)}</b></div><div><span>Biaya lain</span><b>${rupiah(p.biaya_lain)}</b></div><div><span>Diskon</span><b>- ${rupiah(p.diskon_order)}</b></div><div class="grand"><span>Total</span><span>${rupiah(total)}</span></div></div>
   <div class="sign"><div>Dibuat Oleh<div class="space"></div>( Admin )</div></div></body></html>`;
 };
 
+async function attachBarangOnline(penjualan) {
+  const data = penjualan?.toJSON ? penjualan.toJSON() : penjualan;
+  if (!data) return data;
+  const barangIds = [...new Set((data.items || []).map(item => item.barang_id).filter(Boolean))];
+  if (barangIds.length === 0) return data;
+
+  // Jangan gunakan association JOIN: barang.id dan item.barang_id pada database
+  // lama memakai collation berbeda dan akan memicu "Illegal mix of collations".
+  const BarangModel = data.is_test === 1 ? BarangTest : Barang;
+  const barangs = await BarangModel.findAll({ where: { id: { [Op.in]: barangIds } } });
+  const barangMap = barangs.reduce((acc, barang) => {
+    acc[String(barang.id)] = barang.toJSON ? barang.toJSON() : barang;
+    return acc;
+  }, {});
+  data.items = (data.items || []).map(item => ({
+    ...item,
+    barang: barangMap[String(item.barang_id)] || null,
+  }));
+  return data;
+}
+
 async function fetchSuratJalanOnline(id) {
   const sj = await SuratJalanOnline.findByPk(id, {
-    include: [{ model: PenjualanOnline, as: 'penjualan', include: [{ model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] }, { model: Provinsi, as: 'provinsi' }, { model: Kabupaten, as: 'kabupaten' }, { model: Kecamatan, as: 'kecamatan' }, { model: Kelurahan, as: 'kelurahan' }] }],
+    include: [{ model: PenjualanOnline, as: 'penjualan', include: [{ model: PenjualanOnlineItem, as: 'items' }, { model: Provinsi, as: 'provinsi' }, { model: Kabupaten, as: 'kabupaten' }, { model: Kecamatan, as: 'kecamatan' }, { model: Kelurahan, as: 'kelurahan' }] }],
   });
   if (!sj) return null;
-  return { html: onlineDocHtml('SURAT JALAN ONLINE', sj.nomor_surat, sj.tanggal, sj.penjualan?.toJSON ? sj.penjualan.toJSON() : sj.penjualan), nomor: sj.nomor_surat };
+  const penjualan = await attachBarangOnline(sj.penjualan);
+  return { html: onlineDocHtml('SURAT JALAN ONLINE', sj.nomor_surat, sj.tanggal, penjualan), nomor: sj.nomor_surat };
 }
 
 async function fetchInvoiceOnline(id) {
   const inv = await InvoiceOnline.findByPk(id, {
-    include: [{ model: PenjualanOnline, as: 'penjualan', include: [{ model: PenjualanOnlineItem, as: 'items', include: [{ model: Barang, as: 'barang' }] }, { model: Provinsi, as: 'provinsi' }, { model: Kabupaten, as: 'kabupaten' }, { model: Kecamatan, as: 'kecamatan' }, { model: Kelurahan, as: 'kelurahan' }] }],
+    include: [{ model: PenjualanOnline, as: 'penjualan', include: [{ model: PenjualanOnlineItem, as: 'items' }, { model: Provinsi, as: 'provinsi' }, { model: Kabupaten, as: 'kabupaten' }, { model: Kecamatan, as: 'kecamatan' }, { model: Kelurahan, as: 'kelurahan' }] }],
   });
   if (!inv) return null;
-  return { html: onlineDocHtml('INVOICE ONLINE', inv.nomor_invoice, inv.tanggal, inv.penjualan?.toJSON ? inv.penjualan.toJSON() : inv.penjualan), nomor: inv.nomor_invoice };
+  const penjualan = await attachBarangOnline(inv.penjualan);
+  return { html: onlineDocHtml('INVOICE ONLINE', inv.nomor_invoice, inv.tanggal, penjualan), nomor: inv.nomor_invoice };
 }
 
 router.get('/surat-jalan-online/:id/print', authenticatePrint, async (req, res) => {
