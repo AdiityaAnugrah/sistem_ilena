@@ -1296,6 +1296,7 @@ const generateHTMLInvoice = (inv) => {
   const penjualan = inv.penjualan || {};
   const items = penjualan.items || [];
   const suratJalans = penjualan.suratJalans || [];
+  const enableSignature = inv.enable_signature === true;
   
   const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
   const jatuhTempoFormat = inv.jatuh_tempo ? dayjs(inv.jatuh_tempo).format('DD MMMM YYYY') : '-';
@@ -1353,8 +1354,11 @@ const generateHTMLInvoice = (inv) => {
 
   // PPN calculation
   const ppnPersen = Number(inv.ppn_persen) || 0;
+  const ongkir = Number(penjualan.ongkir || 0);
+  const biayaLain = Number(penjualan.biaya_lain || 0);
+  const diskonOrder = Number(penjualan.diskon_order || 0);
   const ppnAmount = Math.round(totalInvoice * ppnPersen / 100);
-  const grandTotal = totalInvoice + ppnAmount;
+  const grandTotal = Math.max(0, totalInvoice + ppnAmount + ongkir + biayaLain - diskonOrder);
 
   const bankFaktur = "BCA 8715898787 a.n. CATUR BHAKTI MANDIRI";
   const bankNonFaktur = "BCA 8715883488 a.n. EL LIE PURNAMA";
@@ -1441,9 +1445,10 @@ const generateHTMLInvoice = (inv) => {
     </style>
 </head>
 <body>
-    ${TOOLBAR_HTML_SIMPLE}
+    ${enableSignature ? TOOLBAR_HTML_FULL : TOOLBAR_HTML_SIMPLE}
     ${lunasWatermark}
     <div class="page">
+        ${enableSignature ? SIG_OVERLAY_HTML : ''}
         <!-- Header perusahaan -->
         <div class="d-flex gap-4 justify-content-start mb-4">
             <div><img src="${LOGO_CBM}" alt="Logo" width="70" height="40"></div>
@@ -1503,6 +1508,9 @@ const generateHTMLInvoice = (inv) => {
                         <td colspan="5" class="fw-semibold">SUBTOTAL</td>
                         <td class="num fw-semibold">${formatRupiah(totalInvoice)}</td>
                     </tr>
+                    ${ongkir > 0 ? `<tr><td colspan="5" class="fw-semibold">ONGKIR</td><td class="num fw-semibold">${formatRupiah(ongkir)}</td></tr>` : ''}
+                    ${biayaLain > 0 ? `<tr><td colspan="5" class="fw-semibold">BIAYA LAIN</td><td class="num fw-semibold">${formatRupiah(biayaLain)}</td></tr>` : ''}
+                    ${diskonOrder > 0 ? `<tr><td colspan="5" class="fw-semibold">DISKON PESANAN</td><td class="num fw-semibold">- ${formatRupiah(diskonOrder)}</td></tr>` : ''}
                     ${ppnPersen > 0 ? `
                     <tr>
                         <td colspan="5" class="fw-semibold">PPN ${ppnPersen}%</td>
@@ -1514,7 +1522,7 @@ const generateHTMLInvoice = (inv) => {
                     </tr>` : `
                     <tr>
                         <td colspan="5" class="fw-semibold">TOTAL INVOICE</td>
-                        <td class="num fw-semibold">${formatRupiah(totalInvoice)}</td>
+                        <td class="num fw-semibold">${formatRupiah(grandTotal)}</td>
                     </tr>`}
                 </tbody>
             </table>
@@ -1561,7 +1569,9 @@ const generateHTMLInvoice = (inv) => {
             </div>
         </div>
     </div>
-    ${buildSimpleToolbarJS(`invoice-${inv.nomor_invoice || 'dokumen'}.pdf`)}
+    ${enableSignature
+      ? buildFullToolbarJS(`invoice-${inv.nomor_invoice || 'dokumen'}.pdf`)
+      : buildSimpleToolbarJS(`invoice-${inv.nomor_invoice || 'dokumen'}.pdf`)}
     ${MOBILE_SCALE_JS}
 </body>
 </html>
