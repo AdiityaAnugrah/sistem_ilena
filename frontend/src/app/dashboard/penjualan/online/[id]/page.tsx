@@ -8,6 +8,7 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import DateInput from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -62,6 +63,9 @@ export default function PenjualanOnlineDetail() {
   const [returQty, setReturQty] = useState<Record<number, number>>({});
   const [statusTarget, setStatusTarget] = useState<StatusTarget | null>(null);
   const [pendapatanBersih, setPendapatanBersih] = useState('');
+  const [sjFormOpen, setSjFormOpen] = useState(false);
+  const [sjTanggal, setSjTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const [sjCatatan, setSjCatatan] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -99,6 +103,18 @@ export default function PenjualanOnlineDetail() {
       toast.success(res.data.nomor_surat || res.data.nomor_invoice);
       void fetchData();
     } catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat dokumen'); }
+    finally { setSaving(false); }
+  };
+
+  const createSuratJalan = async () => {
+    if (!sjTanggal) return toast.error('Tanggal Surat Jalan wajib diisi');
+    setSaving(true);
+    try {
+      const res = await api.post(`/penjualan-online/${id}/surat-jalan`, { tanggal: sjTanggal, catatan: sjCatatan.trim() || null });
+      toast.success(res.data.nomor_surat || 'Surat Jalan berhasil dibuat');
+      setSjFormOpen(false);
+      void fetchData();
+    } catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat Surat Jalan'); }
     finally { setSaving(false); }
   };
 
@@ -144,7 +160,7 @@ export default function PenjualanOnlineDetail() {
         <div className="text-xs text-slate-500">Urutan dokumen: buat dan cetak Invoice, lalu buat Surat Jalan.</div>
         {!invoice && <Button disabled={saving || data.status !== 'DIPROSES'} onClick={() => createDoc('invoice')} className="w-full bg-red-600 hover:bg-red-700">Buat Invoice Online</Button>}
         {invoice && <div className="rounded-lg bg-slate-50 border px-3 py-2 flex items-center justify-between gap-2"><div><b>{invoice.nomor_invoice}</b><br/><span className="text-xs text-slate-500">{formatDate(invoice.tanggal)} · {invoiceSudahDicetak ? 'Sudah dicetak' : 'Belum dicetak'}</span></div><Button size="sm" variant="outline" onClick={() => printDoc('invoice-online', invoice.id)}>Cetak Invoice</Button></div>}
-        {invoiceSudahDicetak && !suratJalan && <Button disabled={saving || data.status !== 'DIPROSES'} onClick={() => createDoc('surat-jalan')} className="w-full bg-red-600 hover:bg-red-700">Buat SJ Online</Button>}
+        {invoiceSudahDicetak && !suratJalan && <Button disabled={saving || data.status !== 'DIPROSES'} onClick={() => setSjFormOpen(true)} className="w-full bg-red-600 hover:bg-red-700">Buat SJ Online</Button>}
         {!invoiceSudahDicetak && invoice && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Cetak Invoice agar Surat Jalan dapat dibuat.</p>}
         {suratJalan && <div className="rounded-lg bg-slate-50 border px-3 py-2 flex items-center justify-between gap-2"><div><b>{suratJalan.nomor_surat}</b><br/><span className="text-xs text-slate-500">{formatDate(suratJalan.tanggal)}</span></div><Button size="sm" variant="outline" onClick={() => printDoc('surat-jalan-online', suratJalan.id)}>Cetak SJ</Button></div>}
       </CardContent></Card>
@@ -159,5 +175,7 @@ export default function PenjualanOnlineDetail() {
     <Card><CardHeader><CardTitle className="text-base">Riwayat Retur</CardTitle></CardHeader><CardContent>{(data.returs || []).length === 0 ? <p className="text-sm text-slate-500">Belum ada retur.</p> : <div className="space-y-2">{data.returs?.map((r) => <div key={r.id} className="rounded-lg border p-3 text-sm"><b>{formatDate(r.tanggal)}</b> · {r.qty_retur} pcs · {r.item?.barang_id}{r.catatan ? ` · ${r.catatan}` : ''}</div>)}</div>}</CardContent></Card>
 
     <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !saving) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Konfirmasi perubahan status</DialogTitle><DialogDescription>Status akan diubah dari {data.status} ke {statusTarget}. Setelah disimpan, status tidak dapat dikembalikan ke tahap sebelumnya.</DialogDescription></DialogHeader>{statusTarget === 'SELESAI' && <div className="space-y-2"><Label htmlFor="pendapatan-bersih">Pendapatan Bersih <span className="text-red-600">*</span></Label><Input id="pendapatan-bersih" type="number" min="0" value={pendapatanBersih} onChange={(e) => setPendapatanBersih(e.target.value)} placeholder="Contoh: 1250000"/><p className="text-xs text-slate-500">Masukkan nominal bersih yang benar-benar diterima dari penjualan ini.</p></div>}<DialogFooter><Button variant="outline" disabled={saving} onClick={() => setStatusTarget(null)}>Kembali</Button><Button disabled={saving} onClick={updateStatus}>{saving ? 'Menyimpan...' : 'Ya, ubah status'}</Button></DialogFooter></DialogContent></Dialog>
+
+    <Dialog open={sjFormOpen} onOpenChange={(open) => { if (!saving) setSjFormOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Buat Surat Jalan Online</DialogTitle><DialogDescription>Tentukan tanggal dan keterangan yang akan ditampilkan pada Surat Jalan.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label htmlFor="sj-tanggal">Tanggal Surat Jalan <span className="text-red-600">*</span></Label><DateInput id="sj-tanggal" value={sjTanggal} onChange={(e) => setSjTanggal(e.target.value)} className="w-full h-10 rounded-md border px-3"/></div><div className="space-y-2"><Label htmlFor="sj-catatan">Keterangan</Label><Textarea id="sj-catatan" value={sjCatatan} onChange={(e) => setSjCatatan(e.target.value)} placeholder="Masukkan keterangan Surat Jalan (opsional)" rows={4}/><p className="text-xs text-slate-500">Keterangan akan tampil tepat di atas baris tanggal pada SJ online.</p></div></div><DialogFooter><Button variant="outline" disabled={saving} onClick={() => setSjFormOpen(false)}>Batal</Button><Button disabled={saving || !sjTanggal} onClick={createSuratJalan}>{saving ? 'Menyimpan...' : 'Buat Surat Jalan'}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
