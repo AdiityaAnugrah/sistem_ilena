@@ -36,6 +36,27 @@ const isAllowedStatusTransition = (current, next) => (STATUS_TRANSITIONS[current
 const isFullReturn = (totalQty, previousReturQty, newReturQty) => previousReturQty + newReturQty >= totalQty;
 const calculateTotalAfterRefund = (subtotal, ongkir, biayaLain, diskon, refund) =>
   Math.max(0, money(Number(subtotal || 0) + Number(ongkir || 0) + Number(biayaLain || 0) - Number(diskon || 0) - Number(refund || 0)));
+const validateOnlineAmounts = ({ items, ongkir, biaya_lain, diskon_order }) => {
+  const charges = [ongkir, biaya_lain, diskon_order].map(Number);
+  if (charges.some(value => !Number.isFinite(value) || value < 0)) return 'Ongkir, biaya lain, dan diskon order harus berupa angka nol atau lebih';
+  const keys = new Set();
+  let subtotal = 0;
+  for (const item of items || []) {
+    const qty = Number(item.qty);
+    const harga = Number(item.harga_satuan);
+    const diskon = Number(item.diskon || 0);
+    if (!item.barang_id) return 'Produk pada setiap item wajib dipilih';
+    if (!Number.isInteger(qty) || qty <= 0) return 'Qty produk harus berupa bilangan bulat lebih dari nol';
+    if (!Number.isFinite(harga) || harga < 0) return 'Harga produk harus berupa angka nol atau lebih';
+    if (!Number.isFinite(diskon) || diskon < 0 || diskon > 100) return 'Diskon produk harus berada antara 0 sampai 100 persen';
+    const key = `${item.barang_id}::${item.varian_id || item.varian_nama || ''}`;
+    if (keys.has(key)) return 'Produk dan varian yang sama tidak boleh dimasukkan dua kali';
+    keys.add(key);
+    subtotal += money(qty * harga * (1 - diskon / 100));
+  }
+  if (Number(diskon_order) > subtotal + Number(ongkir) + Number(biaya_lain)) return 'Diskon order tidak boleh melebihi total transaksi';
+  return null;
+};
 const cleanText = (value, fallback = '') => {
   const text = String(value || '').trim();
   return text || fallback;
@@ -85,6 +106,26 @@ async function adjustStok(items, isTest, direction = 'deduct') {
   }
 }
 
+async function validateOnlineStock(items, isTest, shouldDeduct) {
+  const BarangModel = isTest ? BarangTest : Barang;
+  const ids = [...new Set(items.map(item => String(item.barang_id)))];
+  const products = await BarangModel.findAll({ where: { id: { [Op.in]: ids } } });
+  const productMap = products.reduce((map, product) => { map[String(product.id)] = product; return map; }, {});
+  for (const item of items) {
+    const product = productMap[String(item.barang_id)];
+    if (!product) return `Produk ${item.barang_id} tidak ditemukan`;
+    if (!shouldDeduct) continue;
+    let variants = [];
+    try { variants = JSON.parse(product.varian || '[]'); } catch { variants = []; }
+    const variant = item.varian_id
+      ? variants.find(value => String(value.id) === String(item.varian_id))
+      : variants[0];
+    if (!variant) return `Varian stok untuk ${product.nama || item.barang_id} tidak ditemukan`;
+    if (Number(item.qty) > Number(variant.stok || 0)) return `Stok ${product.nama || item.barang_id}${variant.nama ? ` (${variant.nama})` : ''} tidak cukup. Tersedia: ${Number(variant.stok || 0)}`;
+  }
+  return null;
+}
+
 function applyOnlineSummary(penjualan) {
   const data = typeof penjualan.toJSON === 'function' ? penjualan.toJSON() : penjualan;
   const returByItemId = {};
@@ -130,7 +171,8 @@ function applyOnlineSummary(penjualan) {
   nilaiRetur = money(totalRefund);
   subtotalNet = Math.max(0, money(subtotalNet - nilaiRetur));
   const totalTagihan = calculateTotalAfterRefund(subtotalGross, data.ongkir, data.biaya_lain, data.diskon_order, nilaiRetur);
-  const totalBayar = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
+  const totalBayarGross = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
+  const totalBayar = Math.max(0, money(totalBayarGross - nilaiRetur));
   return {
     ...data,
     subtotal_gross: money(subtotalGross),
@@ -162,8 +204,18 @@ router.post('/', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: 'Minimal 1 produk wajib diisi' });
     }
+    const amountError = validateOnlineAmounts({ items, ongkir, biaya_lain, diskon_order });
+    if (amountError) {
+      await t.rollback();
+      return res.status(400).json({ message: amountError });
+    }
 
     const is_test = req.user.role === 'TEST' ? 1 : 0;
+    const stockError = await validateOnlineStock(items, is_test === 1, Boolean(kurangi_stok));
+    if (stockError) {
+      await t.rollback();
+      return res.status(400).json({ message: stockError });
+    }
     const exists = await PenjualanOnline.findOne({ where: { id_pesanan, is_test }, transaction: t });
     if (exists) {
       await t.rollback();
@@ -201,10 +253,10 @@ router.post('/', authenticate, async (req, res) => {
       barang_id: item.barang_id,
       varian_nama: item.varian_nama || null,
       varian_id: item.varian_id || null,
-      qty: Number(item.qty || 1),
+      qty: Number(item.qty),
       harga_satuan: money(item.harga_satuan),
       diskon: Number(item.diskon || 0),
-      subtotal: money(Number(item.qty || 1) * Number(item.harga_satuan || 0) * (1 - Math.max(0, Number(item.diskon || 0)) / 100)),
+      subtotal: money(Number(item.qty) * Number(item.harga_satuan) * (1 - Number(item.diskon || 0) / 100)),
     }));
     await PenjualanOnlineItem.bulkCreate(itemRows, { transaction: t });
 
@@ -464,6 +516,16 @@ router.patch('/:id/status', authenticate, async (req, res) => {
       if (!Number.isFinite(pendapatanBersih) || pendapatanBersih < 0) {
         return res.status(400).json({ message: 'Pendapatan bersih harus berupa angka nol atau lebih' });
       }
+      const [onlineItems, refunds] = await Promise.all([
+        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: online.id } }),
+        ReturOnline.findAll({ where: { penjualan_online_id: online.id, tipe: 'PENGEMBALIAN_DANA' } }),
+      ]);
+      const subtotal = onlineItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const totalRefund = refunds.reduce((sum, retur) => sum + Number(retur.jumlah_refund || 0), 0);
+      const maksimumPendapatan = calculateTotalAfterRefund(subtotal, online.ongkir, online.biaya_lain, online.diskon_order, totalRefund);
+      if (pendapatanBersih > maksimumPendapatan) {
+        return res.status(400).json({ message: `Pendapatan bersih tidak boleh melebihi total transaksi ${maksimumPendapatan}` });
+      }
       updates.pendapatan_bersih = money(pendapatanBersih);
     }
     await online.update(updates);
@@ -537,6 +599,15 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     if (returTipe === 'PENGEMBALIAN_DANA' && (!Number.isFinite(refund) || refund <= 0)) {
       await t.rollback();
       return res.status(400).json({ message: 'Nominal pengembalian dana wajib diisi dan harus lebih dari nol' });
+    }
+    if (returTipe === 'PENGEMBALIAN_DANA') {
+      const subtotal = (online.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const refundSebelumnya = (online.returs || []).filter(retur => retur.tipe === 'PENGEMBALIAN_DANA').reduce((sum, retur) => sum + Number(retur.jumlah_refund || 0), 0);
+      const sisaNilai = calculateTotalAfterRefund(subtotal, online.ongkir, online.biaya_lain, online.diskon_order, refundSebelumnya);
+      if (refund > sisaNilai) {
+        await t.rollback();
+        return res.status(400).json({ message: `Pengembalian dana tidak boleh melebihi sisa nilai transaksi ${sisaNilai}` });
+      }
     }
     if (returTipe === 'PENGGANTIAN_BARANG' && !tanggal_sj_pengganti) {
       await t.rollback();
@@ -619,6 +690,6 @@ router.post('/:id/retur', authenticate, async (req, res) => {
   }
 });
 
-router.__testables = { isAllowedStatusTransition, isFullReturn, calculateTotalAfterRefund };
+router.__testables = { isAllowedStatusTransition, isFullReturn, calculateTotalAfterRefund, validateOnlineAmounts };
 
 module.exports = router;

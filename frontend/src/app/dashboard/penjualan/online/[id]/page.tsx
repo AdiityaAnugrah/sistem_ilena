@@ -88,6 +88,10 @@ export default function PenjualanOnlineDetail() {
       toast.error('Pendapatan bersih wajib diisi');
       return;
     }
+    if (statusTarget === 'SELESAI' && data && Number(pendapatanBersih) > Number(data.total_tagihan)) {
+      toast.error(`Pendapatan bersih maksimal ${formatRupiah(data.total_tagihan)}`);
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(`/penjualan-online/${id}/status`, {
