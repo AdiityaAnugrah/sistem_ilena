@@ -34,6 +34,8 @@ const STATUS_TRANSITIONS = {
 };
 const isAllowedStatusTransition = (current, next) => (STATUS_TRANSITIONS[current] || []).includes(next);
 const isFullReturn = (totalQty, previousReturQty, newReturQty) => previousReturQty + newReturQty >= totalQty;
+const calculateTotalAfterRefund = (subtotal, ongkir, biayaLain, diskon, refund) =>
+  Math.max(0, money(Number(subtotal || 0) + Number(ongkir || 0) + Number(biayaLain || 0) - Number(diskon || 0) - Number(refund || 0)));
 const cleanText = (value, fallback = '') => {
   const text = String(value || '').trim();
   return text || fallback;
@@ -127,7 +129,7 @@ function applyOnlineSummary(penjualan) {
 
   nilaiRetur = money(totalRefund);
   subtotalNet = Math.max(0, money(subtotalNet - nilaiRetur));
-  const totalTagihan = money(subtotalNet + Number(data.ongkir || 0) + Number(data.biaya_lain || 0) - Number(data.diskon_order || 0));
+  const totalTagihan = calculateTotalAfterRefund(subtotalGross, data.ongkir, data.biaya_lain, data.diskon_order, nilaiRetur);
   const totalBayar = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
   return {
     ...data,
@@ -617,6 +619,6 @@ router.post('/:id/retur', authenticate, async (req, res) => {
   }
 });
 
-router.__testables = { isAllowedStatusTransition, isFullReturn };
+router.__testables = { isAllowedStatusTransition, isFullReturn, calculateTotalAfterRefund };
 
 module.exports = router;

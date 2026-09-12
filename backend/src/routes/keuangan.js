@@ -402,10 +402,11 @@ router.get('/online', authenticate, async (req, res) => {
       if (ids.length === 0) return [];
       const [items, returs] = await Promise.all([
         PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['id', 'penjualan_online_id', 'qty', 'subtotal'] }),
-        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids }, tipe: 'PENGEMBALIAN_DANA' }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
+        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids }, tipe: 'PENGEMBALIAN_DANA' }, attributes: ['penjualan_online_id', 'jumlah_refund'] }),
       ]);
       const returMap = returs.reduce((map, retur) => {
-        map[retur.penjualan_online_item_id] = (map[retur.penjualan_online_item_id] || 0) + Number(retur.qty_retur || 0);
+        const saleId = Number(retur.penjualan_online_id);
+        map[saleId] = (map[saleId] || 0) + Number(retur.jumlah_refund || 0);
         return map;
       }, {});
       const itemMap = items.reduce((map, item) => {
@@ -415,8 +416,9 @@ router.get('/online', authenticate, async (req, res) => {
         return map;
       }, {});
       return sales.map(sale => {
-        const subtotal = sumItemsNetAfterRetur(itemMap[Number(sale.id)] || [], returMap);
-        const total = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0)));
+        const saleId = Number(sale.id);
+        const subtotal = sumItemsNetAfterRetur(itemMap[saleId] || [], {});
+        const total = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0) - Number(returMap[saleId] || 0)));
         const pendapatanBersih = sale.pendapatan_bersih === null ? null : money(sale.pendapatan_bersih);
         return {
           id: sale.id, id_pesanan: sale.id_pesanan, nama_pelanggan: sale.nama_pelanggan,
