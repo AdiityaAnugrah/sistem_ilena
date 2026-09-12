@@ -87,11 +87,13 @@ function applyOnlineSummary(penjualan) {
   const data = typeof penjualan.toJSON === 'function' ? penjualan.toJSON() : penjualan;
   const returByItemId = {};
   const refundByItemId = {};
+  let totalRefund = 0;
   for (const retur of (data.returs || [])) {
     const itemId = Number(retur.penjualan_online_item_id);
     returByItemId[itemId] = (returByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
     if (retur.tipe === 'PENGEMBALIAN_DANA') {
       refundByItemId[itemId] = (refundByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
+      totalRefund += Number(retur.jumlah_refund || 0);
     }
   }
 
@@ -111,7 +113,7 @@ function applyOnlineSummary(penjualan) {
     const itemNet = Math.max(0, money(subtotal - itemRetur));
     subtotalGross += subtotal;
     nilaiRetur += itemRetur;
-    subtotalNet += itemNet;
+    subtotalNet += subtotal;
     qtyGross += qty;
     qtyRetur += returQty;
     return {
@@ -123,6 +125,8 @@ function applyOnlineSummary(penjualan) {
     };
   });
 
+  nilaiRetur = money(totalRefund);
+  subtotalNet = Math.max(0, money(subtotalNet - nilaiRetur));
   const totalTagihan = money(subtotalNet + Number(data.ongkir || 0) + Number(data.biaya_lain || 0) - Number(data.diskon_order || 0));
   const totalBayar = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
   return {
