@@ -439,6 +439,7 @@ router.get('/online', authenticate, async (req, res) => {
     const summary = allRows.reduce((acc, row) => {
       acc.totalNilaiAwal += row.total_awal;
       acc.totalRetur += row.total_retur;
+      if (row.total_retur > 0) acc.jumlahTransaksiRetur += 1;
       acc.totalNilai += row.total;
       if (row.pendapatan_bersih !== null) {
         acc.totalNilaiSelesai += row.total;
@@ -446,7 +447,7 @@ router.get('/online', authenticate, async (req, res) => {
       }
       if (row.status === 'SELESAI' && row.pendapatan_bersih === null) acc.menungguPendapatan += 1;
       return acc;
-    }, { totalNilaiAwal: 0, totalRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
+    }, { totalNilaiAwal: 0, totalRetur: 0, jumlahTransaksiRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
     summary.totalSelisih = money(summary.totalNilaiSelesai - summary.totalPendapatanBersih);
     return res.json({ summary, list, total: paged.count, totalPages: Math.ceil(paged.count / limitInt), page: pageInt });
   } catch (err) {

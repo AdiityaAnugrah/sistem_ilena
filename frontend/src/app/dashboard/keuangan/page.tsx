@@ -113,7 +113,7 @@ interface OnlineFinanceRow {
 }
 
 interface OnlineFinanceData {
-  summary: { totalNilaiAwal: number; totalRetur: number; totalNilai: number; totalNilaiSelesai: number; totalPendapatanBersih: number; totalSelisih: number; menungguPendapatan: number };
+  summary: { totalNilaiAwal: number; totalRetur: number; jumlahTransaksiRetur: number; totalNilai: number; totalNilaiSelesai: number; totalPendapatanBersih: number; totalSelisih: number; menungguPendapatan: number };
   list: OnlineFinanceRow[]; total: number; totalPages: number; page: number;
 }
 
@@ -845,7 +845,7 @@ export default function KeuanganPage() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <SummaryCard label="Total Nilai Awal" value={onlineSummary ? formatRupiah(onlineSummary.totalNilaiAwal) : '-'} color="#0f172a" />
-            <SummaryCard label="Total Retur Dana" value={onlineSummary ? formatRupiah(onlineSummary.totalRetur) : '-'} sub="Dana yang dikembalikan ke pelanggan" color="#dc2626" />
+            <SummaryCard label="Retur Pengembalian Dana" value={onlineSummary ? formatRupiah(onlineSummary.totalRetur) : '-'} sub={onlineSummary ? `${onlineSummary.jumlahTransaksiRetur} transaksi mengalami retur dana` : 'Dana yang dikembalikan ke pelanggan'} color="#dc2626" />
             <SummaryCard label="Total Setelah Retur" value={onlineSummary ? formatRupiah(onlineSummary.totalNilai) : '-'} color="#2563eb" />
             <SummaryCard label="Pendapatan Bersih" value={onlineSummary ? formatRupiah(onlineSummary.totalPendapatanBersih) : '-'} sub="Nominal bersih pesanan selesai" color="#16a34a" />
             <SummaryCard label="Selisih Marketplace/Biaya" value={onlineSummary ? formatRupiah(onlineSummary.totalSelisih) : '-'} sub="Nilai transaksi dikurangi pendapatan bersih" color="#f97316" />
