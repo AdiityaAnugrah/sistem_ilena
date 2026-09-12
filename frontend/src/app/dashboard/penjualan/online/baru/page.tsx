@@ -9,6 +9,7 @@ import DateInput from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AlamatForm from '@/components/forms/AlamatForm';
 import BarangSelector from '@/components/forms/BarangSelector';
 import { formatRupiah } from '@/lib/utils';
@@ -27,6 +28,7 @@ export default function PenjualanOnlineBaru() {
   const [loading, setLoading] = useState(false);
   const [platformOptions, setPlatformOptions] = useState<string[]>(['SHOPEE']);
   const [metodeOptions, setMetodeOptions] = useState<string[]>(['MARKETPLACE']);
+  const [pendingForm, setPendingForm] = useState<any | null>(null);
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<any>({ defaultValues: { tanggal: new Date().toISOString().split('T')[0], ongkir: 0, biaya_lain: 0, diskon_order: 0 } });
   const tanggalPesanan = watch('tanggal');
 
@@ -74,6 +76,13 @@ export default function PenjualanOnlineBaru() {
   const onSubmit = async (form: any) => {
     if (items.length === 0) { toast.error('Minimal 1 produk wajib ditambahkan'); return; }
     if (!alamat.detail.trim()) { toast.error('Detail alamat wajib diisi'); return; }
+    setPendingForm(form);
+  };
+
+  const saveOnline = async () => {
+    if (!pendingForm) return;
+    const form = pendingForm;
+    setPendingForm(null);
     setLoading(true);
     try {
       const payload = {
@@ -140,5 +149,6 @@ export default function PenjualanOnlineBaru() {
 
       <div className="sticky bottom-4 z-10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white/95 backdrop-blur border rounded-2xl p-4 shadow-xl"><div><div className="text-xs text-slate-500 font-semibold">Grand Total</div><div className="text-2xl font-extrabold text-red-600">{formatRupiah(grandTotal)}</div></div><Button type="submit" disabled={loading} className="h-12 px-8 bg-red-600 hover:bg-red-700 text-white rounded-xl">{loading ? 'Menyimpan...' : 'Simpan Penjualan Online'}</Button></div>
     </form>
+    <Dialog open={Boolean(pendingForm)} onOpenChange={(open) => { if (!open && !loading) setPendingForm(null); }}><DialogContent><DialogHeader><DialogTitle>Konfirmasi Simpan Penjualan Online</DialogTitle><DialogDescription>Pastikan data pelanggan, produk, jumlah, harga, ongkir, dan alamat sudah benar. Pesanan <b>{pendingForm?.id_pesanan || '-'}</b> akan disimpan dengan total <b>{formatRupiah(grandTotal)}</b>.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" disabled={loading} onClick={() => setPendingForm(null)}>Periksa Lagi</Button><Button type="button" disabled={loading} onClick={() => void saveOnline()}>{loading ? 'Menyimpan...' : 'Ya, simpan'}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
