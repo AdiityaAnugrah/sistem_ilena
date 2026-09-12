@@ -1540,8 +1540,8 @@ const generateHTMLInvoice = (inv) => {
                         </td>
                     </tr>
                     <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">${isOnline ? 'ID Pesanan' : 'PO'}</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.no_po || '-'}</td></tr>
-                    ${isOnline ? `<tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Platform</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.channel || '-'}</td></tr>
-                    <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Metode Pembayaran</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.metode_pembayaran || '-'}</td></tr>` : ''}
+                    ${isOnline ? `<tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Platform</td><td style="white-space:nowrap; font-size:11.5px;">: ${toTitleCase(penjualan.channel) || '-'}</td></tr>
+                    <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Metode Pembayaran</td><td style="white-space:nowrap; font-size:11.5px;">: ${toTitleCase(penjualan.metode_pembayaran) || '-'}</td></tr>` : ''}
                     ${!isOnline ? `<tr>
                         <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Surat Jalan</td>
                         <td style="white-space:nowrap; font-size:11.5px;">:
