@@ -351,8 +351,8 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
   try {
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
-    if (['DIBATALKAN', 'RETUR'].includes(online.status)) {
-      return res.status(400).json({ message: `Surat Jalan tidak dapat dibuat saat status ${online.status}` });
+    if (online.status !== 'DIKIRIM') {
+      return res.status(400).json({ message: 'Ubah status pesanan ke DIKIRIM sebelum membuat Surat Jalan' });
     }
     const invoicePrinted = await InvoiceOnline.findOne({
       where: { penjualan_online_id: online.id, printed_at: { [Op.ne]: null } },
@@ -448,14 +448,12 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
     const updates = { status };
     if (status === 'DIKIRIM') {
-      const [invoicePrinted, suratJalan] = await Promise.all([
-        InvoiceOnline.findOne({ where: { penjualan_online_id: online.id, printed_at: { [Op.ne]: null } } }),
-        SuratJalanOnline.findOne({ where: { penjualan_online_id: online.id } }),
-      ]);
+      const invoicePrinted = await InvoiceOnline.findOne({ where: { penjualan_online_id: online.id, printed_at: { [Op.ne]: null } } });
       if (!invoicePrinted) return res.status(400).json({ message: 'Invoice wajib dicetak sebelum pesanan dikirim' });
-      if (!suratJalan) return res.status(400).json({ message: 'Surat Jalan wajib dibuat sebelum pesanan dikirim' });
     }
     if (status === 'SELESAI') {
+      const suratJalan = await SuratJalanOnline.findOne({ where: { penjualan_online_id: online.id, jenis: 'PENGIRIMAN_AWAL' } });
+      if (!suratJalan) return res.status(400).json({ message: 'Surat Jalan wajib dibuat sebelum menyelesaikan pesanan' });
       const rawPendapatan = req.body.pendapatan_bersih;
       if (rawPendapatan === '' || rawPendapatan === null || rawPendapatan === undefined) {
         return res.status(400).json({ message: 'Pendapatan bersih wajib diisi sebelum menyelesaikan pesanan' });
@@ -481,7 +479,7 @@ router.patch('/:id/resi', authenticate, async (req, res) => {
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
     if (req.body.nomor_resi && online.status === 'DIPROSES') {
-      return res.status(400).json({ message: 'Ubah status ke DIKIRIM melalui tombol status setelah Invoice dicetak dan Surat Jalan dibuat' });
+      return res.status(400).json({ message: 'Ubah status ke DIKIRIM melalui tombol status setelah Invoice dicetak' });
     }
     await online.update({
       nomor_resi: req.body.nomor_resi || null,
