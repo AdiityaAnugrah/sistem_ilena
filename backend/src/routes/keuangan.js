@@ -418,12 +418,14 @@ router.get('/online', authenticate, async (req, res) => {
       return sales.map(sale => {
         const saleId = Number(sale.id);
         const subtotal = sumItemsNetAfterRetur(itemMap[saleId] || [], {});
-        const total = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0) - Number(returMap[saleId] || 0)));
+        const totalAwal = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0)));
+        const totalRetur = money(returMap[saleId] || 0);
+        const total = money(Math.max(0, totalAwal - totalRetur));
         const pendapatanBersih = sale.pendapatan_bersih === null ? null : money(sale.pendapatan_bersih);
         return {
           id: sale.id, id_pesanan: sale.id_pesanan, nama_pelanggan: sale.nama_pelanggan,
           channel: sale.channel, tanggal: sale.tanggal, status: sale.status,
-          total, pendapatan_bersih: pendapatanBersih,
+          total_awal: totalAwal, total_retur: totalRetur, total, pendapatan_bersih: pendapatanBersih,
           selisih: pendapatanBersih === null ? null : money(total - pendapatanBersih),
         };
       });
@@ -435,6 +437,8 @@ router.get('/online', authenticate, async (req, res) => {
     ]);
     const [allRows, list] = await Promise.all([attachFinancials(allSales), attachFinancials(paged.rows)]);
     const summary = allRows.reduce((acc, row) => {
+      acc.totalNilaiAwal += row.total_awal;
+      acc.totalRetur += row.total_retur;
       acc.totalNilai += row.total;
       if (row.pendapatan_bersih !== null) {
         acc.totalNilaiSelesai += row.total;
@@ -442,7 +446,7 @@ router.get('/online', authenticate, async (req, res) => {
       }
       if (row.status === 'SELESAI' && row.pendapatan_bersih === null) acc.menungguPendapatan += 1;
       return acc;
-    }, { totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
+    }, { totalNilaiAwal: 0, totalRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
     summary.totalSelisih = money(summary.totalNilaiSelesai - summary.totalPendapatanBersih);
     return res.json({ summary, list, total: paged.count, totalPages: Math.ceil(paged.count / limitInt), page: pageInt });
   } catch (err) {

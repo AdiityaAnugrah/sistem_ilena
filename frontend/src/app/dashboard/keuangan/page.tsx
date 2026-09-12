@@ -109,11 +109,11 @@ function downloadExcelXml(filename: string, xml: string) {
 
 interface OnlineFinanceRow {
   id: number; id_pesanan: string; nama_pelanggan: string; channel: string; tanggal: string; status: string;
-  total: number; pendapatan_bersih: number | null; selisih: number | null;
+  total_awal: number; total_retur: number; total: number; pendapatan_bersih: number | null; selisih: number | null;
 }
 
 interface OnlineFinanceData {
-  summary: { totalNilai: number; totalNilaiSelesai: number; totalPendapatanBersih: number; totalSelisih: number; menungguPendapatan: number };
+  summary: { totalNilaiAwal: number; totalRetur: number; totalNilai: number; totalNilaiSelesai: number; totalPendapatanBersih: number; totalSelisih: number; menungguPendapatan: number };
   list: OnlineFinanceRow[]; total: number; totalPages: number; page: number;
 }
 
@@ -843,12 +843,14 @@ export default function KeuanganPage() {
 
       {activeTab === 'online' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <SummaryCard label="Total Nilai Penjualan" value={onlineSummary ? formatRupiah(onlineSummary.totalNilai) : '-'} color="#0f172a" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <SummaryCard label="Total Nilai Awal" value={onlineSummary ? formatRupiah(onlineSummary.totalNilaiAwal) : '-'} color="#0f172a" />
+            <SummaryCard label="Total Retur Dana" value={onlineSummary ? formatRupiah(onlineSummary.totalRetur) : '-'} sub="Dana yang dikembalikan ke pelanggan" color="#dc2626" />
+            <SummaryCard label="Total Setelah Retur" value={onlineSummary ? formatRupiah(onlineSummary.totalNilai) : '-'} color="#2563eb" />
             <SummaryCard label="Pendapatan Bersih" value={onlineSummary ? formatRupiah(onlineSummary.totalPendapatanBersih) : '-'} sub="Nominal bersih pesanan selesai" color="#16a34a" />
             <SummaryCard label="Selisih Marketplace/Biaya" value={onlineSummary ? formatRupiah(onlineSummary.totalSelisih) : '-'} sub="Nilai transaksi dikurangi pendapatan bersih" color="#f97316" />
           </div>
-          {onlineLoading ? <div className="flex justify-center py-16"><CircularProgress size={28} sx={{ color: '#FA2F2F' }} /></div> : !onlineData?.list?.length ? <div className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>Tidak ada data online</div> : <div className="space-y-3">{onlineData.list.map((row: any) => <div key={row.id} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800">{row.nama_pelanggan}</span><StatusBadge status={row.status}/><span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{row.channel}</span></div><p className="text-xs mt-1 text-slate-400">ID Pesanan: {row.id_pesanan} · {formatDate(row.tanggal)}</p></div><button onClick={() => router.push(`/dashboard/penjualan/online/${row.id}`)} className="p-1.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}><ArrowRight className="h-3.5 w-3.5 text-slate-400"/></button></div><div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t"><div><p className="text-xs text-slate-400">Nilai transaksi</p><p className="text-sm font-bold">{formatRupiah(row.total)}</p></div><div><p className="text-xs text-slate-400">Pendapatan bersih</p><p className="text-sm font-bold text-green-600">{row.pendapatan_bersih === null ? 'Belum diisi' : formatRupiah(row.pendapatan_bersih)}</p></div><div><p className="text-xs text-slate-400">Selisih</p><p className="text-sm font-bold text-orange-600">{row.selisih === null ? '-' : formatRupiah(row.selisih)}</p></div></div></div>)}</div>}
+          {onlineLoading ? <div className="flex justify-center py-16"><CircularProgress size={28} sx={{ color: '#FA2F2F' }} /></div> : !onlineData?.list?.length ? <div className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>Tidak ada data online</div> : <div className="space-y-3">{onlineData.list.map((row: OnlineFinanceRow) => <div key={row.id} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800">{row.nama_pelanggan}</span><StatusBadge status={row.status}/><span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{row.channel}</span></div><p className="text-xs mt-1 text-slate-400">ID Pesanan: {row.id_pesanan} · {formatDate(row.tanggal)}</p></div><button onClick={() => router.push(`/dashboard/penjualan/online/${row.id}`)} className="p-1.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}><ArrowRight className="h-3.5 w-3.5 text-slate-400"/></button></div><div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 pt-3 border-t"><div><p className="text-xs text-slate-400">Nilai awal</p><p className="text-sm font-bold">{formatRupiah(row.total_awal)}</p></div><div><p className="text-xs text-slate-400">Retur dana</p><p className={`text-sm font-bold ${row.total_retur > 0 ? 'text-red-600' : 'text-slate-500'}`}>{row.total_retur > 0 ? `- ${formatRupiah(row.total_retur)}` : '-'}</p></div><div><p className="text-xs text-slate-400">Setelah retur</p><p className="text-sm font-bold text-blue-600">{formatRupiah(row.total)}</p></div><div><p className="text-xs text-slate-400">Pendapatan bersih</p><p className="text-sm font-bold text-green-600">{row.pendapatan_bersih === null ? 'Belum diisi' : formatRupiah(row.pendapatan_bersih)}</p></div><div><p className="text-xs text-slate-400">Selisih</p><p className="text-sm font-bold text-orange-600">{row.selisih === null ? '-' : formatRupiah(row.selisih)}</p></div></div></div>)}</div>}
           {(onlineData?.totalPages ?? 0) > 1 && <div className="flex justify-center"><Pagination count={onlineData?.totalPages ?? 1} page={onlinePage} onChange={(_, v) => setOnlinePage(v)} color="primary" size="small"/></div>}
         </div>
       )}
