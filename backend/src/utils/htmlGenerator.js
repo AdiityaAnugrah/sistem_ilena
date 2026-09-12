@@ -1410,7 +1410,7 @@ const generateHTMLInvoice = (inv) => {
     .isint { font-weight: 500; font-style: italic; margin: 0; }
 
     .print-lunas {
-        position: fixed !important; inset: 0 !important; display: grid !important; place-items: center !important; pointer-events: none !important; z-index: 2147483647 !important;
+        position: absolute !important; inset: 0 !important; display: grid !important; place-items: center !important; pointer-events: none !important; z-index: 20 !important;
     }
     .print-lunas p {
         margin: 0; font-size: 110px; font-weight: 700; letter-spacing: .12em; color: var(--merah); opacity: .10; border: 6px solid var(--merah); padding: .12em .32em; border-radius: 12px; transform: translateY(var(--lunas-shift-y)) rotate(-15deg); user-select: none;
@@ -1440,7 +1440,7 @@ const generateHTMLInvoice = (inv) => {
         a[href]:after { content: ""; }
         tr, img, .kotak-pembayaran { break-inside: avoid; }
         .table-striped>tbody>tr:nth-of-type(odd)>* { --bs-table-accent-bg: transparent; }
-        .print-lunas { position: fixed !important; z-index: 2147483647 !important; }
+        .print-lunas { position: absolute !important; z-index: 20 !important; }
         .kotak-pembayaran { border: 1px dashed #ef4444 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     ${TOOLBAR_CSS}
@@ -1448,8 +1448,8 @@ const generateHTMLInvoice = (inv) => {
 </head>
 <body>
     ${enableSignature ? TOOLBAR_HTML_FULL : TOOLBAR_HTML_SIMPLE}
-    ${lunasWatermark}
     <div class="page">
+        ${lunasWatermark}
         ${enableSignature ? SIG_OVERLAY_HTML : ''}
         <!-- Header perusahaan -->
         <div class="d-flex gap-4 justify-content-start mb-4">
@@ -1540,6 +1540,8 @@ const generateHTMLInvoice = (inv) => {
                         </td>
                     </tr>
                     <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">${isOnline ? 'ID Pesanan' : 'PO'}</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.no_po || '-'}</td></tr>
+                    ${isOnline ? `<tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Platform</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.channel || '-'}</td></tr>
+                    <tr><td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Metode Pembayaran</td><td style="white-space:nowrap; font-size:11.5px;">: ${penjualan.metode_pembayaran || '-'}</td></tr>` : ''}
                     ${!isOnline ? `<tr>
                         <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Surat Jalan</td>
                         <td style="white-space:nowrap; font-size:11.5px;">:
