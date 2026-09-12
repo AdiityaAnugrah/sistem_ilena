@@ -1,4 +1,5 @@
 const express = require('express');
+const { randomUUID } = require('crypto');
 const { Op } = require('sequelize');
 const {
   sequelize,
@@ -85,9 +86,13 @@ async function adjustStok(items, isTest, direction = 'deduct') {
 function applyOnlineSummary(penjualan) {
   const data = typeof penjualan.toJSON === 'function' ? penjualan.toJSON() : penjualan;
   const returByItemId = {};
+  const refundByItemId = {};
   for (const retur of (data.returs || [])) {
     const itemId = Number(retur.penjualan_online_item_id);
     returByItemId[itemId] = (returByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
+    if (retur.tipe === 'PENGEMBALIAN_DANA') {
+      refundByItemId[itemId] = (refundByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
+    }
   }
 
   let subtotalGross = 0;
@@ -100,8 +105,9 @@ function applyOnlineSummary(penjualan) {
     const qty = Number(item.qty || 0);
     const subtotal = money(item.subtotal);
     const returQty = Math.max(0, Number(returByItemId[item.id] || 0));
+    const refundQty = Math.max(0, Number(refundByItemId[item.id] || 0));
     const unit = qty > 0 ? subtotal / qty : 0;
-    const itemRetur = money(unit * returQty);
+    const itemRetur = money(unit * refundQty);
     const itemNet = Math.max(0, money(subtotal - itemRetur));
     subtotalGross += subtotal;
     nilaiRetur += itemRetur;
@@ -501,7 +507,12 @@ router.post('/:id/retur', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: 'Retur hanya dapat dicatat setelah pesanan DIKIRIM atau SELESAI' });
     }
-    const { tanggal, catatan, items } = req.body;
+    const { tanggal, catatan, items, tipe, jumlah_refund, surat_jalan_awal_id, tanggal_sj_pengganti } = req.body;
+    const returTipe = String(tipe || '').toUpperCase();
+    if (!['PENGGANTIAN_BARANG', 'PENGEMBALIAN_DANA'].includes(returTipe)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Pilih jenis retur: penggantian barang atau pengembalian dana' });
+    }
     if (!String(catatan || '').trim()) {
       await t.rollback();
       return res.status(400).json({ message: 'Alasan retur wajib diisi' });
@@ -510,11 +521,29 @@ router.post('/:id/retur', authenticate, async (req, res) => {
       await t.rollback();
       return res.status(400).json({ message: 'Minimal 1 item retur wajib diisi' });
     }
+    const sjAwal = await SuratJalanOnline.findOne({
+      where: { id: surat_jalan_awal_id, penjualan_online_id: online.id, jenis: 'PENGIRIMAN_AWAL' },
+      transaction: t,
+    });
+    if (!sjAwal) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Surat Jalan pengiriman awal wajib dipilih' });
+    }
+    const refund = returTipe === 'PENGEMBALIAN_DANA' ? Number(jumlah_refund) : 0;
+    if (returTipe === 'PENGEMBALIAN_DANA' && (!Number.isFinite(refund) || refund <= 0)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Nominal pengembalian dana wajib diisi dan harus lebih dari nol' });
+    }
+    if (returTipe === 'PENGGANTIAN_BARANG' && !tanggal_sj_pengganti) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Tanggal SJ penggantian wajib diisi' });
+    }
     const existing = {};
     for (const r of online.returs || []) existing[r.penjualan_online_item_id] = (existing[r.penjualan_online_item_id] || 0) + Number(r.qty_retur || 0);
 
     const restoreItems = [];
-    for (const row of items) {
+    const returGroupId = randomUUID();
+    for (const [rowIndex, row] of items.entries()) {
       const itemId = Number(row.penjualan_online_item_id);
       const qtyRetur = Number(row.qty_retur);
       const item = (online.items || []).find(i => Number(i.id) === itemId);
@@ -531,6 +560,10 @@ router.post('/:id/retur', authenticate, async (req, res) => {
         penjualan_online_id: online.id,
         penjualan_online_item_id: itemId,
         qty_retur: qtyRetur,
+        retur_group_id: returGroupId,
+        tipe: returTipe,
+        jumlah_refund: rowIndex === 0 ? money(refund) : 0,
+        surat_jalan_awal_id: sjAwal.id,
         tanggal: tanggal || new Date().toISOString().split('T')[0],
         catatan: catatan || null,
         created_by: req.user.id,
@@ -541,18 +574,40 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     const previousReturQty = Object.values(existing).reduce((sum, qty) => sum + Number(qty || 0), 0);
     const newReturQty = restoreItems.reduce((sum, item) => sum + Number(item.qty || 0), 0);
     const isReturPenuh = isFullReturn(totalQty, previousReturQty, newReturQty);
-    if (isReturPenuh) await online.update({ status: 'RETUR' }, { transaction: t });
+    let sjPengganti = null;
+    if (returTipe === 'PENGGANTIAN_BARANG') {
+      const nomorSurat = await generateNomorSJOnline(online.faktur, tanggal_sj_pengganti, online.is_test === 1);
+      sjPengganti = await SuratJalanOnline.create({
+        penjualan_online_id: online.id,
+        nomor_surat: nomorSurat,
+        tanggal: tanggal_sj_pengganti,
+        catatan: `Penggantian barang retur dari ${sjAwal.nomor_surat}${catatan ? ` - ${catatan}` : ''}`,
+        jenis: 'PENGGANTIAN_RETUR',
+        retur_group_id: returGroupId,
+        created_by: req.user.id,
+      }, { transaction: t });
+      await ReturOnline.update({ surat_jalan_pengganti_id: sjPengganti.id }, { where: { retur_group_id: returGroupId }, transaction: t });
+    } else {
+      const updates = {};
+      if (isReturPenuh) updates.status = 'RETUR';
+      if (online.pendapatan_bersih !== null) updates.pendapatan_bersih = Math.max(0, money(online.pendapatan_bersih) - money(refund));
+      if (Object.keys(updates).length > 0) await online.update(updates, { transaction: t });
+    }
     await t.commit();
     if (online.kurangi_stok === 1) {
       await adjustStok(restoreItems, online.is_test === 1, 'restore');
+      if (returTipe === 'PENGGANTIAN_BARANG') {
+        await adjustStok(restoreItems, online.is_test === 1, 'deduct');
+      }
     }
-    await logAction(req.user.id, 'CATAT_RETUR_ONLINE', `Penjualan Online #${online.id}, ${restoreItems.length} item`, req.ip);
+    await logAction(req.user.id, 'CATAT_RETUR_ONLINE', `Penjualan Online #${online.id}, ${returTipe}, ${restoreItems.length} item${sjPengganti ? `, SJ ${sjPengganti.nomor_surat}` : `, refund ${money(refund)}`}`, req.ip);
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
     emitDataUpdated('penjualan-online-list', { updatedBy: req.user.id });
     return res.status(201).json({
-      message: isReturPenuh ? 'Retur penuh berhasil dicatat' : 'Retur sebagian berhasil dicatat',
-      retur_penuh: isReturPenuh,
-      status: isReturPenuh ? 'RETUR' : online.status,
+      message: returTipe === 'PENGGANTIAN_BARANG' ? 'Retur barang dan SJ penggantian berhasil dibuat' : 'Pengembalian dana berhasil dicatat',
+      retur_penuh: returTipe === 'PENGEMBALIAN_DANA' && isReturPenuh,
+      status: returTipe === 'PENGEMBALIAN_DANA' && isReturPenuh ? 'RETUR' : online.status,
+      surat_jalan_pengganti: sjPengganti ? { id: sjPengganti.id, nomor_surat: sjPengganti.nomor_surat } : null,
     });
   } catch (err) {
     await t.rollback().catch(() => {});

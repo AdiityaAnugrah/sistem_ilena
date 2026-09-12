@@ -402,7 +402,7 @@ router.get('/online', authenticate, async (req, res) => {
       if (ids.length === 0) return [];
       const [items, returs] = await Promise.all([
         PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['id', 'penjualan_online_id', 'qty', 'subtotal'] }),
-        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
+        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids }, tipe: 'PENGEMBALIAN_DANA' }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
       ]);
       const returMap = returs.reduce((map, retur) => {
         map[retur.penjualan_online_item_id] = (map[retur.penjualan_online_item_id] || 0) + Number(retur.qty_retur || 0);

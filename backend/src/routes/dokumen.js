@@ -120,6 +120,16 @@ async function fetchSuratJalanOnline(id) {
   });
   if (!sj) return null;
   const penjualan = normalizeOnlinePenjualan(await attachBarangOnline(sj.penjualan));
+  if (sj.jenis === 'PENGGANTIAN_RETUR' && sj.retur_group_id) {
+    const returItems = await ReturOnline.findAll({ where: { retur_group_id: sj.retur_group_id } });
+    const returQtyMap = returItems.reduce((map, retur) => {
+      map[Number(retur.penjualan_online_item_id)] = Number(retur.qty_retur || 0);
+      return map;
+    }, {});
+    penjualan.items = (penjualan.items || [])
+      .filter(item => returQtyMap[Number(item.id)] > 0)
+      .map(item => ({ ...item, qty: returQtyMap[Number(item.id)], subtotal: Number(item.harga_satuan || 0) * returQtyMap[Number(item.id)] }));
+  }
   return {
     html: generateHTMLSuratJalan({ ...sj.toJSON(), online_document: true, penjualan }),
     nomor: sj.nomor_surat,

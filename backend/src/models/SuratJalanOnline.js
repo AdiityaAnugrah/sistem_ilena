@@ -7,6 +7,8 @@ const SuratJalanOnline = sequelize.define('surat_jalan_online', {
   nomor_surat: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   catatan: { type: DataTypes.TEXT },
+  jenis: { type: DataTypes.ENUM('PENGIRIMAN_AWAL', 'PENGGANTIAN_RETUR'), allowNull: false, defaultValue: 'PENGIRIMAN_AWAL' },
+  retur_group_id: { type: DataTypes.STRING(36), allowNull: true },
   created_by: { type: DataTypes.INTEGER },
 }, {
   timestamps: true,

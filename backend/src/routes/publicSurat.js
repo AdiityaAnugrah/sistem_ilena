@@ -242,7 +242,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
 
       const [items, returs, invoices, suratJalans] = await Promise.all([
         PenjualanOnlineItem.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] }),
-        ReturOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
+        ReturOnline.findAll({ where: { penjualan_online_id: penjualanId, tipe: 'PENGEMBALIAN_DANA' }, attributes: ['penjualan_online_item_id', 'qty_retur'] }),
         InvoiceOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'nomor_invoice', 'tanggal'], order: [['tanggal', 'ASC']] }),
         SuratJalanOnline.findAll({ where: { penjualan_online_id: penjualanId }, attributes: ['id', 'nomor_surat', 'tanggal'], order: [['tanggal', 'ASC']] }),
       ]);
