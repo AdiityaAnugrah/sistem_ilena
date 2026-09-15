@@ -72,6 +72,7 @@ app.use('/api/keuangan', require('./routes/keuangan'));
 app.use('/api/transaksi', require('./routes/transaksi'));
 app.use('/api/piutang-usaha', require('./routes/piutangUsaha'));
 app.use('/api/search', require('./routes/search'));
+app.use('/api/integrations', require('./routes/integrations'));
 app.use('/api/dev', require('./routes/dev'));
 
 // Health check
