@@ -6,6 +6,9 @@ const {
   PenjualanOnline,
   PenjualanOnlineItem,
   PembayaranOnline,
+  ReturOnline,
+  SuratJalanOnline,
+  InvoiceOnline,
 } = require('../models');
 const BarangTest = require('../models/BarangTest');
 const { logAction } = require('../middleware/logger');
@@ -126,7 +129,19 @@ async function resolveItemRows(items, isTest) {
   return rows;
 }
 
-async function adjustStok(rows, isTest) {
+function isPaidWebsiteStatus(status) {
+  return ['proses', 'diproses', 'paid', 'settlement', 'capture'].includes(String(status || '').toLowerCase());
+}
+
+function isPendingWebsiteStatus(status) {
+  return ['menunggu pembayaran', 'pending', 'waiting_payment'].includes(String(status || '').toLowerCase());
+}
+
+function systemNoteStatus(status) {
+  return isPendingWebsiteStatus(status) ? 'MENUNGGU_PEMBAYARAN' : 'PEMBAYARAN_BERHASIL';
+}
+
+async function adjustStok(rows, isTest, direction = 'deduct') {
   const BarangModel = isTest ? BarangTest : Barang;
   for (const row of rows) {
     if (!row._matched || !row.barang_id) continue;
@@ -143,7 +158,8 @@ async function adjustStok(rows, isTest) {
         : (row.varian_nama ? String(v.nama || '').toLowerCase() === String(row.varian_nama).toLowerCase() : idx === 0);
       if (!sameVariant) return v;
       updated = true;
-      return { ...v, stok: String(Math.max(0, Number(v.stok || 0) - Number(row.qty || 0))) };
+      const delta = Number(row.qty || 0) * (direction === 'restore' ? 1 : -1);
+      return { ...v, stok: String(Math.max(0, Number(v.stok || 0) + delta)) };
     });
 
     if (updated) await barang.update({ varian: JSON.stringify(varians) });
@@ -166,6 +182,8 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
   const email = clean(payload.email || payload.customer_email || '').toLowerCase();
   const isTest = payload.is_test === true || payload.is_test === 1 || TEST_EMAILS.includes(email);
   const items = normalizeItems(payload.items || []);
+  const websiteStatus = clean(payload.status || payload.order_status || payload.transaction_status || 'Proses');
+  const isPaidOrder = isPaidWebsiteStatus(websiteStatus);
   const grossAmount = money(payload?.data_mid?.gross_amount ?? payload.gross_amount ?? payload.total ?? items.reduce((s, i) => s + i.subtotal, 0));
 
   if (!orderId || !items.length) {
@@ -186,6 +204,7 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
         orderId,
         channel: 'WEBSITE',
         status: 'DIPROSES',
+        websiteStatus: systemNoteStatus(websiteStatus),
         isTest,
         customerName: clean(payload.nama_pen || payload.nama || payload.customer_name || 'Customer Website'),
         itemCount: itemRows.length,
@@ -196,6 +215,26 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
 
   const existing = await PenjualanOnline.findOne({ where: { id_pesanan: orderId, is_test: isTest ? 1 : 0 } });
   if (existing) {
+    const alreadyPaid = String(existing.catatan || '').includes('PEMBAYARAN_BERHASIL');
+    if (isPaidOrder && !alreadyPaid) {
+      await existing.update({
+        kurangi_stok: 1,
+        catatan: `Order otomatis dari ilenafurniture.com (${orderId}) | Status Website: PEMBAYARAN_BERHASIL`,
+      });
+      const existingItems = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: existing.id } });
+      await PembayaranOnline.findOrCreate({
+        where: { penjualan_online_id: existing.id },
+        defaults: {
+          metode: existing.metode_pembayaran,
+          jumlah: Math.max(0, grossAmount),
+          tanggal: existing.tanggal,
+          catatan: 'Pembayaran otomatis dari website Ilena / Midtrans',
+          created_by: existing.created_by,
+        },
+      });
+      await adjustStok(existingItems.map((row) => ({ ...row.toJSON(), _matched: true })), isTest);
+      emitDataUpdated('penjualan-online-list', { updatedBy: existing.created_by, source: 'ilena-web-order-paid', orderId });
+    }
     return res.json({
       success: true,
       message: 'Order sudah pernah masuk',
@@ -220,8 +259,8 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
       ongkir,
       biaya_lain: 0,
       diskon_order: 0,
-      kurangi_stok: 1,
-      catatan: clean(payload.catatan || `Order otomatis dari ilenafurniture.com (${orderId})`),
+      kurangi_stok: isPaidOrder ? 1 : 0,
+      catatan: clean(payload.catatan || `Order otomatis dari ilenafurniture.com (${orderId}) | Status Website: ${systemNoteStatus(websiteStatus)}`),
       status: 'DIPROSES',
       is_test: isTest ? 1 : 0,
       created_by: createdBy,
@@ -229,17 +268,19 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
 
     const rowsForInsert = itemRows.map(({ _matched, ...row }) => ({ ...row, penjualan_online_id: online.id }));
     await PenjualanOnlineItem.bulkCreate(rowsForInsert, { transaction: t });
-    await PembayaranOnline.create({
-      penjualan_online_id: online.id,
-      metode: online.metode_pembayaran,
-      jumlah: Math.max(0, grossAmount || itemTotal),
-      tanggal: online.tanggal,
-      catatan: 'Pembayaran otomatis dari website Ilena / Midtrans',
-      created_by: createdBy,
-    }, { transaction: t });
+    if (isPaidOrder) {
+      await PembayaranOnline.create({
+        penjualan_online_id: online.id,
+        metode: online.metode_pembayaran,
+        jumlah: Math.max(0, grossAmount || itemTotal),
+        tanggal: online.tanggal,
+        catatan: 'Pembayaran otomatis dari website Ilena / Midtrans',
+        created_by: createdBy,
+      }, { transaction: t });
+    }
 
     await t.commit();
-    await adjustStok(itemRows, isTest);
+    if (isPaidOrder) await adjustStok(itemRows, isTest);
     await logAction(createdBy, 'IMPORT_ORDER_WEBSITE_ILENA', `Order ${orderId}, item ${itemRows.length}, test=${isTest ? 1 : 0}`, req.ip);
     emitDataUpdated('penjualan-online-list', { updatedBy: createdBy, source: 'ilena-web-order', orderId });
 
@@ -248,6 +289,40 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
       message: 'Order website Ilena berhasil masuk sistem',
       data: { id: online.id, orderId, isTest, matchedItemCount: itemRows.filter((row) => row._matched).length },
     });
+  } catch (err) {
+    await t.rollback().catch(() => {});
+    return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
+
+router.delete('/ilena-web-order/:orderId', checkToken, async (req, res) => {
+  const orderId = clean(req.params.orderId || '');
+  const email = clean(req.query.email || req.body?.email || '').toLowerCase();
+  const isTest = req.query.is_test === '1' || req.body?.is_test === true || TEST_EMAILS.includes(email);
+  if (!orderId) return res.status(400).json({ success: false, message: 'orderId wajib diisi' });
+
+  const online = await PenjualanOnline.findOne({ where: { id_pesanan: orderId, is_test: isTest ? 1 : 0 } });
+  if (!online) {
+    return res.json({ success: true, message: 'Order tidak ada di sistem, tidak perlu dihapus', data: { orderId, deleted: false } });
+  }
+
+  const t = await sequelize.transaction();
+  try {
+    const items = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: online.id }, transaction: t });
+    await ReturOnline.destroy({ where: { penjualan_online_id: online.id }, transaction: t });
+    await PembayaranOnline.destroy({ where: { penjualan_online_id: online.id }, transaction: t });
+    await SuratJalanOnline.destroy({ where: { penjualan_online_id: online.id }, transaction: t });
+    await InvoiceOnline.destroy({ where: { penjualan_online_id: online.id }, transaction: t });
+    await PenjualanOnlineItem.destroy({ where: { penjualan_online_id: online.id }, transaction: t });
+    await PenjualanOnline.destroy({ where: { id: online.id }, transaction: t });
+    await t.commit();
+
+    if (Number(online.kurangi_stok || 0) === 1) {
+      await adjustStok(items.map((row) => ({ ...row.toJSON(), _matched: true })), isTest, 'restore');
+    }
+    await logAction(online.created_by || Number(process.env.WEBSITE_ORDER_USER_ID || 1), 'HAPUS_ORDER_WEBSITE_ILENA', `Order ${orderId} dibatalkan/gagal di website`, req.ip);
+    emitDataUpdated('penjualan-online-list', { updatedBy: online.created_by, source: 'ilena-web-order-delete', orderId });
+    return res.json({ success: true, message: 'Order website Ilena dihapus dari sistem', data: { orderId, deleted: true } });
   } catch (err) {
     await t.rollback().catch(() => {});
     return res.status(500).json({ success: false, message: 'Server error', error: err.message });
