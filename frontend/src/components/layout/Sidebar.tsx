@@ -1,10 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import useAuthStore from '@/store/authStore';
 import GlobalSearch from '@/components/GlobalSearch';
+import api from '@/lib/api';
+import { useListSync } from '@/hooks/useListSync';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -67,6 +69,23 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const financeRoute = pathname.startsWith('/dashboard/keuangan') || pathname.startsWith('/dashboard/piutang-usaha') || pathname.startsWith('/dashboard/piutang-display');
   const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan', ...(financeRoute ? ['Keuangan'] : [])]);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [websiteOrderTodoCount, setWebsiteOrderTodoCount] = useState(0);
+
+  const fetchWebsiteOrderTodoCount = useCallback(async () => {
+    try {
+      const res = await api.get('/penjualan-online', {
+        params: { channel: 'WEBSITE', status: 'DIPROSES', limit: 1 },
+      });
+      setWebsiteOrderTodoCount(Number(res.data?.total || 0));
+    } catch {
+      setWebsiteOrderTodoCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWebsiteOrderTodoCount();
+  }, [fetchWebsiteOrderTodoCount]);
+  useListSync('penjualan-online-list', fetchWebsiteOrderTodoCount);
 
   const handleLogout = () => {
     logout();
@@ -184,19 +203,42 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     <div style={{ marginLeft: 26, marginTop: 2, paddingLeft: 14, borderLeft: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {item.children?.map((child) => {
                         const childActive = isChildActive(child.href);
+                        const showWebsiteBadge = child.href === '/dashboard/penjualan/online' && websiteOrderTodoCount > 0;
                         return (
                           <Link
                             key={child.href}
                             href={child.href}
                             onClick={onNavigate}
                             style={{
-                              display: 'block', padding: '6px 8px', borderRadius: 6,
+                              display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6,
                               textDecoration: 'none', fontSize: 12.5,
                               fontWeight: childActive ? 600 : 400,
                               color: childActive ? '#fca5a5' : 'rgba(255,255,255,0.45)',
                             }}
                           >
-                            {child.label}
+                            <span style={{ flex: 1 }}>{child.label}</span>
+                            {showWebsiteBadge && (
+                              <span
+                                title={`${websiteOrderTodoCount} order website perlu diurus`}
+                                style={{
+                                  minWidth: 20,
+                                  height: 20,
+                                  padding: '0 6px',
+                                  borderRadius: 999,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: '#ef4444',
+                                  color: '#fff',
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  lineHeight: 1,
+                                  boxShadow: '0 8px 18px rgba(239,68,68,.28)',
+                                }}
+                              >
+                                {websiteOrderTodoCount > 99 ? '99+' : websiteOrderTodoCount}
+                              </span>
+                            )}
                           </Link>
                         );
                       })}
