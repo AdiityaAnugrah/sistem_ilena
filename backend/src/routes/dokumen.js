@@ -455,10 +455,17 @@ async function fetchSubInvoice(id) {
     }],
   });
   if (!proforma) return null;
+  const defaultJatuhTempo = (() => {
+    const base = new Date(proforma.tanggal || Date.now());
+    base.setDate(base.getDate() + 14);
+    return base.toISOString().slice(0, 10);
+  })();
   if (!proforma.nomor_sub_invoice) {
     const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
     const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
-    await proforma.update({ nomor_sub_invoice: nomor });
+    await proforma.update({ nomor_sub_invoice: nomor, jatuh_tempo: proforma.jatuh_tempo || defaultJatuhTempo });
+  } else if (!proforma.jatuh_tempo) {
+    await proforma.update({ jatuh_tempo: defaultJatuhTempo });
   }
   const data = proforma.toJSON();
 
@@ -472,19 +479,25 @@ async function fetchSubInvoice(id) {
     } catch { /* ignore */ }
   }
 
-  return { html: generateHTMLSubInvoice(data, sjNomors), nomor: data.nomor_sub_invoice, tanggal: data.tanggal, nama: data.penjualan?.nama_customer };
+  return { html: generateHTMLSubInvoice(data, sjNomors), nomor: data.nomor_sub_invoice, tanggal: data.tanggal, jatuh_tempo: data.jatuh_tempo, nama: data.penjualan?.nama_customer };
 }
 
 // PUT /api/dokumen/proforma/:id/sub-invoice/surat-jalan — simpan SJ IDs untuk sub invoice
 router.put('/proforma/:id/sub-invoice/surat-jalan', authenticate, async (req, res) => {
   try {
-    const { surat_jalan_ids } = req.body;
+    const { surat_jalan_ids, jatuh_tempo } = req.body;
     if (!Array.isArray(surat_jalan_ids)) {
       return res.status(400).json({ message: 'surat_jalan_ids harus berupa array' });
     }
+    if (jatuh_tempo && !/^\d{4}-\d{2}-\d{2}$/.test(String(jatuh_tempo))) {
+      return res.status(400).json({ message: 'Format jatuh_tempo harus YYYY-MM-DD' });
+    }
     const proforma = await ProformaInvoice.findByPk(req.params.id);
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
-    await proforma.update({ sub_invoice_sj_ids: surat_jalan_ids.length > 0 ? JSON.stringify(surat_jalan_ids) : null });
+    await proforma.update({
+      sub_invoice_sj_ids: surat_jalan_ids.length > 0 ? JSON.stringify(surat_jalan_ids) : null,
+      jatuh_tempo: jatuh_tempo || null,
+    });
     emitDataUpdated(`penjualan-interior:${proforma.penjualan_interior_id}`, { updatedBy: req.user?.id });
     return res.json({ message: 'Surat Jalan berhasil disimpan' });
   } catch (err) {
@@ -547,7 +560,7 @@ router.delete('/proforma/:id/sub-invoice', authenticate, requireDev, async (req,
       : (faktur === 'FAKTUR' ? 'INV_FAKTUR' : 'INV_NON_FAKTUR');
 
     // Null-kan nomor dan SJ IDs yang dihapus
-    await proforma.update({ nomor_sub_invoice: null, sub_invoice_sj_ids: null }, { transaction: t });
+    await proforma.update({ nomor_sub_invoice: null, sub_invoice_sj_ids: null, jatuh_tempo: null }, { transaction: t });
 
     // Renumber semua Invoice (offline + interior) dan sub invoice dengan nomor lebih besar
     const likePattern = `%${suffix}`;

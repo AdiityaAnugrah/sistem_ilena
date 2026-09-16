@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS proforma_invoice (
   penjualan_interior_id INT NOT NULL,
   nomor_proforma VARCHAR(50) UNIQUE NOT NULL,
   tanggal DATE NOT NULL,
+  jatuh_tempo DATE NULL,
   total DECIMAL(15,2) NOT NULL,
   catatan TEXT,
   created_by INT,

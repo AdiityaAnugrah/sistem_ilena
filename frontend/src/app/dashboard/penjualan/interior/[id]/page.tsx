@@ -163,6 +163,12 @@ const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any)
   </div>
 );
 
+const addDaysIso = (dateValue?: string, days = 14) => {
+  const base = dateValue ? new Date(dateValue) : new Date();
+  base.setDate(base.getDate() + days);
+  return base.toISOString().split('T')[0];
+};
+
 const ModalFooter = ({ onClose, onSubmit, loading, label, disabled }: any) => (
   <div className="flex gap-3 mt-5">
     <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: '#f1f5f9', color: '#475569' }}>
@@ -264,6 +270,7 @@ export default function PenjualanInteriorDetail() {
   // Sub Invoice SJ selection state
   const [subInvSjModal, setSubInvSjModal] = useState<{ open: boolean; proforma: any }>({ open: false, proforma: null });
   const [subInvSjIds, setSubInvSjIds] = useState<number[]>([]);
+  const [subInvJatuhTempo, setSubInvJatuhTempo] = useState(addDaysIso());
 
   // Retur state
   const [returModal, setReturModal] = useState<{ open: boolean; sj: SuratJalanInteriorData | null }>({ open: false, sj: null });
@@ -732,6 +739,7 @@ export default function PenjualanInteriorDetail() {
 
           // Ada SJ tersedia → tampilkan modal pilih SJ (opsional)
           setSubInvSjIds([]);
+          setSubInvJatuhTempo(p.jatuh_tempo || addDaysIso(p.tanggal));
           setSubInvSjModal({ open: true, proforma: p });
         };
         const deleteSubInvoice = (p: any) => {
@@ -829,7 +837,7 @@ export default function PenjualanInteriorDetail() {
             border: '#bfdbfe',
             items: subInvoices.map((p: any) => ({
               nomor: p.nomor_sub_invoice,
-              sub: formatDate(p.tanggal),
+              sub: `${formatDate(p.tanggal)}${p.jatuh_tempo ? ` · JT ${formatDate(p.jatuh_tempo)}` : ''}`,
               onPrint: () => printSubInvoice(p),
               extraButtons: [
                 {
@@ -1705,13 +1713,19 @@ export default function PenjualanInteriorDetail() {
       </ModalWrapper>
 
       {/* ── Modal Pilih Surat Jalan untuk Sub Invoice ── */}
-      <ModalWrapper show={subInvSjModal.open} onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); }}>
+      <ModalWrapper show={subInvSjModal.open} onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); setSubInvJatuhTempo(addDaysIso()); }}>
         <ModalHeader icon={Truck} title="Pilih Surat Jalan" sub={`Untuk Sub Invoice ${subInvSjModal.proforma?.nomor_proforma || ''}`} />
         <div className="space-y-4">
           <div className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
             📋 Pilih Surat Jalan yang terkait — opsional, boleh tidak dipilih
           </div>
+          <ModalInput
+            label="Jatuh Tempo Sub Invoice"
+            type="date"
+            value={subInvJatuhTempo}
+            onChange={(e: any) => setSubInvJatuhTempo(e.target.value)}
+          />
           <div>
             <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
               Surat Jalan Tersedia <span className="font-normal" style={{ color: '#94a3b8' }}>(opsional)</span>
@@ -1751,21 +1765,24 @@ export default function PenjualanInteriorDetail() {
           </div>
         </div>
         <ModalFooter
-          onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); }}
+          onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); setSubInvJatuhTempo(addDaysIso()); }}
           onSubmit={async () => {
             const proformaRef = subInvSjModal.proforma;
             setDocLoading(true);
             try {
-              // Simpan SJ IDs ke proforma (boleh kosong)
-              if (subInvSjIds.length > 0) {
-                await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, { surat_jalan_ids: subInvSjIds });
-              }
+              // Simpan SJ IDs dan jatuh tempo ke proforma (SJ boleh kosong)
+              await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, {
+                surat_jalan_ids: subInvSjIds,
+                jatuh_tempo: subInvJatuhTempo,
+              });
               setSubInvSjModal({ open: false, proforma: null });
               setSubInvSjIds([]);
+              setSubInvJatuhTempo(addDaysIso());
+              const jatuhTempoLabel = subInvJatuhTempo ? `, jatuh tempo ${formatDate(subInvJatuhTempo)}` : '';
               const sjLabel = subInvSjIds.length > 0 ? `${subInvSjIds.length} Surat Jalan terpilih` : 'tanpa Surat Jalan';
               setConfirmModal({
                 title: 'Generate Sub Invoice',
-                message: `Sub Invoice untuk ${proformaRef.nomor_proforma} akan digenerate (${sjLabel}). Nomor baru akan dibuat secara permanen. Lanjutkan?`,
+                message: `Sub Invoice untuk ${proformaRef.nomor_proforma} akan digenerate (${sjLabel}${jatuhTempoLabel}). Nomor baru akan dibuat secara permanen. Lanjutkan?`,
                 onConfirm: async () => {
                   try {
                     const res = await api.post('/auth/print-token');

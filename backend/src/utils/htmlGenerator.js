@@ -1589,6 +1589,7 @@ const generateHTMLProforma = (inv) => {
   try { terms = inv.terms ? JSON.parse(inv.terms) : []; } catch { terms = []; }
 
   const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
+  const jatuhTempoFormat = inv.jatuh_tempo ? dayjs(inv.jatuh_tempo).format('DD MMMM YYYY') : '-';
   const isFaktur = penjualan.faktur === 'FAKTUR';
   const bankInfo = isFaktur
     ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
@@ -1889,6 +1890,7 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   try { terms = inv.terms ? JSON.parse(inv.terms) : []; } catch { terms = []; }
 
   const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
+  const jatuhTempoFormat = inv.jatuh_tempo ? dayjs(inv.jatuh_tempo).format('DD MMMM YYYY') : '-';
   const isFaktur = penjualan.faktur === 'FAKTUR';
   const bankInfo = isFaktur
     ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
@@ -2009,10 +2011,12 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
                 <div class="d-flex flex-column align-items-end">
                     <p class="nt">Nomor :</p>
                     <p class="nt">Tanggal :</p>
+                    <p class="nt">Jatuh Tempo :</p>
                 </div>
                 <div class="d-flex flex-column align-items-start">
                     <p class="isint" style="font-weight:600;">${inv.nomor_sub_invoice || inv.nomor_proforma}</p>
                     <p class="isint">${tanggalFormat}</p>
+                    <p class="isint">${jatuhTempoFormat}</p>
                 </div>
             </div>
         </div>

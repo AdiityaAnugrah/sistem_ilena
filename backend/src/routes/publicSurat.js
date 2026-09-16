@@ -176,7 +176,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
         }),
         ProformaInvoice.findAll({
           where: { penjualan_interior_id: penjualanId },
-          attributes: ['id', 'nomor_proforma', 'nomor_sub_invoice', 'tanggal'],
+          attributes: ['id', 'nomor_proforma', 'nomor_sub_invoice', 'tanggal', 'jatuh_tempo'],
           order: [['tanggal', 'ASC']],
         }),
         SuratJalanInterior.findAll({
@@ -226,7 +226,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
         })),
         dokumen: {
           proformas: proformas.filter(d => !d.nomor_sub_invoice).map(d => ({ id: d.id, nomor: d.nomor_proforma, tanggal: d.tanggal, tipe: 'proforma' })),
-          subInvoices: proformas.filter(d => !!d.nomor_sub_invoice).map(d => ({ id: d.id, nomor: d.nomor_sub_invoice, tanggal: d.tanggal, tipe: 'sub-invoice' })),
+          subInvoices: proformas.filter(d => !!d.nomor_sub_invoice).map(d => ({ id: d.id, nomor: d.nomor_sub_invoice, tanggal: d.tanggal, jatuh_tempo: d.jatuh_tempo, tipe: 'sub-invoice' })),
           suratJalans: suratJalans.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'surat-jalan-interior' })),
           suratPengantars: suratPengantars.map(d => ({ id: d.id, nomor: d.nomor_surat, tanggal: d.tanggal, tipe: 'sp-interior' })),
           invoices: invoices.map(d => ({ id: d.id, nomor: d.nomor_invoice, tanggal: d.tanggal, tipe: 'invoice-interior' })),
