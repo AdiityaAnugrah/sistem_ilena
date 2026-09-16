@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ShoppingCart, Package, TrendingUp, BarChart3, Monitor, ArrowUpRight, Activity, Wallet, AlertCircle, Banknote } from 'lucide-react';
+import { ShoppingCart, Package, TrendingUp, BarChart3, Monitor, ArrowUpRight, Activity, Wallet, AlertCircle, Banknote, Globe2, Clock3, Store, Sofa } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import api from '@/lib/api';
 import Link from 'next/link';
@@ -26,6 +26,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [finance, setFinance] = useState({ omzet: 0, belumLunas: 0, piutangDisplay: 0, outstanding: 0 });
   const [financeLoading, setFinanceLoading] = useState(true);
+  const [followUp, setFollowUp] = useState<any>({
+    summary: { offlineActive: 0, interiorActive: 0, onlineWebsite: 0, onlineWaitingPayment: 0 },
+    offline: [],
+    interior: [],
+    online: [],
+    onlineWaitingPayment: [],
+  });
+  const [followUpLoading, setFollowUpLoading] = useState(true);
 
   const fetchStats = async () => {
     try {
@@ -66,9 +74,21 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchStats(); fetchFinance(); }, []);
-  useListSync('penjualan-offline-list', () => { fetchStats(); fetchFinance(); });
-  useListSync('penjualan-interior-list', () => { fetchStats(); fetchFinance(); });
+  const fetchFollowUp = async () => {
+    try {
+      const res = await api.get('/dashboard/sales-followup');
+      setFollowUp(res.data || followUp);
+    } catch {
+      // ignore
+    } finally {
+      setFollowUpLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchStats(); fetchFinance(); fetchFollowUp(); }, []);
+  useListSync('penjualan-offline-list', () => { fetchStats(); fetchFinance(); fetchFollowUp(); });
+  useListSync('penjualan-interior-list', () => { fetchStats(); fetchFinance(); fetchFollowUp(); });
+  useListSync('penjualan-online-list', () => { fetchFollowUp(); });
 
   const now = new Date();
   const greeting =
@@ -105,6 +125,16 @@ export default function DashboardPage() {
       accent: '#99f6e4',
       href: '/dashboard/display',
     },
+    {
+      label: 'Penjualan Online',
+      desc: `${followUp.summary.onlineWaitingPayment || 0} menunggu pembayaran`,
+      value: followUp.summary.onlineWebsite || 0,
+      icon: Globe2,
+      color: '#7c3aed',
+      bg: '#f5f3ff',
+      accent: '#ddd6fe',
+      href: '/dashboard/penjualan/online',
+    },
   ];
 
   const quickActions = [
@@ -134,7 +164,63 @@ export default function DashboardPage() {
     },
   ];
 
-  const total = stats.offline + stats.interior + stats.display;
+  const total = stats.offline + stats.interior + stats.display + (followUp.summary.onlineWebsite || 0);
+
+  const statusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      ACTIVE: 'Aktif',
+      DRAFT: 'Draft',
+      COMPLETED: 'Selesai',
+      DIPROSES: 'Diproses',
+      DIKIRIM: 'Dikirim',
+      SELESAI: 'Selesai',
+      DIBATALKAN: 'Dibatalkan',
+      RETUR: 'Retur',
+      MENUNGGU_PEMBAYARAN: 'Menunggu Pembayaran',
+    };
+    return labels[status] || status || '-';
+  };
+
+  const FollowUpList = ({ title, icon: Icon, rows, empty, color }: any) => (
+    <div className="rounded-2xl bg-white overflow-hidden" style={{ border: '1px solid #e2e8f0' }}>
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `${color}14` }}>
+            <Icon className="h-4 w-4" style={{ color }} />
+          </div>
+          <h3 className="font-bold text-slate-900 text-sm">{title}</h3>
+        </div>
+        <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: '#f8fafc', color: '#64748b' }}>
+          {followUpLoading ? '-' : rows.length}
+        </span>
+      </div>
+      <div className="p-2">
+        {followUpLoading ? (
+          <div className="p-4 space-y-2">
+            <div className="h-4 w-2/3 rounded bg-slate-100 animate-pulse" />
+            <div className="h-4 w-1/2 rounded bg-slate-100 animate-pulse" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="p-5 text-center text-sm text-slate-500">{empty}</div>
+        ) : rows.map((row: any) => (
+          <Link key={`${title}-${row.id}`} href={row.href} className="block p-3 rounded-xl hover:bg-slate-50 transition-colors">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-semibold text-sm text-slate-900 truncate">{row.title || '-'}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{row.ref || '-'} · {row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-'}</div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="font-bold text-xs text-slate-900">{fmtRp(row.total || 0)}</div>
+                <div className="text-[10px] mt-1 px-2 py-0.5 rounded-full inline-flex font-bold" style={{ background: row.status === 'MENUNGGU_PEMBAYARAN' ? '#fef3c7' : '#f1f5f9', color: row.status === 'MENUNGGU_PEMBAYARAN' ? '#b45309' : '#64748b' }}>
+                  {statusLabel(row.status)}
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-5 sm:space-y-6 w-full mt-2 lg:mt-0">
@@ -212,7 +298,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ─── Stat Cards ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {statCards.map((card) => (
           <Link
             key={card.label}
@@ -253,6 +339,75 @@ export default function DashboardPage() {
             <div className="absolute bottom-0 left-0 h-1 w-full translate-y-full group-hover:translate-y-0 transition-transform duration-300" style={{ background: card.color }}></div>
           </Link>
         ))}
+      </div>
+
+      {/* ─── Follow Up Penjualan ─── */}
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-base sm:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-slate-800 flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-red-500" /> Follow Up Penjualan
+            </h2>
+            <p className="text-sm sm:text-xs text-slate-500 mt-1">
+              Pesanan yang perlu dipantau admin: offline, interior, online website, dan pembayaran yang masih menunggu.
+            </p>
+          </div>
+          <Link href="/dashboard/penjualan/online" className="min-h-[44px] text-sm sm:text-xs font-semibold text-red-500 hover:text-red-600 flex items-center gap-1">
+            Lihat Online <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
+          {[
+            { label: 'Offline Aktif', value: followUp.summary.offlineActive, icon: Store, color: '#FA2F2F', bg: '#fff1f1' },
+            { label: 'Interior Aktif', value: followUp.summary.interiorActive, icon: Sofa, color: '#0369a1', bg: '#f0f9ff' },
+            { label: 'Online Website', value: followUp.summary.onlineWebsite, icon: Globe2, color: '#7c3aed', bg: '#f5f3ff' },
+            { label: 'Menunggu Bayar', value: followUp.summary.onlineWaitingPayment, icon: Clock3, color: '#d97706', bg: '#fffbeb' },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl p-4 bg-white flex items-center gap-3" style={{ border: '1px solid #e2e8f0' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: item.bg }}>
+                <item.icon className="h-5 w-5" style={{ color: item.color }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-2xl font-extrabold tracking-tight text-slate-900">
+                  {followUpLoading ? '-' : Number(item.value || 0).toLocaleString('id-ID')}
+                </div>
+                <div className="text-xs font-semibold text-slate-500 truncate">{item.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <FollowUpList
+            title="Penjualan Offline Perlu Diurus"
+            icon={Store}
+            rows={followUp.offline || []}
+            empty="Belum ada penjualan offline aktif."
+            color="#FA2F2F"
+          />
+          <FollowUpList
+            title="Penjualan Interior Aktif"
+            icon={Sofa}
+            rows={followUp.interior || []}
+            empty="Belum ada proyek interior aktif."
+            color="#0369a1"
+          />
+          <FollowUpList
+            title="Pesanan Online Website"
+            icon={Globe2}
+            rows={followUp.online || []}
+            empty="Belum ada pesanan online dari website."
+            color="#7c3aed"
+          />
+          <FollowUpList
+            title="Online Menunggu Pembayaran"
+            icon={Clock3}
+            rows={followUp.onlineWaitingPayment || []}
+            empty="Tidak ada pesanan yang menunggu pembayaran."
+            color="#d97706"
+          />
+        </div>
       </div>
 
       {/* ─── Keuangan Bulan Ini ─── */}
