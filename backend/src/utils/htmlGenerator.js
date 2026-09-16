@@ -2011,12 +2011,10 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
                 <div class="d-flex flex-column align-items-end">
                     <p class="nt">Nomor :</p>
                     <p class="nt">Tanggal :</p>
-                    <p class="nt">Jatuh Tempo :</p>
                 </div>
                 <div class="d-flex flex-column align-items-start">
                     <p class="isint" style="font-weight:600;">${inv.nomor_sub_invoice || inv.nomor_proforma}</p>
                     <p class="isint">${tanggalFormat}</p>
-                    <p class="isint">${jatuhTempoFormat}</p>
                 </div>
             </div>
         </div>
@@ -2075,6 +2073,10 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
                     </tr>
                     ${inv.catatan ? `<tr><td class="pe-3" style="font-size:11.5px;">Catatan</td>
                         <td style="font-size:11.5px;">: ${escapeHtml(inv.catatan)}</td></tr>` : ''}
+                    <tr>
+                        <td class="pe-3" style="font-size:11.5px;">Jatuh Tempo</td>
+                        <td style="font-size:11.5px;">: ${jatuhTempoFormat}</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
