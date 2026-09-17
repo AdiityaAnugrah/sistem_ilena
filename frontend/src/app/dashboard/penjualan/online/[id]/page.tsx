@@ -13,7 +13,7 @@ import DateInput from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
-import { ArrowLeft, FileText, Package, User, Wallet, RotateCcw } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, CreditCard, FileText, Globe2, MapPin, Package, Phone, Printer, Receipt, RotateCcw, Truck, User, Wallet, XCircle } from 'lucide-react';
 
 type StatusTarget = 'DIKIRIM' | 'SELESAI' | 'DIBATALKAN';
 type ConfirmTarget = 'INVOICE' | 'SURAT_JALAN' | 'RETUR';
@@ -30,6 +30,20 @@ type OnlineData = {
   metode_pembayaran: string; faktur: string; kurangi_stok: number; qty_net: number;
 };
 
+const statusMap: Record<string, { label: string; cls: string; icon: any }> = {
+  DIPROSES: { label: 'Diproses', cls: 'bg-blue-50 text-blue-700 border-blue-200', icon: Receipt },
+  DIKIRIM: { label: 'Dikirim', cls: 'bg-amber-50 text-amber-700 border-amber-200', icon: Truck },
+  SELESAI: { label: 'Selesai', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
+  DIBATALKAN: { label: 'Dibatalkan', cls: 'bg-red-50 text-red-700 border-red-200', icon: XCircle },
+  RETUR: { label: 'Retur', cls: 'bg-orange-50 text-orange-700 border-orange-200', icon: RotateCcw },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const current = statusMap[status] || { label: status, cls: 'bg-slate-50 text-slate-600 border-slate-200', icon: FileText };
+  const Icon = current.icon;
+  return <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${current.cls}`}><Icon className="h-3.5 w-3.5" />{current.label}</span>;
+}
+
 function StatusTimeline({ status, completed }: { status: string; completed: boolean }) {
   const normalStages = ['DIPROSES', 'DIKIRIM', 'SELESAI'];
   const terminal = status === 'DIBATALKAN' || status === 'RETUR' ? status : null;
@@ -42,15 +56,33 @@ function StatusTimeline({ status, completed }: { status: string; completed: bool
     return false;
   };
 
-  return <div className="flex flex-wrap items-center justify-end gap-1.5" aria-label="Riwayat status">
+  return <div className="flex flex-wrap items-center justify-start sm:justify-end gap-1.5" aria-label="Riwayat status">
     {stages.map((stage, index) => {
       const active = stage === status;
       const passed = isPassed(stage, index);
-      const colors = active ? 'bg-red-600 text-white ring-red-200' : passed ? 'bg-green-600 text-white ring-green-200' : 'bg-slate-200 text-slate-500 ring-slate-100';
-      return <div key={`${stage}-${index}`} className="flex items-center gap-1.5">{index > 0 && <span className={`h-0.5 w-4 ${passed || active ? 'bg-green-500' : 'bg-slate-200'}`}/>}<span className={`rounded-full px-3 py-1.5 text-xs font-bold ring-2 ${colors}`}>{stage}</span></div>;
+      const colors = active ? 'bg-red-600 text-white ring-red-100' : passed ? 'bg-emerald-600 text-white ring-emerald-100' : 'bg-slate-100 text-slate-500 ring-slate-50';
+      return <div key={`${stage}-${index}`} className="flex items-center gap-1.5">{index > 0 && <span className={`h-0.5 w-4 ${passed || active ? 'bg-emerald-500' : 'bg-slate-200'}`}/>}<span className={`rounded-full px-3 py-1.5 text-[11px] font-black ring-2 ${colors}`}>{statusMap[stage]?.label || stage}</span></div>;
     })}
   </div>;
 }
+
+const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value?: string }) => (
+  <div className="flex items-start gap-3">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 border border-slate-100"><Icon className="h-4 w-4 text-slate-400" /></div>
+    <div className="min-w-0"><div className="text-xs font-semibold text-slate-400">{label}</div><div className="mt-0.5 text-sm font-bold text-slate-800 break-words">{value || '-'}</div></div>
+  </div>
+);
+
+const SummaryLine = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex items-center justify-between gap-3 text-sm text-slate-600"><span>{label}</span><b className="text-slate-900">{value}</b></div>
+);
+
+const DocItem = ({ title, subtitle, onPrint, tone = 'slate' }: { title: string; subtitle: string; onPrint: () => void; tone?: 'slate' | 'amber' }) => (
+  <div className={`flex items-center justify-between gap-3 rounded-2xl border p-3 ${tone === 'amber' ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
+    <div className="min-w-0"><div className="font-mono text-xs font-black text-slate-800 truncate">{title}</div><div className="mt-0.5 text-xs font-semibold text-slate-500">{subtitle}</div></div>
+    <Button size="sm" variant="outline" onClick={onPrint} className="h-9 rounded-xl bg-white font-bold"><Printer className="mr-1.5 h-3.5 w-3.5"/>Cetak</Button>
+  </div>
+);
 
 export default function PenjualanOnlineDetail() {
   const params = useParams();
@@ -84,47 +116,29 @@ export default function PenjualanOnlineDetail() {
 
   const updateStatus = async () => {
     if (!statusTarget) return;
-    if (statusTarget === 'SELESAI' && pendapatanBersih.trim() === '') {
-      toast.error('Pendapatan bersih wajib diisi');
-      return;
-    }
-    if (statusTarget === 'SELESAI' && data && Number(pendapatanBersih) > Number(data.total_tagihan)) {
-      toast.error(`Pendapatan bersih maksimal ${formatRupiah(data.total_tagihan)}`);
-      return;
-    }
+    if (statusTarget === 'SELESAI' && pendapatanBersih.trim() === '') return toast.error('Pendapatan bersih wajib diisi');
+    if (statusTarget === 'SELESAI' && data && Number(pendapatanBersih) > Number(data.total_tagihan)) return toast.error(`Pendapatan bersih maksimal ${formatRupiah(data.total_tagihan)}`);
     setSaving(true);
     try {
-      await api.patch(`/penjualan-online/${id}/status`, {
-        status: statusTarget,
-        ...(statusTarget === 'SELESAI' ? { pendapatan_bersih: Number(pendapatanBersih) } : {}),
-      });
+      await api.patch(`/penjualan-online/${id}/status`, { status: statusTarget, ...(statusTarget === 'SELESAI' ? { pendapatan_bersih: Number(pendapatanBersih) } : {}) });
       toast.success(statusTarget === 'SELESAI' ? 'Pesanan selesai dan pendapatan bersih tersimpan' : `Status diubah ke ${statusTarget}`);
-      setStatusTarget(null);
-      setPendapatanBersih('');
-      void fetchData();
+      setStatusTarget(null); setPendapatanBersih(''); void fetchData();
     } catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal update status'); }
     finally { setSaving(false); }
   };
 
   const createDoc = async (type:'surat-jalan'|'invoice') => {
     setSaving(true);
-    try {
-      const res = await api.post(`/penjualan-online/${id}/${type}`, { tanggal: new Date().toISOString().split('T')[0] });
-      toast.success(res.data.nomor_surat || res.data.nomor_invoice);
-      void fetchData();
-    } catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat dokumen'); }
+    try { const res = await api.post(`/penjualan-online/${id}/${type}`, { tanggal: new Date().toISOString().split('T')[0] }); toast.success(res.data.nomor_surat || res.data.nomor_invoice); void fetchData(); }
+    catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat dokumen'); }
     finally { setSaving(false); }
   };
 
   const createSuratJalan = async () => {
     if (!sjTanggal) return toast.error('Tanggal Surat Jalan wajib diisi');
     setSaving(true);
-    try {
-      const res = await api.post(`/penjualan-online/${id}/surat-jalan`, { tanggal: sjTanggal, catatan: sjCatatan.trim() || null });
-      toast.success(res.data.nomor_surat || 'Surat Jalan berhasil dibuat');
-      setSjFormOpen(false);
-      void fetchData();
-    } catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat Surat Jalan'); }
+    try { const res = await api.post(`/penjualan-online/${id}/surat-jalan`, { tanggal: sjTanggal, catatan: sjCatatan.trim() || null }); toast.success(res.data.nomor_surat || 'Surat Jalan berhasil dibuat'); setSjFormOpen(false); void fetchData(); }
+    catch (e) { toast.error((e as ApiError).response?.data?.message || 'Gagal membuat Surat Jalan'); }
     finally { setSaving(false); }
   };
 
@@ -142,7 +156,7 @@ export default function PenjualanOnlineDetail() {
     if (!returCatatan.trim()) return toast.error('Alasan retur wajib diisi');
     if (!returSjAwalId) return toast.error('Surat Jalan awal wajib dipilih');
     if (returTipe === 'PENGEMBALIAN_DANA' && Number(returRefund) <= 0) return toast.error('Nominal pengembalian dana wajib diisi');
-    if (returTipe === 'PENGGANTIAN_BARANG' && !returSjTanggal) return toast.error('Tanggal SJ penggantian wajib diisi');
+    if (returTipe === 'PENGGANTIAN_BARANG' && !returSjTanggal) return toast.error('Tanggal SJ pengganti wajib diisi');
     setSaving(true);
     try {
       const res = await api.post(`/penjualan-online/${id}/retur`, { tanggal: returTanggal, catatan: returCatatan, items, tipe: returTipe, surat_jalan_awal_id: Number(returSjAwalId), ...(returTipe === 'PENGEMBALIAN_DANA' ? { jumlah_refund: Number(returRefund) } : { tanggal_sj_pengganti: returSjTanggal }) });
@@ -153,15 +167,14 @@ export default function PenjualanOnlineDetail() {
   };
 
   const executeConfirmedAction = () => {
-    const target = confirmTarget;
-    setConfirmTarget(null);
+    const target = confirmTarget; setConfirmTarget(null);
     if (target === 'INVOICE') void createDoc('invoice');
     if (target === 'SURAT_JALAN') void createSuratJalan();
     if (target === 'RETUR') void submitRetur();
   };
 
-  if (loading) return <div className="p-8 text-slate-500">Memuat data...</div>;
-  if (!data) return <div className="p-8">Data tidak ditemukan.</div>;
+  if (loading) return <div className="mx-auto max-w-6xl p-8 text-slate-500">Memuat data...</div>;
+  if (!data) return <div className="mx-auto max-w-6xl p-8">Data tidak ditemukan.</div>;
 
   const alamat = [data.alamat_detail, data.kelurahan?.label, data.kecamatan?.label, data.kabupaten?.label, data.provinsi?.label, data.kode_pos].filter(Boolean).join(', ');
   const invoice = data.invoices?.[0];
@@ -170,38 +183,52 @@ export default function PenjualanOnlineDetail() {
   const canRetur = ['DIKIRIM', 'SELESAI'].includes(data.status);
   const adaPengembalianDana = Number(data.total_retur || 0) > 0;
 
-  return <div className="max-w-6xl mx-auto pb-12 space-y-6">
-    <div className="flex items-center justify-between gap-3">
-      <div><Link href="/dashboard/penjualan/online" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-red-600 mb-3"><ArrowLeft className="w-4 h-4"/>Kembali</Link><h1 className="text-2xl font-bold text-slate-800">Pesanan {data.id_pesanan}</h1><p className="text-sm text-slate-500">{data.channel} · {formatDate(data.tanggal)}</p></div>
-      <div className="space-y-3"><StatusTimeline status={data.status} completed={data.pendapatan_bersih !== null && data.pendapatan_bersih !== undefined}/><div className="flex gap-2 flex-wrap justify-end">{data.status === 'DIPROSES' && <><Button disabled={saving || !invoiceSudahDicetak} onClick={() => setStatusTarget('DIKIRIM')}>Ubah ke DIKIRIM</Button><Button disabled={saving} variant="outline" onClick={() => setStatusTarget('DIBATALKAN')}>Batalkan</Button></>}{data.status === 'DIKIRIM' && <Button disabled={saving || !suratJalan} onClick={() => setStatusTarget('SELESAI')}>Selesaikan Pesanan</Button>}</div></div>
+  return <div className="mx-auto max-w-6xl pb-12 space-y-6">
+    <div className="rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 p-5 sm:p-7 text-white shadow-[0_22px_48px_rgba(15,23,42,.16)] relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+      <div className="relative flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+        <div>
+          <Link href="/dashboard/penjualan/online" className="inline-flex min-h-[36px] items-center gap-2 text-sm font-bold text-slate-300 hover:text-white mb-3"><ArrowLeft className="w-4 h-4"/>Kembali</Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 border border-white/15"><Globe2 className="h-6 w-6" /></div>
+            <div><h1 className="text-2xl sm:text-3xl font-black tracking-tight">Pesanan Online {data.id_pesanan}</h1><p className="mt-1 text-sm text-slate-300">{data.channel} · {formatDate(data.tanggal)} · {data.faktur === 'FAKTUR' ? 'Faktur' : 'Non Faktur'}</p></div>
+          </div>
+        </div>
+        <div className="space-y-3 lg:text-right"><StatusBadge status={data.status} /><StatusTimeline status={data.status} completed={data.pendapatan_bersih !== null && data.pendapatan_bersih !== undefined}/></div>
+      </div>
     </div>
 
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card><CardHeader><CardTitle className="flex gap-2 items-center text-base"><User className="w-4 h-4"/>Pelanggan</CardTitle></CardHeader><CardContent className="text-sm space-y-2"><div><b>{data.nama_pelanggan}</b></div><div>{data.no_hp}</div><div className="text-slate-500">{alamat || '-'}</div></CardContent></Card>
-      <Card><CardHeader><CardTitle className="flex gap-2 items-center text-base"><FileText className="w-4 h-4"/>Dokumen Online</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
-        <div className="text-xs text-slate-500">Urutan: buat dan cetak Invoice, ubah status ke DIKIRIM, lalu buat Surat Jalan.</div>
-        {!invoice && <Button disabled={saving || data.status !== 'DIPROSES'} onClick={() => setConfirmTarget('INVOICE')} className="w-full bg-red-600 hover:bg-red-700">Buat Invoice Online</Button>}
-        {invoice && <div className="rounded-lg bg-slate-50 border px-3 py-2 flex items-center justify-between gap-2"><div><b>{invoice.nomor_invoice}</b><br/><span className="text-xs text-slate-500">{formatDate(invoice.tanggal)} · {invoiceSudahDicetak ? 'Sudah dicetak' : 'Belum dicetak'}</span></div><Button size="sm" variant="outline" onClick={() => printDoc('invoice-online', invoice.id)}>Cetak Invoice</Button></div>}
-        {invoiceSudahDicetak && data.status === 'DIKIRIM' && !suratJalan && <Button disabled={saving} onClick={() => setSjFormOpen(true)} className="w-full bg-red-600 hover:bg-red-700">Buat SJ Online</Button>}
-        {!invoiceSudahDicetak && invoice && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Cetak Invoice agar status dapat diubah ke DIKIRIM.</p>}
-        {invoiceSudahDicetak && data.status === 'DIPROSES' && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Ubah status ke DIKIRIM untuk membuat Surat Jalan.</p>}
-        {data.status === 'DIKIRIM' && !suratJalan && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Buat Surat Jalan sebelum menyelesaikan pesanan.</p>}
-        {(data.suratJalans || []).map((sj) => <div key={sj.id} className="rounded-lg bg-slate-50 border px-3 py-2 flex items-center justify-between gap-2"><div><b>{sj.nomor_surat}</b><br/><span className="text-xs text-slate-500">{formatDate(sj.tanggal)} · {sj.jenis === 'PENGGANTIAN_RETUR' ? 'SJ Pengganti Retur' : 'SJ Pengiriman Awal'}</span></div><Button size="sm" variant="outline" onClick={() => printDoc('surat-jalan-online', sj.id)}>Cetak SJ</Button></div>)}
+    <div className="flex flex-wrap justify-end gap-2">
+      {data.status === 'DIPROSES' && <><Button disabled={saving || !invoiceSudahDicetak} onClick={() => setStatusTarget('DIKIRIM')} className="rounded-xl bg-red-600 font-bold hover:bg-red-700"><Truck className="mr-2 h-4 w-4"/>Ubah ke DIKIRIM</Button><Button disabled={saving} variant="outline" onClick={() => setStatusTarget('DIBATALKAN')} className="rounded-xl font-bold"><XCircle className="mr-2 h-4 w-4"/>Batalkan</Button></>}
+      {data.status === 'DIKIRIM' && <Button disabled={saving || !suratJalan} onClick={() => setStatusTarget('SELESAI')} className="rounded-xl bg-emerald-600 font-bold hover:bg-emerald-700"><CheckCircle2 className="mr-2 h-4 w-4"/>Selesaikan Pesanan</Button>}
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle className="flex gap-2 items-center text-base"><User className="w-4 h-4 text-red-500"/>Pelanggan</CardTitle></CardHeader><CardContent className="space-y-4"><InfoRow icon={User} label="Nama Pelanggan" value={data.nama_pelanggan}/><InfoRow icon={Phone} label="No. HP" value={data.no_hp}/><InfoRow icon={MapPin} label="Alamat" value={alamat || '-'}/></CardContent></Card>
+      <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle className="flex gap-2 items-center text-base"><FileText className="w-4 h-4 text-red-500"/>Dokumen Online</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3 text-xs font-semibold text-slate-500">Urutan: buat dan cetak Invoice, ubah status ke DIKIRIM, lalu buat Surat Jalan.</div>
+        {!invoice && <Button disabled={saving || data.status !== 'DIPROSES'} onClick={() => setConfirmTarget('INVOICE')} className="w-full rounded-xl bg-red-600 font-bold hover:bg-red-700"><Receipt className="mr-2 h-4 w-4"/>Buat Invoice Online</Button>}
+        {invoice && <DocItem title={invoice.nomor_invoice} subtitle={`${formatDate(invoice.tanggal)} · ${invoiceSudahDicetak ? 'Sudah dicetak' : 'Belum dicetak'}`} onPrint={() => printDoc('invoice-online', invoice.id)} tone={invoiceSudahDicetak ? 'slate' : 'amber'} />}
+        {invoiceSudahDicetak && data.status === 'DIKIRIM' && !suratJalan && <Button disabled={saving} onClick={() => setSjFormOpen(true)} className="w-full rounded-xl bg-red-600 font-bold hover:bg-red-700"><Truck className="mr-2 h-4 w-4"/>Buat SJ Online</Button>}
+        {!invoiceSudahDicetak && invoice && <p className="rounded-2xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">Cetak Invoice agar status dapat diubah ke DIKIRIM.</p>}
+        {invoiceSudahDicetak && data.status === 'DIPROSES' && <p className="rounded-2xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">Ubah status ke DIKIRIM untuk membuat Surat Jalan.</p>}
+        {data.status === 'DIKIRIM' && !suratJalan && <p className="rounded-2xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-semibold text-amber-700">Buat Surat Jalan sebelum menyelesaikan pesanan.</p>}
+        {(data.suratJalans || []).map((sj) => <DocItem key={sj.id} title={sj.nomor_surat} subtitle={`${formatDate(sj.tanggal)} · ${sj.jenis === 'PENGGANTIAN_RETUR' ? 'SJ Pengganti Retur' : 'SJ Pengiriman Awal'}`} onPrint={() => printDoc('surat-jalan-online', sj.id)} tone={sj.jenis === 'PENGGANTIAN_RETUR' ? 'amber' : 'slate'} />)}
       </CardContent></Card>
-      <Card><CardHeader><CardTitle className="flex gap-2 items-center text-base"><Wallet className="w-4 h-4"/>Ringkasan</CardTitle></CardHeader><CardContent className="space-y-2 text-sm"><div className="flex justify-between"><span>{adaPengembalianDana ? 'Subtotal Awal' : 'Subtotal'}</span><b>{formatRupiah(data.subtotal_gross)}</b></div><div className="flex justify-between"><span>Biaya lain</span><b>{formatRupiah(data.biaya_lain)}</b></div><div className="flex justify-between"><span>Diskon</span><b>- {formatRupiah(data.diskon_order)}</b></div>{adaPengembalianDana && <div className="flex justify-between rounded-lg bg-orange-50 px-2 py-1 font-semibold text-orange-700"><span>Retur Pengembalian Dana</span><b>- {formatRupiah(data.total_retur)}</b></div>}<div className="border-t pt-2 flex justify-between text-base"><span>{adaPengembalianDana ? 'Total Setelah Retur' : 'Total'}</span><b className="text-red-600">{formatRupiah(data.total_tagihan)}</b></div>{data.pendapatan_bersih !== null && <div className="flex justify-between rounded-lg bg-green-50 px-2 py-1 text-green-700"><span>Pendapatan bersih</span><b>{formatRupiah(data.pendapatan_bersih)}</b></div>}<div className="text-xs text-slate-500">Metode: {data.metode_pembayaran} · {data.faktur === 'FAKTUR' ? 'Faktur' : 'Non Faktur'}</div><div className={`text-xs font-semibold rounded-lg px-2 py-1 w-fit ${data.kurangi_stok ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{data.kurangi_stok ? 'Stok dikurangi saat input' : 'Tidak mengurangi stok'}</div></CardContent></Card>
+      <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle className="flex gap-2 items-center text-base"><Wallet className="w-4 h-4 text-red-500"/>Ringkasan</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><SummaryLine label={adaPengembalianDana ? 'Subtotal Awal' : 'Subtotal'} value={formatRupiah(data.subtotal_gross)}/><SummaryLine label="Biaya lain" value={formatRupiah(data.biaya_lain)}/><SummaryLine label="Diskon" value={`- ${formatRupiah(data.diskon_order)}`}/>{adaPengembalianDana && <div className="rounded-2xl bg-orange-50 border border-orange-100 p-2"><SummaryLine label="Retur Pengembalian Dana" value={`- ${formatRupiah(data.total_retur)}`} /></div>}<div className="border-t pt-3 flex justify-between text-base"><span className="font-bold text-slate-600">{adaPengembalianDana ? 'Total Setelah Retur' : 'Total'}</span><b className="text-red-600">{formatRupiah(data.total_tagihan)}</b></div>{data.pendapatan_bersih !== null && <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-2"><SummaryLine label="Pendapatan bersih" value={formatRupiah(data.pendapatan_bersih || 0)} /></div>}<div className="flex items-center gap-2 rounded-2xl bg-slate-50 border border-slate-100 p-3 text-xs font-bold text-slate-500"><CreditCard className="h-4 w-4"/>Metode: {data.metode_pembayaran}</div><div className={`text-xs font-black rounded-2xl border px-3 py-2 w-fit ${data.kurangi_stok ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-600 border-slate-100'}`}>{data.kurangi_stok ? 'Stok dikurangi' : 'Tidak mengurangi stok'}</div></CardContent></Card>
     </div>
 
-    <Card><CardHeader><CardTitle className="flex items-center justify-between text-base"><span className="flex items-center gap-2"><Package className="w-4 h-4"/>Produk</span>{canRetur && data.qty_net > 0 && <Button variant="outline" onClick={() => setReturOpen(!returOpen)}><RotateCcw className="w-4 h-4 mr-2"/>Catat Retur</Button>}</CardTitle></CardHeader><CardContent className="space-y-3">
-      {(data.items || []).map((item) => <div key={item.id} className="grid grid-cols-12 gap-3 items-center rounded-xl border p-3"><div className="col-span-12 md:col-span-5"><div className="font-semibold text-slate-800">{item.barang?.nama || item.barang_id}</div><div className="text-xs text-slate-500">{item.varian_nama || '-'} · ID {item.barang_id}</div></div><div className="col-span-4 md:col-span-2 text-sm">Qty: <b>{item.qty_net}</b> / {item.qty}</div><div className="col-span-4 md:col-span-2 text-sm">Retur: <b>{item.qty_retur_total}</b></div><div className="col-span-4 md:col-span-3 text-right font-bold text-red-600">{formatRupiah(item.subtotal_net)}</div></div>)}
-      {returOpen && <div className="mt-4 rounded-2xl border border-orange-200 bg-orange-50 p-4 space-y-4"><div className="grid grid-cols-2 gap-2"><Button type="button" variant={returTipe === 'PENGGANTIAN_BARANG' ? 'default' : 'outline'} onClick={() => setReturTipe('PENGGANTIAN_BARANG')}>Penggantian Barang</Button><Button type="button" variant={returTipe === 'PENGEMBALIAN_DANA' ? 'default' : 'outline'} onClick={() => setReturTipe('PENGEMBALIAN_DANA')}>Pengembalian Dana</Button></div><p className="text-sm text-orange-800">{returTipe === 'PENGGANTIAN_BARANG' ? 'Sistem langsung membuat SJ pengganti yang tetap terkait dengan invoice ini.' : 'Tidak membuat SJ baru. Nominal refund akan mengurangi pendapatan bersih.'}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label>Tanggal Retur</Label><DateInput value={returTanggal} onChange={e => setReturTanggal(e.target.value)} className="w-full h-10 rounded-md border px-3 bg-white"/></div><div><Label>Surat Jalan Awal *</Label><select value={returSjAwalId} onChange={e => setReturSjAwalId(e.target.value)} className="w-full h-10 rounded-md border px-3 bg-white"><option value="">Pilih SJ awal</option>{(data.suratJalans || []).filter(sj => sj.jenis !== 'PENGGANTIAN_RETUR').map(sj => <option key={sj.id} value={sj.id}>{sj.nomor_surat}</option>)}</select></div>{returTipe === 'PENGGANTIAN_BARANG' ? <div><Label>Tanggal SJ Pengganti *</Label><DateInput value={returSjTanggal} onChange={e => setReturSjTanggal(e.target.value)} className="w-full h-10 rounded-md border px-3 bg-white"/></div> : <div><Label>Nominal Dana Dikembalikan *</Label><Input type="number" min="1" value={returRefund} onChange={e => setReturRefund(e.target.value)} placeholder="Contoh: 150000" className="bg-white"/></div>}<div><Label>Alasan Retur *</Label><Input value={returCatatan} onChange={e => setReturCatatan(e.target.value)} placeholder="Alasan retur wajib diisi" className="bg-white"/></div></div>{(data.items || []).map((item) => <div key={item.id} className="flex items-center justify-between gap-3"><div className="text-sm"><b>{item.barang?.nama || item.barang_id}</b><div className="text-xs text-slate-500">Sisa bisa diretur: {item.qty_net}</div></div><Input type="number" min={0} max={item.qty_net} value={returQty[item.id] || 0} onChange={e => setReturQty(prev => ({ ...prev, [item.id]: Math.min(Number(item.qty_net), Math.max(0, Number(e.target.value))) }))} className="w-24 text-center bg-white"/></div>)}<Button disabled={saving} onClick={() => setConfirmTarget('RETUR')} className="bg-orange-600 hover:bg-orange-700">{saving ? 'Menyimpan...' : 'Simpan Retur'}</Button></div>}
+    <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-base"><span className="flex items-center gap-2"><Package className="w-4 h-4 text-red-500"/>Produk Pesanan</span>{canRetur && data.qty_net > 0 && <Button variant="outline" onClick={() => setReturOpen(!returOpen)} className="rounded-xl font-bold"><RotateCcw className="w-4 h-4 mr-2"/>Catat Retur</Button>}</CardTitle></CardHeader><CardContent className="space-y-3">
+      {(data.items || []).map((item) => <div key={item.id} className="grid grid-cols-12 gap-3 items-center rounded-2xl border border-slate-100 bg-white p-4 hover:bg-slate-50 transition-colors"><div className="col-span-12 md:col-span-5"><div className="font-black text-slate-800">{item.barang?.nama || item.barang_id}</div><div className="text-xs font-semibold text-slate-500 mt-1">{item.varian_nama || '-'} · ID {item.barang_id}</div></div><div className="col-span-4 md:col-span-2 text-sm text-slate-600">Qty: <b className="text-slate-900">{item.qty_net}</b> / {item.qty}</div><div className="col-span-4 md:col-span-2 text-sm text-slate-600">Retur: <b className="text-slate-900">{item.qty_retur_total}</b></div><div className="col-span-4 md:col-span-3 text-right font-black text-red-600">{formatRupiah(item.subtotal_net)}</div></div>)}
+      {returOpen && <div className="mt-4 rounded-3xl border border-orange-200 bg-orange-50 p-4 space-y-4"><div className="grid grid-cols-1 sm:grid-cols-2 gap-2"><Button type="button" variant={returTipe === 'PENGGANTIAN_BARANG' ? 'default' : 'outline'} onClick={() => setReturTipe('PENGGANTIAN_BARANG')} className="rounded-xl font-bold">Penggantian Barang</Button><Button type="button" variant={returTipe === 'PENGEMBALIAN_DANA' ? 'default' : 'outline'} onClick={() => setReturTipe('PENGEMBALIAN_DANA')} className="rounded-xl font-bold">Pengembalian Dana</Button></div><p className="text-sm font-semibold text-orange-800">{returTipe === 'PENGGANTIAN_BARANG' ? 'Sistem langsung membuat SJ pengganti yang tetap terkait dengan invoice ini.' : 'Tidak membuat SJ baru. Nominal refund akan mengurangi pendapatan bersih.'}</p><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div><Label>Tanggal Retur</Label><DateInput value={returTanggal} onChange={e => setReturTanggal(e.target.value)} className="w-full h-10 rounded-xl border px-3 bg-white"/></div><div><Label>Surat Jalan Awal *</Label><select value={returSjAwalId} onChange={e => setReturSjAwalId(e.target.value)} className="w-full h-10 rounded-xl border px-3 bg-white"><option value="">Pilih SJ awal</option>{(data.suratJalans || []).filter(sj => sj.jenis !== 'PENGGANTIAN_RETUR').map(sj => <option key={sj.id} value={sj.id}>{sj.nomor_surat}</option>)}</select></div>{returTipe === 'PENGGANTIAN_BARANG' ? <div><Label>Tanggal SJ Pengganti *</Label><DateInput value={returSjTanggal} onChange={e => setReturSjTanggal(e.target.value)} className="w-full h-10 rounded-xl border px-3 bg-white"/></div> : <div><Label>Nominal Dana Dikembalikan *</Label><Input type="number" min="1" value={returRefund} onChange={e => setReturRefund(e.target.value)} placeholder="Contoh: 150000" className="rounded-xl bg-white"/></div>}<div><Label>Alasan Retur *</Label><Input value={returCatatan} onChange={e => setReturCatatan(e.target.value)} placeholder="Alasan retur wajib diisi" className="rounded-xl bg-white"/></div></div>{(data.items || []).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/70 p-3"><div className="text-sm"><b>{item.barang?.nama || item.barang_id}</b><div className="text-xs text-slate-500">Sisa bisa diretur: {item.qty_net}</div></div><Input type="number" min={0} max={item.qty_net} value={returQty[item.id] || 0} onChange={e => setReturQty(prev => ({ ...prev, [item.id]: Math.min(Number(item.qty_net), Math.max(0, Number(e.target.value))) }))} className="w-24 text-center rounded-xl bg-white"/></div>)}<Button disabled={saving} onClick={() => setConfirmTarget('RETUR')} className="rounded-xl bg-orange-600 font-bold hover:bg-orange-700">{saving ? 'Menyimpan...' : 'Simpan Retur'}</Button></div>}
     </CardContent></Card>
 
-    <Card><CardHeader><CardTitle className="text-base">Riwayat Retur</CardTitle></CardHeader><CardContent>{(data.returs || []).length === 0 ? <p className="text-sm text-slate-500">Belum ada retur.</p> : <div className="space-y-2">{data.returs?.map((r) => { const sjPengganti = data.suratJalans?.find(sj => sj.id === r.surat_jalan_pengganti_id); return <div key={r.id} className="rounded-lg border p-3 text-sm"><b>{formatDate(r.tanggal)}</b> · {r.tipe === 'PENGEMBALIAN_DANA' ? 'Pengembalian Dana' : 'Penggantian Barang'} · {r.qty_retur} pcs · {r.item?.barang_id}{Number(r.jumlah_refund) > 0 ? ` · ${formatRupiah(Number(r.jumlah_refund))}` : ''}{sjPengganti ? ` · SJ ${sjPengganti.nomor_surat}` : ''}{r.catatan ? ` · ${r.catatan}` : ''}</div>; })}</div>}</CardContent></Card>
+    <Card className="rounded-3xl border-slate-200 shadow-sm"><CardHeader><CardTitle className="text-base flex items-center gap-2"><RotateCcw className="h-4 w-4 text-red-500"/>Riwayat Retur</CardTitle></CardHeader><CardContent>{(data.returs || []).length === 0 ? <p className="text-sm font-semibold text-slate-500">Belum ada retur.</p> : <div className="space-y-2">{data.returs?.map((r) => { const sjPengganti = data.suratJalans?.find(sj => sj.id === r.surat_jalan_pengganti_id); return <div key={r.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-sm font-semibold text-slate-700"><b>{formatDate(r.tanggal)}</b> · {r.tipe === 'PENGEMBALIAN_DANA' ? 'Pengembalian Dana' : 'Penggantian Barang'} · {r.qty_retur} pcs · {r.item?.barang_id}{Number(r.jumlah_refund) > 0 ? ` · ${formatRupiah(Number(r.jumlah_refund))}` : ''}{sjPengganti ? ` · SJ ${sjPengganti.nomor_surat}` : ''}{r.catatan ? ` · ${r.catatan}` : ''}</div>; })}</div>}</CardContent></Card>
 
-    <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !saving) setStatusTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Konfirmasi perubahan status</DialogTitle><DialogDescription>Status akan diubah dari {data.status} ke {statusTarget}. Setelah disimpan, status tidak dapat dikembalikan ke tahap sebelumnya.</DialogDescription></DialogHeader>{statusTarget === 'SELESAI' && <div className="space-y-2"><Label htmlFor="pendapatan-bersih">Pendapatan Bersih <span className="text-red-600">*</span></Label><Input id="pendapatan-bersih" type="number" min="0" value={pendapatanBersih} onChange={(e) => setPendapatanBersih(e.target.value)} placeholder="Contoh: 1250000"/><p className="text-xs text-slate-500">Masukkan nominal bersih yang benar-benar diterima dari penjualan ini.</p></div>}<DialogFooter><Button variant="outline" disabled={saving} onClick={() => setStatusTarget(null)}>Kembali</Button><Button disabled={saving} onClick={updateStatus}>{saving ? 'Menyimpan...' : 'Ya, ubah status'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(statusTarget)} onOpenChange={(open) => { if (!open && !saving) setStatusTarget(null); }}><DialogContent className="rounded-3xl"><DialogHeader><DialogTitle>Konfirmasi perubahan status</DialogTitle><DialogDescription>Status akan diubah dari {statusMap[data.status]?.label || data.status} ke {statusTarget ? statusMap[statusTarget]?.label || statusTarget : '-'}. Setelah disimpan, status tidak dapat dikembalikan ke tahap sebelumnya.</DialogDescription></DialogHeader>{statusTarget === 'SELESAI' && <div className="space-y-2"><Label htmlFor="pendapatan-bersih">Pendapatan Bersih <span className="text-red-600">*</span></Label><Input id="pendapatan-bersih" type="number" min="0" value={pendapatanBersih} onChange={(e) => setPendapatanBersih(e.target.value)} placeholder="Contoh: 1250000" className="rounded-xl"/><p className="text-xs text-slate-500">Masukkan nominal bersih yang benar-benar diterima dari penjualan ini.</p></div>}<DialogFooter><Button variant="outline" disabled={saving} onClick={() => setStatusTarget(null)} className="rounded-xl">Kembali</Button><Button disabled={saving} onClick={updateStatus} className="rounded-xl">{saving ? 'Menyimpan...' : 'Ya, ubah status'}</Button></DialogFooter></DialogContent></Dialog>
 
-    <Dialog open={sjFormOpen} onOpenChange={(open) => { if (!saving) setSjFormOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Buat Surat Jalan Online</DialogTitle><DialogDescription>Tentukan tanggal dan keterangan yang akan ditampilkan pada Surat Jalan.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label htmlFor="sj-tanggal">Tanggal Surat Jalan <span className="text-red-600">*</span></Label><DateInput id="sj-tanggal" value={sjTanggal} onChange={(e) => setSjTanggal(e.target.value)} className="w-full h-10 rounded-md border px-3"/></div><div className="space-y-2"><Label htmlFor="sj-catatan">Keterangan</Label><Textarea id="sj-catatan" value={sjCatatan} onChange={(e) => setSjCatatan(e.target.value)} placeholder="Masukkan keterangan Surat Jalan (opsional)" rows={4}/><p className="text-xs text-slate-500">Keterangan akan tampil tepat di atas baris tanggal pada SJ online.</p></div></div><DialogFooter><Button variant="outline" disabled={saving} onClick={() => setSjFormOpen(false)}>Batal</Button><Button disabled={saving || !sjTanggal} onClick={() => { setSjFormOpen(false); setConfirmTarget('SURAT_JALAN'); }}>{saving ? 'Menyimpan...' : 'Lanjutkan'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={sjFormOpen} onOpenChange={(open) => { if (!saving) setSjFormOpen(open); }}><DialogContent className="rounded-3xl"><DialogHeader><DialogTitle>Buat Surat Jalan Online</DialogTitle><DialogDescription>Tentukan tanggal dan keterangan yang akan ditampilkan pada Surat Jalan.</DialogDescription></DialogHeader><div className="space-y-4"><div className="space-y-2"><Label htmlFor="sj-tanggal">Tanggal Surat Jalan <span className="text-red-600">*</span></Label><DateInput id="sj-tanggal" value={sjTanggal} onChange={(e) => setSjTanggal(e.target.value)} className="w-full h-10 rounded-xl border px-3"/></div><div className="space-y-2"><Label htmlFor="sj-catatan">Keterangan</Label><Textarea id="sj-catatan" value={sjCatatan} onChange={(e) => setSjCatatan(e.target.value)} placeholder="Masukkan keterangan Surat Jalan (opsional)" rows={4} className="rounded-xl"/><p className="text-xs text-slate-500">Keterangan akan tampil tepat di atas baris tanggal pada SJ online.</p></div></div><DialogFooter><Button variant="outline" disabled={saving} onClick={() => setSjFormOpen(false)} className="rounded-xl">Batal</Button><Button disabled={saving || !sjTanggal} onClick={() => { setSjFormOpen(false); setConfirmTarget('SURAT_JALAN'); }} className="rounded-xl">{saving ? 'Menyimpan...' : 'Lanjutkan'}</Button></DialogFooter></DialogContent></Dialog>
 
-    <Dialog open={Boolean(confirmTarget)} onOpenChange={(open) => { if (!open && !saving) setConfirmTarget(null); }}><DialogContent><DialogHeader><DialogTitle>Konfirmasi tindakan</DialogTitle><DialogDescription>{confirmTarget === 'INVOICE' && 'Apakah data sudah benar dan Anda yakin ingin membuat Invoice Online?'}{confirmTarget === 'SURAT_JALAN' && `Apakah Anda yakin ingin membuat Surat Jalan tanggal ${formatDate(sjTanggal)}?`}{confirmTarget === 'RETUR' && `Apakah data retur sudah benar dan Anda yakin ingin menyimpan ${returTipe === 'PENGGANTIAN_BARANG' ? 'penggantian barang beserta SJ baru' : `pengembalian dana ${formatRupiah(Number(returRefund || 0))}`}?`} Setelah dikonfirmasi, proses akan langsung dijalankan.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={saving} onClick={() => { const target = confirmTarget; setConfirmTarget(null); if (target === 'SURAT_JALAN') setSjFormOpen(true); }}>Periksa Lagi</Button><Button disabled={saving} onClick={executeConfirmedAction}>{saving ? 'Memproses...' : 'Ya, lanjutkan'}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(confirmTarget)} onOpenChange={(open) => { if (!open && !saving) setConfirmTarget(null); }}><DialogContent className="rounded-3xl"><DialogHeader><DialogTitle>Konfirmasi tindakan</DialogTitle><DialogDescription>{confirmTarget === 'INVOICE' && 'Apakah data sudah benar dan Anda yakin ingin membuat Invoice Online?'}{confirmTarget === 'SURAT_JALAN' && `Apakah Anda yakin ingin membuat Surat Jalan tanggal ${formatDate(sjTanggal)}?`}{confirmTarget === 'RETUR' && `Apakah data retur sudah benar dan Anda yakin ingin menyimpan ${returTipe === 'PENGGANTIAN_BARANG' ? 'penggantian barang beserta SJ baru' : `pengembalian dana ${formatRupiah(Number(returRefund || 0))}`}?`} Setelah dikonfirmasi, proses akan langsung dijalankan.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={saving} onClick={() => { const target = confirmTarget; setConfirmTarget(null); if (target === 'SURAT_JALAN') setSjFormOpen(true); }} className="rounded-xl">Periksa Lagi</Button><Button disabled={saving} onClick={executeConfirmedAction} className="rounded-xl">{saving ? 'Memproses...' : 'Ya, lanjutkan'}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
