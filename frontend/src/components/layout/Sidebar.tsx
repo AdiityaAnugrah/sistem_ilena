@@ -1,12 +1,11 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import useAuthStore from '@/store/authStore';
 import GlobalSearch from '@/components/GlobalSearch';
-import api from '@/lib/api';
-import { useListSync } from '@/hooks/useListSync';
+import { useDashboardBadges } from '@/hooks/useDashboardBadges';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -69,23 +68,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const financeRoute = pathname.startsWith('/dashboard/keuangan') || pathname.startsWith('/dashboard/piutang-usaha') || pathname.startsWith('/dashboard/piutang-display');
   const [openMenus, setOpenMenus] = useState<string[]>(['Penjualan', ...(financeRoute ? ['Keuangan'] : [])]);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
-  const [websiteOrderTodoCount, setWebsiteOrderTodoCount] = useState(0);
-
-  const fetchWebsiteOrderTodoCount = useCallback(async () => {
-    try {
-      const res = await api.get('/penjualan-online', {
-        params: { channel: 'WEBSITE', status: 'DIPROSES', limit: 1 },
-      });
-      setWebsiteOrderTodoCount(Number(res.data?.total || 0));
-    } catch {
-      setWebsiteOrderTodoCount(0);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchWebsiteOrderTodoCount();
-  }, [fetchWebsiteOrderTodoCount]);
-  useListSync('penjualan-online-list', fetchWebsiteOrderTodoCount);
+  const { badges } = useDashboardBadges();
 
   const handleLogout = () => {
     logout();
@@ -118,6 +101,35 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     if (base === '/dashboard/piutang-usaha') return view ? currentView === view : !currentView;
     return true;
   };
+
+  const badgeText = (value: number) => (value > 99 ? '99+' : String(value));
+
+  const childBadgeCount = (href: string) => {
+    if (href === '/dashboard/penjualan/offline') return badges.offlineActive;
+    if (href === '/dashboard/penjualan/interior') return badges.interiorActive;
+    if (href === '/dashboard/penjualan/online') return badges.onlineWaitingPayment || badges.onlineWebsiteTodo;
+    return 0;
+  };
+
+  const childBadgeTone = (href: string) => (
+    href === '/dashboard/penjualan/online' && badges.onlineWaitingPayment > 0 ? 'warning' : 'danger'
+  );
+
+  const badgeStyle = (tone: 'danger' | 'warning' = 'danger') => ({
+    minWidth: 20,
+    height: 20,
+    padding: '0 6px',
+    borderRadius: 999,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: tone === 'warning' ? '#f59e0b' : '#ef4444',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 800,
+    lineHeight: 1,
+    boxShadow: tone === 'warning' ? '0 8px 18px rgba(245,158,11,.25)' : '0 8px 18px rgba(239,68,68,.28)',
+  });
 
   return (
     <>
@@ -173,6 +185,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     >
                       <item.icon size={17} color={active ? '#fca5a5' : 'rgba(255,255,255,0.35)'} strokeWidth={1.75} />
                       <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</span>
+                      {item.label === 'Penjualan' && badges.penjualanTotal > 0 && (
+                        <span
+                          title={`${badges.penjualanTotal} penjualan perlu follow up`}
+                          style={badgeStyle(badges.onlineWaitingPayment > 0 ? 'warning' : 'danger')}
+                        >
+                          {badgeText(badges.penjualanTotal)}
+                        </span>
+                      )}
                       <ChevronDown
                         size={13}
                         color="rgba(255,255,255,0.25)"
@@ -203,7 +223,8 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     <div style={{ marginLeft: 26, marginTop: 2, paddingLeft: 14, borderLeft: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {item.children?.map((child) => {
                         const childActive = isChildActive(child.href);
-                        const showWebsiteBadge = child.href === '/dashboard/penjualan/online' && websiteOrderTodoCount > 0;
+                        const count = childBadgeCount(child.href);
+                        const tone = childBadgeTone(child.href);
                         return (
                           <Link
                             key={child.href}
@@ -217,26 +238,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                             }}
                           >
                             <span style={{ flex: 1 }}>{child.label}</span>
-                            {showWebsiteBadge && (
+                            {count > 0 && (
                               <span
-                                title={`${websiteOrderTodoCount} order website perlu diurus`}
-                                style={{
-                                  minWidth: 20,
-                                  height: 20,
-                                  padding: '0 6px',
-                                  borderRadius: 999,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  background: '#ef4444',
-                                  color: '#fff',
-                                  fontSize: 10,
-                                  fontWeight: 800,
-                                  lineHeight: 1,
-                                  boxShadow: '0 8px 18px rgba(239,68,68,.28)',
-                                }}
+                                title={child.href === '/dashboard/penjualan/online' && badges.onlineWaitingPayment > 0
+                                  ? `${badges.onlineWaitingPayment} order online menunggu pembayaran`
+                                  : `${count} data perlu follow up`}
+                                style={badgeStyle(tone)}
                               >
-                                {websiteOrderTodoCount > 99 ? '99+' : websiteOrderTodoCount}
+                                {badgeText(count)}
                               </span>
                             )}
                           </Link>

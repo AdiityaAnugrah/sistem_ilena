@@ -27,15 +27,20 @@ router.get('/sales-followup', authenticate, async (req, res) => {
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const baseWhere = { is_test: isTest };
     const onlineWhere = { ...baseWhere, channel: 'WEBSITE' };
-    const onlineWaitingWhere = {
+    const onlineActiveWhere = {
       ...onlineWhere,
+      status: { [Op.in]: ['DIPROSES', 'DIKIRIM'] },
+    };
+    const onlineWaitingWhere = {
+      ...onlineActiveWhere,
       catatan: { [Op.like]: '%MENUNGGU_PEMBAYARAN%' },
     };
 
-    const [offlineActiveCount, interiorActiveCount, onlineWebsiteCount, onlineWaitingCount, offlineRows, interiorRows, onlineRows, onlineWaitingRows] = await Promise.all([
+    const [offlineActiveCount, interiorActiveCount, onlineWebsiteCount, onlineWebsiteTodoCount, onlineWaitingCount, offlineRows, interiorRows, onlineRows, onlineWaitingRows] = await Promise.all([
       PenjualanOffline.count({ where: { ...baseWhere, tipe: 'PENJUALAN', status: { [Op.ne]: 'COMPLETED' } } }),
       PenjualanInterior.count({ where: { ...baseWhere, status: { [Op.ne]: 'COMPLETED' } } }),
       PenjualanOnline.count({ where: onlineWhere }),
+      PenjualanOnline.count({ where: onlineActiveWhere }),
       PenjualanOnline.count({ where: onlineWaitingWhere }),
       PenjualanOffline.findAll({
         where: { ...baseWhere, tipe: 'PENJUALAN', status: { [Op.ne]: 'COMPLETED' } },
@@ -52,7 +57,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
         limit: 5,
       }),
       PenjualanOnline.findAll({
-        where: onlineWhere,
+        where: onlineActiveWhere,
         attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'tanggal', 'status', 'catatan', 'ongkir', 'biaya_lain', 'diskon_order', 'created_at'],
         include: [
           { model: PenjualanOnlineItem, as: 'items', attributes: ['subtotal'] },
@@ -117,6 +122,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
         offlineActive: offlineActiveCount,
         interiorActive: interiorActiveCount,
         onlineWebsite: onlineWebsiteCount,
+        onlineWebsiteTodo: onlineWebsiteTodoCount,
         onlineWaitingPayment: onlineWaitingCount,
       },
       offline,

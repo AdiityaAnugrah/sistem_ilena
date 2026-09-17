@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   Wallet,
 } from 'lucide-react';
+import { useDashboardBadges } from '@/hooks/useDashboardBadges';
 
 interface MobileBottomNavProps {
   onMenuClick: () => void;
@@ -23,6 +24,7 @@ const navItems = [
 
 export default function MobileBottomNav({ onMenuClick }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const { badges } = useDashboardBadges();
 
   const isActive = (href: string, exact?: boolean) => {
     if (href === '/dashboard/keuangan') {
@@ -57,7 +59,18 @@ export default function MobileBottomNav({ onMenuClick }: MobileBottomNavProps) {
               }}
               aria-current={active ? 'page' : undefined}
             >
-              <Icon size={21} strokeWidth={active ? 2.4 : 2} />
+              <div className="relative">
+                <Icon size={21} strokeWidth={active ? 2.4 : 2} />
+                {item.href === '/dashboard/penjualan' && badges.penjualanTotal > 0 && (
+                  <span
+                    className="absolute -right-2.5 -top-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black leading-none text-white"
+                    style={{ background: badges.onlineWaitingPayment > 0 ? '#f59e0b' : '#ef4444' }}
+                    aria-label={`${badges.penjualanTotal} penjualan perlu follow up`}
+                  >
+                    {badges.penjualanTotal > 99 ? '99+' : badges.penjualanTotal}
+                  </span>
+                )}
+              </div>
               <span className="text-[11px] leading-none">{item.label}</span>
             </Link>
           );
