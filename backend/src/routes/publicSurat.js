@@ -21,7 +21,7 @@ const itemNetSubtotal = (item, returQty = 0) => {
   return Math.max(0, subtotal - (Number(returQty || 0) * unitPrice));
 };
 
-// GET /api/public/surat — list semua dokumen (SJ, Invoice, SP, Proforma — OFFLINE + INTERIOR)
+// GET /api/public/surat — list semua dokumen (SJ, Invoice, SP, Proforma — OFFLINE + INTERIOR + ONLINE)
 router.get('/', async (req, res) => {
   try {
     const { search, page = 1, limit = 20, tipe, sumber } = req.query;
