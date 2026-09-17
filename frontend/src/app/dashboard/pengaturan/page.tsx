@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
 import {
   Box, Typography, Paper, TextField, Button,
-  Switch, FormControlLabel, Divider, CircularProgress,
+  Switch, FormControlLabel, CircularProgress,
   Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
 import { Video, Save, Trash2, AlertTriangle, ShieldAlert, Settings2 } from 'lucide-react';
@@ -19,6 +20,60 @@ interface TutorialConfig {
 }
 
 const EMPTY: TutorialConfig = { youtube_url: '', start_second: 0, end_second: null, active: true };
+
+const surfaceSx = {
+  borderRadius: '22px',
+  border: '1px solid #e2e8f0',
+  boxShadow: '0 12px 32px rgba(15,23,42,0.04)',
+  background: '#fff',
+};
+
+function SectionTitle({
+  icon,
+  title,
+  desc,
+  badge,
+}: {
+  icon: ReactNode;
+  title: string;
+  desc?: string;
+  badge?: string;
+}) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+        <Box sx={{
+          width: 38, height: 38, borderRadius: '14px',
+          background: '#f8fafc', border: '1px solid #e2e8f0',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          {icon}
+        </Box>
+        <Box>
+          <Typography sx={{ fontWeight: 800, fontSize: 16, color: '#0f172a', letterSpacing: '-0.01em' }}>
+            {title}
+          </Typography>
+          {desc && (
+            <Typography sx={{ fontSize: 12.5, color: '#64748b', mt: 0.35, lineHeight: 1.55 }}>
+              {desc}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+      {badge && (
+        <Box sx={{
+          px: 1.4, py: 0.55, borderRadius: '999px',
+          background: '#f8fafc', border: '1px solid #e2e8f0',
+          color: '#475569', fontSize: 11, fontWeight: 800,
+          whiteSpace: 'nowrap',
+        }}>
+          {badge}
+        </Box>
+      )}
+    </Box>
+  );
+}
 
 function mmssToSec(v: string): number {
   const parts = v.split(':').map(Number);
@@ -80,18 +135,34 @@ function VideoCard({
 
   if (loading) {
     return (
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: '14px', display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress size={24} />
+      <Paper variant="outlined" sx={{ ...surfaceSx, p: 3, minHeight: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress size={24} sx={{ color: '#FA2F2F' }} />
+          <Typography sx={{ mt: 1.5, fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>Memuat video...</Typography>
+        </Box>
       </Paper>
     );
   }
 
   return (
-    <Paper variant="outlined" sx={{ p: 3, borderRadius: '14px' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+    <Paper
+      variant="outlined"
+      sx={{
+        ...surfaceSx,
+        p: { xs: 2.2, sm: 3 },
+        transition: 'transform .18s ease, box-shadow .18s ease, border-color .18s ease',
+        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 18px 38px rgba(15,23,42,0.07)', borderColor: '#cbd5e1' },
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Video size={17} color="#FA2F2F" />
-          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{label}</Typography>
+          <Box sx={{ width: 36, height: 36, borderRadius: '13px', background: '#fff1f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Video size={17} color="#FA2F2F" />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: 14.5, color: '#0f172a' }}>{label}</Typography>
+            <Typography sx={{ fontSize: 11.5, color: '#94a3b8', mt: 0.2 }}>Video bantuan yang tampil di form transaksi</Typography>
+          </Box>
         </Box>
         <FormControlLabel
           control={
@@ -109,22 +180,22 @@ function VideoCard({
       </Box>
 
       <TextField
-        fullWidth label="URL YouTube" size="small" sx={{ mb: 2 }}
+        fullWidth label="URL YouTube" size="small" sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
         placeholder="https://www.youtube.com/watch?v=..."
         value={form.youtube_url}
         onChange={e => setForm(p => ({ ...p, youtube_url: e.target.value }))}
       />
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2.5 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, mb: 2.5 }}>
         <TextField
-          label="Mulai dari" size="small" sx={{ flex: 1 }}
+          label="Mulai dari" size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
           placeholder="0:00"
           value={startStr}
           onChange={e => setStartStr(e.target.value)}
           helperText="Format mm:ss  (contoh: 1:30)"
         />
         <TextField
-          label="Sampai" size="small" sx={{ flex: 1 }}
+          label="Sampai" size="small" sx={{ '& .MuiOutlinedInput-root': { borderRadius: '12px' } }}
           placeholder="Opsional"
           value={endStr}
           onChange={e => setEndStr(e.target.value)}
@@ -132,9 +203,9 @@ function VideoCard({
         />
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
         <Button
-          variant="outlined" size="small" sx={{ borderRadius: '8px' }}
+          variant="outlined" size="small" sx={{ borderRadius: '12px', minHeight: 36, px: 2, fontWeight: 800, borderColor: '#cbd5e1', color: '#475569' }}
           disabled={!form.youtube_url.trim()}
           onClick={() => onPreview(form.youtube_url, mmssToSec(startStr), endStr.trim() ? mmssToSec(endStr) : null)}
         >
@@ -145,7 +216,7 @@ function VideoCard({
           startIcon={saving ? <CircularProgress size={13} color="inherit" /> : <Save size={13} />}
           disabled={saving}
           onClick={handleSave}
-          sx={{ borderRadius: '8px', bgcolor: '#FA2F2F', '&:hover': { bgcolor: '#d41a1a' } }}
+          sx={{ borderRadius: '12px', minHeight: 36, px: 2, fontWeight: 800, bgcolor: '#FA2F2F', boxShadow: '0 10px 20px rgba(250,47,47,.18)', '&:hover': { bgcolor: '#d41a1a' } }}
         >
           Simpan
         </Button>
@@ -257,45 +328,63 @@ export default function PengaturanPage() {
   }
 
   return (
-    <Box sx={{ maxWidth: 680, mx: 'auto', p: { xs: 2, sm: 3 } }}>
+    <Box sx={{ maxWidth: 1120, mx: 'auto', p: { xs: 1, sm: 2, lg: 0 } }}>
       {/* ═══ Page Header ═══ */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+      <Box
+        sx={{
+          mb: 4,
+          p: { xs: 2.5, sm: 3.5 },
+          borderRadius: '28px',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 56%, #312e81 100%)',
+          color: '#fff',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 22px 48px rgba(15,23,42,.14)',
+        }}
+      >
+        <Box sx={{
+          position: 'absolute', inset: 0, opacity: 0.08,
+          backgroundImage: 'radial-gradient(circle at 24px 24px, #fff 2px, transparent 0)',
+          backgroundSize: '34px 34px',
+        }} />
+        <Box sx={{ position: 'relative', display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.7 }}>
           <Box sx={{
-            width: 36, height: 36, borderRadius: '10px',
-            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+            width: 46, height: 46, borderRadius: '16px',
+            background: 'rgba(255,255,255,.12)',
+            border: '1px solid rgba(255,255,255,.16)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <Settings2 size={18} color="#fff" />
+            <Settings2 size={22} color="#fff" />
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 800, fontSize: 22, color: '#0f172a', lineHeight: 1.2 }}>
+            <Typography sx={{ fontWeight: 900, fontSize: { xs: 24, sm: 30 }, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
               Pengaturan
             </Typography>
-            <Typography sx={{ fontSize: 12, color: '#94a3b8' }}>
-              Kelola konfigurasi sistem dan manajemen data
+            <Typography sx={{ fontSize: 13, color: '#cbd5e1', mt: 0.7 }}>
+              Kelola konfigurasi sistem, tutorial, dan data development dengan kontrol yang aman.
             </Typography>
+          </Box>
+          </Box>
+          <Box sx={{
+            px: 1.6, py: 0.8, borderRadius: '999px',
+            background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.14)',
+            fontSize: 11.5, fontWeight: 900, color: '#fde68a', letterSpacing: '.04em',
+          }}>
+            DEV ONLY
           </Box>
         </Box>
       </Box>
 
       {/* ═══ Section 1: Tutorial Video ═══ */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <Video size={15} color="#ef4444" />
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
-            Tutorial Video
-          </Typography>
-          <Box sx={{
-            ml: 'auto', px: 1.5, py: 0.25, borderRadius: '20px',
-            background: '#fef2f2', border: '1px solid #fecaca',
-          }}>
-            <Typography sx={{ fontSize: 10, fontWeight: 600, color: '#ef4444' }}>
-              2 video
-            </Typography>
-          </Box>
-        </Box>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <SectionTitle
+          icon={<Video size={18} color="#FA2F2F" />}
+          title="Tutorial Video"
+          desc="Atur video bantuan yang muncul di alur input penjualan."
+          badge="2 video"
+        />
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2.5 }}>
           <VideoCard
             label="Tutorial — Penjualan Offline"
             formType="PENJUALAN_OFFLINE"
@@ -311,19 +400,18 @@ export default function PengaturanPage() {
 
       {/* ═══ Section 2: Pengaturan Penjualan ═══ */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <Settings2 size={15} color="#6366f1" />
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
-            Pengaturan Penjualan
-          </Typography>
-        </Box>
+        <SectionTitle
+          icon={<Settings2 size={18} color="#6366f1" />}
+          title="Pengaturan Penjualan"
+          desc="Konfigurasi perilaku otomatis pada transaksi dan dokumen."
+        />
         <Paper
           variant="outlined"
           sx={{
-            borderRadius: '14px', overflow: 'hidden',
-            border: '1px solid #e2e8f0',
+            ...surfaceSx,
+            overflow: 'hidden',
             transition: 'box-shadow 0.2s',
-            '&:hover': { boxShadow: '0 2px 12px rgba(99,102,241,0.08)' },
+            '&:hover': { boxShadow: '0 18px 38px rgba(99,102,241,0.08)' },
           }}
         >
           <Box sx={{
@@ -372,19 +460,19 @@ export default function PengaturanPage() {
 
       {/* ═══ Section 3: Manajemen Data ═══ */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <Trash2 size={15} color="#f59e0b" />
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#334155', letterSpacing: '0.02em' }}>
-            Manajemen Data
-          </Typography>
-        </Box>
+        <SectionTitle
+          icon={<Trash2 size={18} color="#f59e0b" />}
+          title="Manajemen Data Testing"
+          desc="Bersihkan data simulasi tanpa menyentuh data produksi."
+          badge="Aman untuk test"
+        />
         <Paper
           variant="outlined"
           sx={{
-            p: 2.5, borderRadius: '14px',
-            border: '1px solid #e2e8f0',
+            ...surfaceSx,
+            p: { xs: 2.2, sm: 2.8 },
             transition: 'box-shadow 0.2s',
-            '&:hover': { boxShadow: '0 2px 12px rgba(245,158,11,0.08)' },
+            '&:hover': { boxShadow: '0 18px 38px rgba(245,158,11,0.08)' },
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
@@ -420,26 +508,20 @@ export default function PengaturanPage() {
 
       {/* ═══ Section 4: Danger Zone ═══ */}
       <Box sx={{ mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-          <ShieldAlert size={15} color="#dc2626" />
-          <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#dc2626', letterSpacing: '0.02em' }}>
-            Danger Zone
-          </Typography>
-          <Box sx={{
-            ml: 'auto', px: 1.5, py: 0.25, borderRadius: '20px',
-            background: '#fef2f2', border: '1px solid #fecaca',
-          }}>
-            <Typography sx={{ fontSize: 10, fontWeight: 600, color: '#dc2626' }}>
-              HATI-HATI
-            </Typography>
-          </Box>
-        </Box>
+        <SectionTitle
+          icon={<ShieldAlert size={18} color="#dc2626" />}
+          title="Danger Zone"
+          desc="Area khusus tindakan permanen. Semua aksi memakai konfirmasi bertahap."
+          badge="HATI-HATI"
+        />
         <Box sx={{
-          border: '2px solid #dc2626', borderRadius: '16px', overflow: 'hidden',
+          border: '1px solid #fecaca', borderRadius: '24px', overflow: 'hidden',
+          boxShadow: '0 18px 42px rgba(220,38,38,.08)',
+          background: '#fff',
         }}>
           {/* Header */}
           <Box sx={{
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            background: 'linear-gradient(135deg, #991b1b, #dc2626)',
             px: 3, py: 1.5,
             display: 'flex', alignItems: 'center', gap: 1.5,
           }}>
@@ -449,12 +531,12 @@ export default function PengaturanPage() {
             </Typography>
           </Box>
 
-          <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ p: { xs: 2, sm: 2.5 }, display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 2 }}>
             {/* Card 1: Hapus semua produksi */}
             <Paper variant="outlined" sx={{
-              p: 2.5, borderRadius: '12px', borderColor: '#fca5a5', background: '#fff5f5',
+              p: 2.5, borderRadius: '18px', borderColor: '#fca5a5', background: '#fff5f5',
               transition: 'box-shadow 0.2s',
-              '&:hover': { boxShadow: '0 2px 12px rgba(220,38,38,0.1)' },
+              '&:hover': { boxShadow: '0 12px 28px rgba(220,38,38,0.12)' },
             }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
                 <Box sx={{
@@ -483,9 +565,9 @@ export default function PengaturanPage() {
 
             {/* Card 2: Hapus per penjualan */}
             <Paper variant="outlined" sx={{
-              p: 2.5, borderRadius: '12px', borderColor: '#fcd34d', background: '#fffbeb',
+              p: 2.5, borderRadius: '18px', borderColor: '#fcd34d', background: '#fffbeb',
               transition: 'box-shadow 0.2s',
-              '&:hover': { boxShadow: '0 2px 12px rgba(217,119,6,0.1)' },
+              '&:hover': { boxShadow: '0 12px 28px rgba(217,119,6,0.12)' },
             }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
                 <Box sx={{
