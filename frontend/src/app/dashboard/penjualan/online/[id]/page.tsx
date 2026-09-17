@@ -173,8 +173,8 @@ export default function PenjualanOnlineDetail() {
     if (target === 'RETUR') void submitRetur();
   };
 
-  if (loading) return <div className="mx-auto max-w-6xl p-8 text-slate-500">Memuat data...</div>;
-  if (!data) return <div className="mx-auto max-w-6xl p-8">Data tidak ditemukan.</div>;
+  if (loading) return <div className="p-8 text-slate-500">Memuat data...</div>;
+  if (!data) return <div className="p-8">Data tidak ditemukan.</div>;
 
   const alamat = [data.alamat_detail, data.kelurahan?.label, data.kecamatan?.label, data.kabupaten?.label, data.provinsi?.label, data.kode_pos].filter(Boolean).join(', ');
   const invoice = data.invoices?.[0];
@@ -183,7 +183,7 @@ export default function PenjualanOnlineDetail() {
   const canRetur = ['DIKIRIM', 'SELESAI'].includes(data.status);
   const adaPengembalianDana = Number(data.total_retur || 0) > 0;
 
-  return <div className="mx-auto max-w-6xl pb-12 space-y-6">
+  return <div className="space-y-6 pb-12">
     <div className="rounded-[28px] bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 p-5 sm:p-7 text-white shadow-[0_22px_48px_rgba(15,23,42,.16)] relative overflow-hidden">
       <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
       <div className="relative flex flex-col lg:flex-row lg:items-start justify-between gap-5">
