@@ -8,7 +8,9 @@ const {
   PenjualanInterior, PenjualanInteriorItem, ProformaInvoice, PembayaranInterior,
   SuratJalanInterior, SuratJalanInteriorItem, InvoiceInterior, ReturSJInterior,
   SuratPengantarInterior, SuratPengantarInteriorItem, DocumentCounter, User,
+  PenjualanOnline, PenjualanOnlineItem, PembayaranOnline, ReturOnline, SuratJalanOnline, InvoiceOnline, Barang,
 } = require('../models');
+const BarangTest = require('../models/BarangTest');
 const { logAction } = require('../middleware/logger');
 const { emitDataUpdated } = require('../socket');
 
@@ -24,6 +26,12 @@ function parseNomor(s) {
 
 function formatNomor(prefix, num, padLen, suffix) {
   return `${prefix}${String(num).padStart(padLen, '0')}${suffix}`;
+}
+
+function counterByPrefix(prefix, fakturTipe, nonFakturTipe) {
+  const isTest = String(prefix || '').startsWith('TEST-');
+  const tipe = String(prefix || '').includes('NF') ? nonFakturTipe : fakturTipe;
+  return isTest ? `TEST_${tipe}` : tipe;
 }
 
 // Renumber documents across multiple tables after nomors have been deleted.
@@ -126,7 +134,7 @@ async function renumberSP({ deletedNomors, t }) {
 // GET /api/dev/penjualan-by-doc — cari penjualan by nomor dokumen (SJ/Invoice/SP/Proforma)
 router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
   const { sumber, nomor } = req.query;
-  if (!nomor?.trim() || !['offline', 'interior'].includes(sumber)) {
+  if (!nomor?.trim() || !['offline', 'interior', 'online'].includes(sumber)) {
     return res.status(400).json({ message: 'Parameter tidak valid' });
   }
   const q = nomor.trim();
@@ -150,7 +158,7 @@ router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
       const spSub = await SuratPengantarSub.findOne({ where: { nomor_sp_sub: q }, include: [{ model: SuratPengantar, as: 'suratPengantar', attributes: ['penjualan_offline_id'] }] });
       if (spSub) penjualanId = spSub.suratPengantar?.penjualan_offline_id;
     }
-  } else {
+  } else if (sumber === 'interior') {
     const sj = await SuratJalanInterior.findOne({ where: { nomor_surat: q } });
     if (sj) penjualanId = sj.penjualan_interior_id;
 
@@ -175,6 +183,19 @@ router.get('/penjualan-by-doc', authenticate, requireDev, async (req, res) => {
     if (!penjualanId) {
       const sp = await SuratPengantarInterior.findOne({ where: { nomor_surat: q } });
       if (sp) penjualanId = sp.penjualan_interior_id;
+    }
+  } else {
+    const sj = await SuratJalanOnline.findOne({ where: { nomor_surat: q } });
+    if (sj) penjualanId = sj.penjualan_online_id;
+
+    if (!penjualanId) {
+      const inv = await InvoiceOnline.findOne({ where: { nomor_invoice: q } });
+      if (inv) penjualanId = inv.penjualan_online_id;
+    }
+
+    if (!penjualanId) {
+      const online = await PenjualanOnline.findOne({ where: { id_pesanan: q } });
+      if (online) penjualanId = online.id;
     }
   }
 
@@ -240,15 +261,22 @@ router.delete('/reset-test-data', authenticate, requireDev, async (req, res) => 
       await PenjualanInterior.destroy({ where: { id: interiorIds }, transaction: t });
     }
 
+    // ── Online test data ──────────────────────────────────────────────────────
+    const onlineIds = (await PenjualanOnline.findAll({
+      where: { is_test: 1 }, attributes: ['id'], transaction: t,
+    })).map(r => r.id);
+
+    for (const id of onlineIds) await deleteOnline(id, t);
+
     await t.commit();
 
     await logAction(req.user.id, 'DEV_RESET_TEST_DATA',
-      `Hapus ${offlineIds.length} penjualan offline + ${interiorIds.length} penjualan interior (is_test=1)`,
+      `Hapus ${offlineIds.length} penjualan offline + ${interiorIds.length} penjualan interior + ${onlineIds.length} penjualan online (is_test=1)`,
       req.ip);
 
     return res.json({
       message: 'Semua data testing berhasil dihapus',
-      deleted: { offline: offlineIds.length, interior: interiorIds.length },
+      deleted: { offline: offlineIds.length, interior: interiorIds.length, online: onlineIds.length },
     });
   } catch (err) {
     await t.rollback();
@@ -317,6 +345,59 @@ async function deleteInterior(id, t) {
   await PenjualanInterior.destroy({ where: { id }, transaction: t });
 }
 
+async function restoreOnlineStockForDelete(penjualan, items, returs, t) {
+  if (!penjualan || Number(penjualan.kurangi_stok) !== 1) return;
+  const BarangModel = Number(penjualan.is_test) === 1 ? BarangTest : Barang;
+  const refundByItemId = {};
+  for (const retur of (returs || [])) {
+    if (retur.tipe === 'PENGEMBALIAN_DANA') {
+      const itemId = Number(retur.penjualan_online_item_id);
+      refundByItemId[itemId] = (refundByItemId[itemId] || 0) + Number(retur.qty_retur || 0);
+    }
+  }
+
+  for (const item of (items || [])) {
+    const restoreQty = Math.max(0, Number(item.qty || 0) - Number(refundByItemId[Number(item.id)] || 0));
+    if (!restoreQty || !item.barang_id) continue;
+    const barang = await BarangModel.findByPk(item.barang_id, { transaction: t });
+    if (!barang || !barang.varian) continue;
+    let varians = [];
+    try { varians = JSON.parse(barang.varian); } catch { varians = []; }
+    if (!Array.isArray(varians) || varians.length === 0) continue;
+
+    let updated = false;
+    if (item.varian_id) {
+      varians = varians.map((v) => {
+        if (String(v.id) === String(item.varian_id)) {
+          updated = true;
+          return { ...v, stok: String(Number(v.stok || 0) + restoreQty) };
+        }
+        return v;
+      });
+    } else {
+      varians[0] = { ...varians[0], stok: String(Number(varians[0].stok || 0) + restoreQty) };
+      updated = true;
+    }
+    if (updated) await barang.update({ varian: JSON.stringify(varians) }, { transaction: t });
+  }
+}
+
+// ── Helper: hapus satu penjualan online beserta semua dokumennya ─────────────
+async function deleteOnline(id, t) {
+  const penjualan = await PenjualanOnline.findByPk(id, { transaction: t });
+  if (!penjualan) return;
+  const items = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: id }, transaction: t });
+  const returs = await ReturOnline.findAll({ where: { penjualan_online_id: id }, transaction: t });
+
+  await restoreOnlineStockForDelete(penjualan, items, returs, t);
+  await ReturOnline.destroy({ where: { penjualan_online_id: id }, transaction: t });
+  await InvoiceOnline.destroy({ where: { penjualan_online_id: id }, transaction: t });
+  await SuratJalanOnline.destroy({ where: { penjualan_online_id: id }, transaction: t });
+  await PembayaranOnline.destroy({ where: { penjualan_online_id: id }, transaction: t });
+  await PenjualanOnlineItem.destroy({ where: { penjualan_online_id: id }, transaction: t });
+  await PenjualanOnline.destroy({ where: { id }, transaction: t });
+}
+
 // DELETE /api/dev/penjualan-produksi — hapus SEMUA data produksi + reset counter
 router.delete('/penjualan-produksi', authenticate, requireDev, async (req, res) => {
   const { password } = req.body;
@@ -330,9 +411,11 @@ router.delete('/penjualan-produksi', authenticate, requireDev, async (req, res) 
   try {
     const offlineIds = (await PenjualanOffline.findAll({ where: { is_test: 0 }, attributes: ['id'], transaction: t })).map(r => r.id);
     const interiorIds = (await PenjualanInterior.findAll({ where: { is_test: 0 }, attributes: ['id'], transaction: t })).map(r => r.id);
+    const onlineIds = (await PenjualanOnline.findAll({ where: { is_test: 0 }, attributes: ['id'], transaction: t })).map(r => r.id);
 
     for (const id of offlineIds) await deleteOffline(id, t);
     for (const id of interiorIds) await deleteInterior(id, t);
+    for (const id of onlineIds) await deleteOnline(id, t);
 
     // Reset semua counter dokumen (bukan test) ke 0
     await DocumentCounter.update({ last_number: 0 }, {
@@ -342,9 +425,9 @@ router.delete('/penjualan-produksi', authenticate, requireDev, async (req, res) 
 
     await t.commit();
     await logAction(req.user.id, 'DEV_HAPUS_PRODUKSI',
-      `HAPUS SEMUA: ${offlineIds.length} offline + ${interiorIds.length} interior, counter direset`, req.ip);
+      `HAPUS SEMUA: ${offlineIds.length} offline + ${interiorIds.length} interior + ${onlineIds.length} online, counter direset`, req.ip);
 
-    return res.json({ message: 'Semua data produksi berhasil dihapus', deleted: { offline: offlineIds.length, interior: interiorIds.length } });
+    return res.json({ message: 'Semua data produksi berhasil dihapus', deleted: { offline: offlineIds.length, interior: interiorIds.length, online: onlineIds.length } });
   } catch (err) {
     await t.rollback();
     return res.status(500).json({ message: 'Gagal menghapus data', error: err.message });
@@ -356,7 +439,7 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
   const { sumber, id } = req.params;
   const { password } = req.body;
   if (!password) return res.status(400).json({ message: 'Password wajib diisi' });
-  if (!['offline', 'interior'].includes(sumber)) return res.status(400).json({ message: 'Sumber tidak valid' });
+  if (!['offline', 'interior', 'online'].includes(sumber)) return res.status(400).json({ message: 'Sumber tidak valid' });
 
   const user = await User.findByPk(req.user.id);
   const valid = await bcrypt.compare(password, user.password);
@@ -389,7 +472,7 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
       });
       await renumberSP({ deletedNomors: spNomors, t });
 
-    } else {
+    } else if (sumber === 'interior') {
       const penjualan = await PenjualanInterior.findByPk(id, { transaction: t });
       if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
 
@@ -431,11 +514,43 @@ router.delete('/penjualan/:sumber/:id', authenticate, requireDev, async (req, re
         counterTipeFn: () => 'SP_INT',
         t,
       });
+    } else {
+      const penjualan = await PenjualanOnline.findByPk(id, { transaction: t });
+      if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
+
+      // Collect nomors before deletion
+      const sjNomors = (await SuratJalanOnline.findAll({
+        where: { penjualan_online_id: id },
+        attributes: ['nomor_surat'],
+        transaction: t,
+      })).map(r => r.nomor_surat);
+      const invNomors = (await InvoiceOnline.findAll({
+        where: { penjualan_online_id: id },
+        attributes: ['nomor_invoice'],
+        transaction: t,
+      })).map(r => r.nomor_invoice);
+
+      await deleteOnline(id, t);
+
+      await renumberType({
+        tables: [{ model: SuratJalanOnline, field: 'nomor_surat' }],
+        deletedNomors: sjNomors,
+        counterTipeFn: (prefix) => counterByPrefix(prefix, 'SJ_ONLINE_FAKTUR', 'SJ_ONLINE_NON_FAKTUR'),
+        t,
+      });
+      await renumberType({
+        tables: [{ model: InvoiceOnline, field: 'nomor_invoice' }],
+        deletedNomors: invNomors,
+        counterTipeFn: (prefix) => counterByPrefix(prefix, 'INV_ONLINE_FAKTUR', 'INV_ONLINE_NON_FAKTUR'),
+        t,
+      });
     }
 
     await t.commit();
     await logAction(req.user.id, 'DEV_HAPUS_SATU_PENJUALAN',
       `Hapus penjualan ${sumber} #${id}, nomor dokumen disesuaikan`, req.ip);
+    emitDataUpdated(`penjualan-${sumber}-list`, { updatedBy: req.user.id });
+    emitDataUpdated(`penjualan-${sumber}:${id}`, { updatedBy: req.user.id });
 
     return res.json({ message: `Penjualan ${sumber} #${id} berhasil dihapus, nomor dokumen disesuaikan` });
   } catch (err) {

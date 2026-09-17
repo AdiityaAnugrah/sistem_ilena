@@ -261,7 +261,7 @@ export default function PengaturanPage() {
   const [deleteAllLoading, setDeleteAllLoading] = useState(false);
 
   // Hapus per penjualan
-  const [deleteSingle, setDeleteSingle] = useState<{ open: boolean; sumber: 'offline'|'interior'; idStr: string; preview: any|null; step: 1|2 }>({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 });
+  const [deleteSingle, setDeleteSingle] = useState<{ open: boolean; sumber: 'offline'|'interior'|'online'; idStr: string; preview: any|null; step: 1|2 }>({ open: false, sumber: 'offline', idStr: '', preview: null, step: 1 });
   const [deleteSinglePass, setDeleteSinglePass] = useState('');
   const [deleteSingleLoading, setDeleteSingleLoading] = useState(false);
 
@@ -269,7 +269,7 @@ export default function PengaturanPage() {
     setDeleteAllLoading(true);
     try {
       const res = await api.delete('/dev/penjualan-produksi', { data: { password: deleteAllPass } });
-      toast.success(`Berhasil dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior. Counter direset.`);
+      toast.success(`Berhasil dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior, ${res.data.deleted.online || 0} online. Counter direset.`);
       setDeleteAllStep(0); setDeleteAllTyped(''); setDeleteAllPass('');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menghapus');
@@ -310,7 +310,7 @@ export default function PengaturanPage() {
     setResetting(true);
     try {
       const res = await api.delete('/dev/reset-test-data');
-      toast.success(`Data testing dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior`);
+      toast.success(`Data testing dihapus: ${res.data.deleted.offline} offline, ${res.data.deleted.interior} interior, ${res.data.deleted.online || 0} online`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal menghapus data');
     } finally {
@@ -488,7 +488,7 @@ export default function PengaturanPage() {
                 Reset Data Testing
               </Typography>
               <Typography sx={{ fontSize: 11.5, color: '#94a3b8', lineHeight: 1.5 }}>
-                Hapus semua transaksi penjualan (offline & interior) yang dibuat dalam mode testing
+                Hapus semua transaksi penjualan (offline, interior, dan online) yang dibuat dalam mode testing
                 (is_test=1), termasuk Surat Jalan, Invoice, Proforma, dan Pembayaran.
               </Typography>
             </Box>
@@ -550,7 +550,7 @@ export default function PengaturanPage() {
                     Hapus Semua Data Penjualan Produksi
                   </Typography>
                   <Typography sx={{ fontSize: 11, color: '#64748b', mt: 0.5, lineHeight: 1.5 }}>
-                    Menghapus <strong>seluruh</strong> transaksi offline & interior (is_test=0)
+                    Menghapus <strong>seluruh</strong> transaksi offline, interior, dan online (is_test=0)
                     beserta semua dokumen terkait dan mereset counter nomor dokumen ke 0.
                   </Typography>
                 </Box>
@@ -618,8 +618,8 @@ export default function PengaturanPage() {
             <Box sx={{ p: 2, borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca', mb: 2 }}>
               <Typography sx={{ fontSize: 13, color: '#dc2626', fontWeight: 700, mb: 1 }}>Tindakan ini akan:</Typography>
               <Typography component="ul" sx={{ fontSize: 13, color: '#7f1d1d', pl: 2, '& li': { mb: 0.5 } }}>
-                <li>Menghapus SEMUA transaksi penjualan offline & interior (produksi)</li>
-                <li>Menghapus semua Surat Jalan, Invoice, Proforma, SP, dan Pembayaran terkait</li>
+                <li>Menghapus SEMUA transaksi penjualan offline, interior, dan online (produksi)</li>
+                <li>Menghapus semua Surat Jalan, Invoice, Proforma, SP, Pembayaran, dan Retur terkait</li>
                 <li>Mereset semua counter nomor dokumen ke 0</li>
                 <li>Tindakan ini <strong>TIDAK BISA DIBATALKAN</strong></li>
               </Typography>
@@ -692,14 +692,15 @@ export default function PengaturanPage() {
               </Box>
               <Box sx={{ display: 'flex', gap: 1.5 }}>
                 <TextField select size="small" label="Tipe" value={deleteSingle.sumber}
-                  onChange={e => setDeleteSingle(p => ({ ...p, sumber: e.target.value as 'offline'|'interior' }))}
+                  onChange={e => setDeleteSingle(p => ({ ...p, sumber: e.target.value as 'offline'|'interior'|'online' }))}
                   sx={{ minWidth: 130 }} slotProps={{ select: { native: true } }}>
                   <option value="offline">Offline / Display</option>
                   <option value="interior">Interior</option>
+                  <option value="online">Online</option>
                 </TextField>
                 <TextField size="small" label="ID atau Nomor Dokumen" value={deleteSingle.idStr}
                   onChange={e => setDeleteSingle(p => ({ ...p, idStr: e.target.value, preview: null, step: 1 }))}
-                  placeholder="42  atau  0004/SJ/05/2025" sx={{ flex: 1 }} />
+                  placeholder="42 / ID pesanan / nomor dokumen" sx={{ flex: 1 }} />
                 <Button variant="outlined" size="small" onClick={handleFetchPreview}
                   disabled={!deleteSingle.idStr.trim()} sx={{ borderRadius: '8px', whiteSpace: 'nowrap' }}>
                   Cari
@@ -712,7 +713,8 @@ export default function PengaturanPage() {
               <Box sx={{ p: 2, borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                 <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: '#0f172a' }}>Data yang akan dihapus:</Typography>
                 <Typography sx={{ fontSize: 12, color: '#475569' }}>
-                  <strong>#{deleteSingle.preview.id}</strong> — {deleteSingle.preview.nama_customer || deleteSingle.preview.nama_penerima || '-'}
+                  <strong>#{deleteSingle.preview.id}</strong> — {deleteSingle.preview.nama_customer || deleteSingle.preview.nama_penerima || deleteSingle.preview.nama_pelanggan || '-'}
+                  {deleteSingle.preview.id_pesanan && ` | Order: ${deleteSingle.preview.id_pesanan}`}
                   {deleteSingle.preview.no_po && ` | PO: ${deleteSingle.preview.no_po}`}
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: '#94a3b8', mt: 0.5 }}>
