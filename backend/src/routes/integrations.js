@@ -1,5 +1,5 @@
 const express = require('express');
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const {
   sequelize,
   Barang,
@@ -129,16 +129,73 @@ async function resolveItemRows(items, isTest) {
   return rows;
 }
 
+function normalizeWebsiteStatus(status) {
+  const raw = String(status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  const map = {
+    proses: 'PEMBAYARAN_BERHASIL',
+    diproses: 'PEMBAYARAN_BERHASIL',
+    paid: 'PEMBAYARAN_BERHASIL',
+    settlement: 'PEMBAYARAN_BERHASIL',
+    capture: 'PEMBAYARAN_BERHASIL',
+    success: 'PEMBAYARAN_BERHASIL',
+    sukses: 'PEMBAYARAN_BERHASIL',
+    menunggu_pembayaran: 'MENUNGGU_PEMBAYARAN',
+    pending: 'MENUNGGU_PEMBAYARAN',
+    waiting_payment: 'MENUNGGU_PEMBAYARAN',
+    unpaid: 'MENUNGGU_PEMBAYARAN',
+    batal: 'DIBATALKAN',
+    dibatalkan: 'DIBATALKAN',
+    cancel: 'DIBATALKAN',
+    canceled: 'DIBATALKAN',
+    cancelled: 'DIBATALKAN',
+    expire: 'DIBATALKAN',
+    expired: 'DIBATALKAN',
+    deny: 'DIBATALKAN',
+    denied: 'DIBATALKAN',
+    failure: 'DIBATALKAN',
+    failed: 'DIBATALKAN',
+    gagal: 'DIBATALKAN',
+  };
+  return map[raw] || 'PEMBAYARAN_BERHASIL';
+}
+
 function isPaidWebsiteStatus(status) {
-  return ['proses', 'diproses', 'paid', 'settlement', 'capture'].includes(String(status || '').toLowerCase());
+  return normalizeWebsiteStatus(status) === 'PEMBAYARAN_BERHASIL';
 }
 
 function isPendingWebsiteStatus(status) {
-  return ['menunggu pembayaran', 'pending', 'waiting_payment'].includes(String(status || '').toLowerCase());
+  return normalizeWebsiteStatus(status) === 'MENUNGGU_PEMBAYARAN';
+}
+
+function isCancelledWebsiteStatus(status) {
+  return normalizeWebsiteStatus(status) === 'DIBATALKAN';
 }
 
 function systemNoteStatus(status) {
-  return isPendingWebsiteStatus(status) ? 'MENUNGGU_PEMBAYARAN' : 'PEMBAYARAN_BERHASIL';
+  return normalizeWebsiteStatus(status);
+}
+
+function systemNote(orderId, status, extra = '') {
+  const suffix = extra ? ` | ${extra}` : '';
+  return `Order otomatis dari ilenafurniture.com (${orderId}) | Sumber: WEBSITE_ILENA | Status Website: ${systemNoteStatus(status)}${suffix}`;
+}
+
+function integrationLockName(orderId, isTest) {
+  return `ilena_web_order:${isTest ? 'test' : 'prod'}:${String(orderId).slice(0, 120)}`;
+}
+
+async function acquireOrderLock(orderId, isTest) {
+  const lockName = integrationLockName(orderId, isTest);
+  const rows = await sequelize.query('SELECT GET_LOCK(:lockName, 10) AS locked', {
+    replacements: { lockName },
+    type: QueryTypes.SELECT,
+  });
+  return Number(rows?.[0]?.locked || 0) === 1 ? lockName : null;
+}
+
+async function releaseOrderLock(lockName) {
+  if (!lockName) return;
+  await sequelize.query('SELECT RELEASE_LOCK(:lockName)', { replacements: { lockName } }).catch(() => {});
 }
 
 async function adjustStok(rows, isTest, direction = 'deduct') {
@@ -183,7 +240,9 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
   const isTest = payload.is_test === true || payload.is_test === 1 || TEST_EMAILS.includes(email);
   const items = normalizeItems(payload.items || []);
   const websiteStatus = clean(payload.status || payload.order_status || payload.transaction_status || 'Proses');
+  const normalizedWebsiteStatus = systemNoteStatus(websiteStatus);
   const isPaidOrder = isPaidWebsiteStatus(websiteStatus);
+  const isCancelledOrder = isCancelledWebsiteStatus(websiteStatus);
   const grossAmount = money(payload?.data_mid?.gross_amount ?? payload.gross_amount ?? payload.total ?? items.reduce((s, i) => s + i.subtotal, 0));
 
   if (!orderId || !items.length) {
@@ -204,7 +263,7 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
         orderId,
         channel: 'WEBSITE',
         status: 'DIPROSES',
-        websiteStatus: systemNoteStatus(websiteStatus),
+        websiteStatus: normalizedWebsiteStatus,
         isTest,
         customerName: clean(payload.nama_pen || payload.nama || payload.customer_name || 'Customer Website'),
         itemCount: itemRows.length,
@@ -213,37 +272,93 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
     });
   }
 
-  const existing = await PenjualanOnline.findOne({ where: { id_pesanan: orderId, is_test: isTest ? 1 : 0 } });
-  if (existing) {
-    const alreadyPaid = String(existing.catatan || '').includes('PEMBAYARAN_BERHASIL');
-    if (isPaidOrder && !alreadyPaid) {
-      await existing.update({
-        kurangi_stok: 1,
-        catatan: `Order otomatis dari ilenafurniture.com (${orderId}) | Status Website: PEMBAYARAN_BERHASIL`,
-      });
-      const existingItems = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: existing.id } });
-      await PembayaranOnline.findOrCreate({
-        where: { penjualan_online_id: existing.id },
-        defaults: {
-          metode: existing.metode_pembayaran,
-          jumlah: Math.max(0, grossAmount),
-          tanggal: existing.tanggal,
-          catatan: 'Pembayaran otomatis dari website Ilena / Midtrans',
-          created_by: existing.created_by,
-        },
-      });
-      await adjustStok(existingItems.map((row) => ({ ...row.toJSON(), _matched: true })), isTest);
-      emitDataUpdated('penjualan-online-list', { updatedBy: existing.created_by, source: 'ilena-web-order-paid', orderId });
-    }
-    return res.json({
-      success: true,
-      message: 'Order sudah pernah masuk',
-      data: { id: existing.id, orderId, duplicate: true, isTest },
-    });
-  }
-
-  const t = await sequelize.transaction();
+  let lockName = null;
   try {
+    lockName = await acquireOrderLock(orderId, isTest);
+    if (!lockName) {
+      return res.status(409).json({
+        success: false,
+        message: 'Order sedang diproses, coba ulang beberapa detik lagi',
+        data: { orderId, locked: true, isTest },
+      });
+    }
+
+    const existing = await PenjualanOnline.findOne({
+      where: { id_pesanan: orderId, is_test: isTest ? 1 : 0 },
+    });
+    if (existing) {
+      if (isCancelledOrder) {
+        if (existing.channel !== 'WEBSITE') {
+          return res.json({
+            success: true,
+            message: 'Nomor order sudah ada dari input sistem, pembatalan website tidak menghapus data manual',
+            data: { id: existing.id, orderId, action: 'manual_order_preserved', duplicatePrevented: true, isTest, websiteStatus: normalizedWebsiteStatus },
+          });
+        }
+        const existingItems = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: existing.id } });
+        const tDelete = await sequelize.transaction();
+        try {
+          await ReturOnline.destroy({ where: { penjualan_online_id: existing.id }, transaction: tDelete });
+          await PembayaranOnline.destroy({ where: { penjualan_online_id: existing.id }, transaction: tDelete });
+          await SuratJalanOnline.destroy({ where: { penjualan_online_id: existing.id }, transaction: tDelete });
+          await InvoiceOnline.destroy({ where: { penjualan_online_id: existing.id }, transaction: tDelete });
+          await PenjualanOnlineItem.destroy({ where: { penjualan_online_id: existing.id }, transaction: tDelete });
+          await PenjualanOnline.destroy({ where: { id: existing.id }, transaction: tDelete });
+          await tDelete.commit();
+        } catch (err) {
+          await tDelete.rollback().catch(() => {});
+          throw err;
+        }
+        if (Number(existing.kurangi_stok || 0) === 1) {
+          await adjustStok(existingItems.map((row) => ({ ...row.toJSON(), _matched: true })), isTest, 'restore');
+        }
+        emitDataUpdated('penjualan-online-list', { updatedBy: existing.created_by, source: 'ilena-web-order-cancel', orderId });
+        return res.json({
+          success: true,
+          message: 'Order website dibatalkan dan dibersihkan dari sistem',
+          data: { id: existing.id, orderId, action: 'deleted', duplicatePrevented: true, isTest, websiteStatus: normalizedWebsiteStatus },
+        });
+      }
+
+      const alreadyPaid = String(existing.catatan || '').includes('PEMBAYARAN_BERHASIL');
+      let action = 'duplicate_skipped';
+      if (isPaidOrder && !alreadyPaid) {
+        await existing.update({
+          kurangi_stok: 1,
+          catatan: systemNote(orderId, websiteStatus),
+        });
+        const existingItems = await PenjualanOnlineItem.findAll({ where: { penjualan_online_id: existing.id } });
+        await PembayaranOnline.findOrCreate({
+          where: { penjualan_online_id: existing.id },
+          defaults: {
+            metode: existing.metode_pembayaran,
+            jumlah: Math.max(0, grossAmount),
+            tanggal: existing.tanggal,
+            catatan: 'Pembayaran otomatis dari website Ilena / Midtrans',
+            created_by: existing.created_by,
+          },
+        });
+        await adjustStok(existingItems.map((row) => ({ ...row.toJSON(), _matched: true })), isTest);
+        emitDataUpdated('penjualan-online-list', { updatedBy: existing.created_by, source: 'ilena-web-order-paid', orderId });
+        action = 'updated_to_paid';
+      }
+      return res.json({
+        success: true,
+        message: 'Order sudah pernah masuk, data ganda dicegah',
+        data: { id: existing.id, orderId, action, duplicatePrevented: true, isTest, websiteStatus: normalizedWebsiteStatus },
+      });
+    }
+
+    if (isCancelledOrder) {
+      return res.json({
+        success: true,
+        message: 'Order website berstatus batal/gagal, tidak dimasukkan ke sistem',
+        data: { orderId, action: 'cancelled_skipped', isTest, websiteStatus: normalizedWebsiteStatus },
+      });
+    }
+
+    const t = await sequelize.transaction();
+    try {
     const online = await PenjualanOnline.create({
       id_pesanan: orderId,
       faktur: clean(payload.faktur || 'NON_FAKTUR').toUpperCase() === 'FAKTUR' ? 'FAKTUR' : 'NON_FAKTUR',
@@ -260,7 +375,7 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
       biaya_lain: 0,
       diskon_order: 0,
       kurangi_stok: isPaidOrder ? 1 : 0,
-      catatan: clean(payload.catatan || `Order otomatis dari ilenafurniture.com (${orderId}) | Status Website: ${systemNoteStatus(websiteStatus)}`),
+      catatan: clean(payload.catatan || systemNote(orderId, websiteStatus)),
       status: 'DIPROSES',
       is_test: isTest ? 1 : 0,
       created_by: createdBy,
@@ -289,9 +404,14 @@ router.post('/ilena-web-order', checkToken, async (req, res) => {
       message: 'Order website Ilena berhasil masuk sistem',
       data: { id: online.id, orderId, isTest, matchedItemCount: itemRows.filter((row) => row._matched).length },
     });
+    } catch (err) {
+      await t.rollback().catch(() => {});
+      return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+    }
   } catch (err) {
-    await t.rollback().catch(() => {});
     return res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  } finally {
+    await releaseOrderLock(lockName);
   }
 });
 
