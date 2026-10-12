@@ -828,6 +828,10 @@ export default function PenjualanOfflineDetail() {
       toast.error('Bukti transfer wajib diupload');
       return;
     }
+    if (bayarMetode !== 'TRANSFER' && !bayarBukti) {
+      const lanjut = window.confirm('Bukti pembayaran belum diupload. Tetap simpan pembayaran tanpa bukti?');
+      if (!lanjut) return;
+    }
 
     setBayarLoading(true);
     try {

@@ -447,6 +447,10 @@ export default function PenjualanInteriorDetail() {
 
   const createPembayaran = async () => {
     if (!bayarJumlah) { toast.error('Jumlah wajib diisi'); return; }
+    if (!bayarBukti) {
+      const lanjut = window.confirm('Bukti pembayaran belum diupload. Tetap simpan pembayaran tanpa bukti?');
+      if (!lanjut) return;
+    }
     setDocLoading(true);
     try {
       const formData = new FormData();
