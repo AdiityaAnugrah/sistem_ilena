@@ -3,10 +3,12 @@ const { Op } = require('sequelize');
 const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
   SuratPengantar, MutasiDisplay, MutasiDisplayItem,
-  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior,
+  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior, ProformaInvoice,
   SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
+
+const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -42,6 +44,7 @@ const offlineReturTotal = (retur) => {
 };
 
 async function invoiceInteriorAmount(inv) {
+  if (inv._ledgerAmount) return inv._ledgerAmount;
   let ids = [];
   if (inv.surat_jalan_ids) {
     try { ids = JSON.parse(inv.surat_jalan_ids).map(Number).filter(Boolean); } catch { ids = []; }
@@ -133,11 +136,11 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
         remaining = money(remaining - used);
         outstanding = money(outstanding + invoiceTotal - used);
         if (used <= 0) continue;
-        usageByInvoice.set(Number(inv.id), used);
+        usageByInvoice.set(inv.ledgerKey ?? Number(inv.id), used);
         rekap.uang_muka_terpakai += used;
         rekap.jumlah_transaksi += 1;
         history.push({
-          id: `UM-TERPAKAI-${inv.id}`, key, penjualan_interior_id: penjualanId,
+          id: `UM-TERPAKAI-${inv.ledgerKey ?? inv.id}`, key, penjualan_interior_id: penjualanId,
           tanggal: inv.tanggal, jenis: 'UANG_MUKA_TERPAKAI', referensi: inv.nomor_invoice,
           nama_customer: customer, no_po: rekap.no_po, faktur: rekap.faktur,
           keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
@@ -278,7 +281,7 @@ async function buildPiutangEntries(isTest, source = '') {
     });
   };
 
-  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all([
+  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs, interiorSubInvoices] = await Promise.all([
     includeOffline ? Invoice.findAll({
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
     }) : [],
@@ -318,6 +321,10 @@ async function buildPiutangEntries(isTest, source = '') {
     }) : [],
     includeInterior ? ReturSJInterior.findAll({
       include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
+    }) : [],
+    includeInterior ? ProformaInvoice.findAll({
+      where: { nomor_sub_invoice: { [Op.ne]: null } },
+      include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
     }) : [],
   ]);
 
@@ -459,13 +466,14 @@ async function buildPiutangEntries(isTest, source = '') {
     });
   }
 
-  const interiorAdvanceState = await buildInteriorAdvanceState(interiorInvoices, interiorPayments);
+  const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+  const interiorAdvanceState = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
 
-  for (const inv of interiorInvoices) {
+  for (const inv of effectiveInteriorInvoices) {
     const amount = await invoiceInteriorAmount(inv);
     if (amount.total <= 0) continue;
     push({
-      id: `INTERIOR-INVOICE-${inv.id}`,
+      id: `INTERIOR-INVOICE-${inv.ledgerKey ?? inv.id}`,
       tanggal: inv.tanggal,
       sumber: 'INTERIOR',
       jenis: 'INVOICE',
@@ -473,16 +481,16 @@ async function buildPiutangEntries(isTest, source = '') {
       customer: inv.penjualan?.nama_customer,
       faktur: inv.penjualan?.faktur,
       no_po: inv.penjualan?.no_po,
-      keterangan: `Invoice Interior ${inv.nomor_invoice}`,
+      keterangan: `${inv.documentType === 'SUB_INVOICE' ? 'Sub-Invoice' : 'Invoice'} Interior ${inv.nomor_invoice}`,
       debit: amount.total,
       kredit: 0,
       detail_url: `/dashboard/penjualan/interior/${inv.penjualan_interior_id}`,
     });
 
-    const uangMukaTerpakai = interiorAdvanceState.usageByInvoice.get(Number(inv.id)) || 0;
+    const uangMukaTerpakai = interiorAdvanceState.usageByInvoice.get(inv.ledgerKey ?? Number(inv.id)) || 0;
     if (uangMukaTerpakai > 0) {
       push({
-        id: `INTERIOR-UANG-MUKA-TERPAKAI-${inv.id}`,
+        id: `INTERIOR-UANG-MUKA-TERPAKAI-${inv.ledgerKey ?? inv.id}`,
         tanggal: inv.tanggal,
         sumber: 'INTERIOR',
         jenis: 'UANG_MUKA_TERPAKAI',
@@ -695,15 +703,20 @@ router.get('/uang-muka-interior', authenticate, async (req, res) => {
   try {
     const { from, to, search, status, key, page = 1, limit = 25, all } = req.query;
     const isTest = req.user.role === 'TEST' ? 1 : 0;
-    const [interiorInvoices, interiorPayments] = await Promise.all([
+    const [interiorInvoices, interiorPayments, interiorSubInvoices] = await Promise.all([
       InvoiceInterior.findAll({
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
       }),
       PembayaranInterior.findAll({
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
       }),
+      ProformaInvoice.findAll({
+        where: { nomor_sub_invoice: { [Op.ne]: null } },
+        include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
+      }),
     ]);
-    const state = await buildInteriorAdvanceState(interiorInvoices, interiorPayments);
+    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+    const state = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
     const q = String(search || '').trim().toLowerCase();
     const statusFilter = String(status || '').toUpperCase();
 
