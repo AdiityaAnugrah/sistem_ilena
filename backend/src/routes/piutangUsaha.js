@@ -259,7 +259,10 @@ function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationIt
   return money(sisaDisplay + sudahDiprosesJual + sudahMutasiKeluar);
 }
 
-async function buildPiutangEntries(isTest) {
+async function buildPiutangEntries(isTest, source = '') {
+  // Query only the selected ledger; unrelated modules must not block this report.
+  const includeOffline = source !== 'INTERIOR';
+  const includeInterior = source !== 'OFFLINE';
   const entries = [];
   const push = (entry) => {
     const customer = entry.customer || 'Tanpa Nama';
@@ -276,46 +279,46 @@ async function buildPiutangEntries(isTest) {
   };
 
   const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all([
-    Invoice.findAll({
+    includeOffline ? Invoice.findAll({
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
-    }),
-    PembayaranOffline.findAll({
+    }) : [],
+    includeOffline ? PembayaranOffline.findAll({
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }],
-    }),
-    ReturOffline.findAll({
+    }) : [],
+    includeOffline ? ReturOffline.findAll({
       include: [
         { model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] },
         { model: PenjualanOfflineItem, as: 'item' },
       ],
-    }),
-    SuratPengantar.findAll({
+    }) : [],
+    includeOffline ? SuratPengantar.findAll({
       include: [{
         model: PenjualanOffline,
         as: 'penjualan',
         where: { is_test: isTest, tipe: 'DISPLAY' },
         include: [{ model: PenjualanOfflineItem, as: 'items' }],
       }],
-    }),
-    PenjualanOffline.findAll({
+    }) : [],
+    includeOffline ? PenjualanOffline.findAll({
       where: { is_test: isTest, tipe: 'PENJUALAN', display_source_id: { [Op.not]: null } },
       include: [{ model: PenjualanOfflineItem, as: 'items' }],
-    }),
-    MutasiDisplay.findAll({
+    }) : [],
+    includeOffline ? MutasiDisplay.findAll({
       include: [
         { model: MutasiDisplayItem, as: 'items' },
         { model: PenjualanOffline, as: 'displayAsal', where: { is_test: isTest }, required: true },
         { model: PenjualanOffline, as: 'displayTujuan', where: { is_test: isTest }, required: true },
       ],
-    }),
-    InvoiceInterior.findAll({
+    }) : [],
+    includeInterior ? InvoiceInterior.findAll({
       include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
-    }),
-    PembayaranInterior.findAll({
+    }) : [],
+    includeInterior ? PembayaranInterior.findAll({
       include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
-    }),
-    ReturSJInterior.findAll({
+    }) : [],
+    includeInterior ? ReturSJInterior.findAll({
       include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
-    }),
+    }) : [],
   ]);
 
   const displaySalesBySource = new Map();
@@ -545,7 +548,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     const { from, to, search, sumber, faktur, page = 1, limit = 25, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
+    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter))
       .filter(entry => entryMatches(entry, { sumber: sourceFilter, faktur: fakturFilter }));
     entries = filterLedgerBySearch(entries, search);
 
@@ -632,7 +635,7 @@ router.get('/detail', authenticate, async (req, res) => {
     const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0))
+    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter))
       .filter(entry => entryMatches(entry, { customer_key, sumber: sourceFilter, faktur: fakturFilter }));
     if (!customer_key) allEntries = filterLedgerBySearch(allEntries, search);
 

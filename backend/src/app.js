@@ -125,13 +125,18 @@ async function cleanupDuplicateIndexes() {
 }
 
 sequelize.authenticate()
-  .then(() => {
+  .then(async () => {
     logger.info('Database connection established');
-    return cleanupDuplicateIndexes();
+    // Schema changes are local-development only, including when NODE_ENV is unset.
+    if (process.env.NODE_ENV === 'development') {
+      await cleanupDuplicateIndexes();
+      await sequelize.sync({ alter: true });
+      logger.info('Database synced');
+    } else {
+      logger.info('Automatic database schema changes disabled');
+    }
   })
-  .then(() => sequelize.sync({ alter: true }))
   .then(() => {
-    logger.info('Database synced');
     socketModule.init(server, allowedOrigins);
     server.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
