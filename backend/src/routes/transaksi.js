@@ -8,6 +8,8 @@ const {
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
 
+const { invoiceCosts } = require('../utils/interiorCosts');
+
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
 
@@ -93,7 +95,8 @@ async function invoiceInteriorAmount(inv) {
     subtotal = (inv.penjualan?.items || []).reduce((s, i) => s + Number(i.subtotal || 0), 0);
   }
   const ppn = inv.penjualan?.pakai_ppn ? subtotal * (Number(inv.penjualan.ppn_persen || 0) / 100) : 0;
-  return { subtotal: money(subtotal), ppn: money(ppn), total: money(subtotal + ppn) };
+  const costs = invoiceCosts(inv.penjualan, subtotal);
+  return { subtotal: money(subtotal) + costs.total, ppn: money(ppn), total: money(subtotal + ppn + costs.total) };
 }
 
 const matches = (trx, { sumber, jenis, search }) => {

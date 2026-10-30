@@ -10,6 +10,8 @@ const { authenticate } = require('../middleware/auth');
 
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
 
+const { invoiceCosts } = require('../utils/interiorCosts');
+
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
 
@@ -69,7 +71,8 @@ async function invoiceInteriorAmount(inv) {
 
   subtotal = money(subtotal);
   const ppn = inv.penjualan?.pakai_ppn ? money(subtotal * Number(inv.penjualan.ppn_persen || 0) / 100) : 0;
-  return { subtotal, ppn, total: money(subtotal + ppn) };
+  const costs = invoiceCosts(inv.penjualan, subtotal);
+  return { subtotal: subtotal + costs.total, ppn, total: money(subtotal + ppn + costs.total) };
 }
 
 

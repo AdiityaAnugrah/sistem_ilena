@@ -21,6 +21,8 @@ export default function PenjualanInteriorBaru() {
   const [ppnPersen, setPpnPersen] = useState<'10' | '11'>('11');
   const [items, setItems] = useState<any[]>([{ kode_barang: '', nama_barang: '', qty: 1, harga_satuan: 0 }]);
   const [loading, setLoading] = useState(false);
+  const [biayaAssembly, setBiayaAssembly] = useState('');
+  const [biayaKirim, setBiayaKirim] = useState('');
   const [alamat, setAlamat] = useState({
     provinsi_id: null as number | null,
     kabupaten_id: null as number | null,
@@ -52,9 +54,14 @@ export default function PenjualanInteriorBaru() {
   const getSubtotal = (item: any) => item.qty * item.harga_satuan;
   const subtotalTotal = items.reduce((s, i) => s + getSubtotal(i), 0);
   const ppnValue = pakaiPPN ? subtotalTotal * (parseInt(ppnPersen) / 100) : 0;
-  const grandTotal = subtotalTotal + ppnValue;
+  const assemblyValue = Math.round(Number(biayaAssembly || 0));
+  const kirimValue = Math.round(Number(biayaKirim || 0));
+  const grandTotal = subtotalTotal + ppnValue + assemblyValue + kirimValue;
 
   const onSubmit = (formData: any) => {
+    if ([biayaAssembly, biayaKirim].some(value => !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 999999999.99)) {
+      toast.error('Biaya assembly dan kirim harus berupa angka 0 sampai 999999999.99'); return;
+    }
     const validItems = items.filter(i => i.nama_barang && i.qty > 0 && i.harga_satuan > 0);
     if (validItems.length === 0) { toast.error('Minimal 1 item valid wajib diisi'); return; }
     pendingData.current = formData;
@@ -83,6 +90,8 @@ export default function PenjualanInteriorBaru() {
         alamat_kelurahan_id: alamat.kelurahan_id,
         alamat_detail: alamat.detail || null,
         alamat_kode_pos: alamat.kode_pos || null,
+        biaya_assembly: biayaAssembly.trim() ? Number(biayaAssembly) : null,
+        biaya_kirim: biayaKirim.trim() ? Number(biayaKirim) : null,
         items: validItems,
       };
       const res = await api.post('/penjualan-interior', payload);
@@ -275,6 +284,21 @@ export default function PenjualanInteriorBaru() {
           </CardContent>
         </Card>
 
+        <Card className="border border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold text-slate-800">Biaya tambahan (opsional)</CardTitle></CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="biaya-assembly" className="text-xs font-semibold text-slate-600">Biaya assembly (Rp)</Label>
+              <Input id="biaya-assembly" type="number" min="0" max="999999999.99" step="0.01" value={biayaAssembly} onChange={e => setBiayaAssembly(e.target.value)} placeholder="Kosongkan jika tidak ada" aria-describedby="biaya-help" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="biaya-kirim" className="text-xs font-semibold text-slate-600">Biaya kirim (Rp)</Label>
+              <Input id="biaya-kirim" type="number" min="0" max="999999999.99" step="0.01" value={biayaKirim} onChange={e => setBiayaKirim(e.target.value)} placeholder="Kosongkan jika tidak ada" aria-describedby="biaya-help" />
+            </div>
+            <p id="biaya-help" className="text-xs text-slate-500 sm:col-span-2">Biaya kosong atau nol tidak ditampilkan di invoice. Biaya ditambahkan terpisah setelah PPN barang.</p>
+          </CardContent>
+        </Card>
+
         {/* Items */}
         <Card className="border-0 shadow-sm bg-white overflow-hidden shadow-[0_4px_24px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/60">
           <CardHeader className="bg-[#f8fafc] border-b border-[#f1f5f9] px-6 py-5">
@@ -360,6 +384,8 @@ export default function PenjualanInteriorBaru() {
                       <td></td>
                     </tr>
                   )}
+                  {assemblyValue > 0 && <tr className="border-t border-slate-100"><td colSpan={4} className="py-3 px-6 text-right text-sm text-slate-600">Biaya assembly</td><td className="py-3 px-6 text-right font-semibold text-sm">{formatRupiah(assemblyValue)}</td><td /></tr>}
+                  {kirimValue > 0 && <tr className="border-t border-slate-100"><td colSpan={4} className="py-3 px-6 text-right text-sm text-slate-600">Biaya kirim</td><td className="py-3 px-6 text-right font-semibold text-sm">{formatRupiah(kirimValue)}</td><td /></tr>}
                   <tr className="border-t-2 border-slate-200 bg-white">
                     <td colSpan={4} className="py-6 px-6 text-right text-slate-800 font-black uppercase tracking-widest text-[11px]">Total Akhir Penjualan</td>
                     <td className="py-6 px-6 text-right font-black text-red-600 text-lg lg:text-xl tracking-tight leading-none">{formatRupiah(grandTotal)}</td>

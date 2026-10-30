@@ -12,6 +12,8 @@ const {
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
 
+const { interiorTotal } = require('../utils/interiorCosts');
+
 const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
 
@@ -51,7 +53,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
       }),
       PenjualanInterior.findAll({
         where: { ...baseWhere, status: { [Op.ne]: 'COMPLETED' } },
-        attributes: ['id', 'nama_customer', 'no_po', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'created_at'],
+        attributes: ['id', 'nama_customer', 'no_po', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim', 'created_at'],
         include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] }],
         order: [['created_at', 'DESC']],
         limit: 5,
@@ -95,14 +97,14 @@ router.get('/sales-followup', authenticate, async (req, res) => {
 
     const interior = interiorRows.map((row) => {
       const subtotal = (row.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-      const ppn = row.pakai_ppn ? subtotal * (parseInt(row.ppn_persen || 0, 10) / 100) : 0;
+
       return {
         id: row.id,
         title: row.nama_customer,
         ref: row.no_po || `INT-${row.id}`,
         tanggal: row.tanggal,
         status: row.status,
-        total: money(subtotal + ppn),
+        total: interiorTotal(row, subtotal).total,
         href: `/dashboard/penjualan/interior/${row.id}`,
       };
     });

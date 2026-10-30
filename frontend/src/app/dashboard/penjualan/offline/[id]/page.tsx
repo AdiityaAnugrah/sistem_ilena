@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
+import DueDateField, { useDueDate } from '@/components/forms/DueDateField';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -96,13 +97,13 @@ const DocItem = ({ nomor, tanggal, onPrint, onEmail }: { nomor: string; tanggal:
 const DocModal = ({
   show, title, onClose, onSubmit, loading,
   tanggal, setTanggal, catatan, setCatatan,
-  showPpn, ppn, setPpn,
+  showPpn, ppn, setPpn, dueDate,
 }: any) => {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
       <div
-        className="w-full max-w-sm rounded-2xl p-6 animate-fade-in"
+        className="w-full max-w-sm max-h-[90dvh] overflow-y-auto mx-3 rounded-2xl p-6 animate-fade-in"
         style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}
       >
         <div className="flex items-center gap-3 mb-5">
@@ -132,6 +133,7 @@ const DocModal = ({
               onBlur={e => (e.target as HTMLElement).style.border = '1px solid #e2e8f0'}
             />
           </div>
+          {dueDate && <DueDateField {...dueDate.fieldProps} />}
           {showPpn && (
             <div>
               <label className="block text-xs font-semibold mb-1.5" style={{ color: '#475569' }}>
@@ -179,7 +181,7 @@ const DocModal = ({
           </button>
           <button
             onClick={onSubmit}
-            disabled={loading}
+            disabled={loading || (dueDate && !dueDate.isValid)}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
             style={{ background: 'linear-gradient(135deg, #FA2F2F, #d41a1a)', boxShadow: '0 2px 12px rgba(244,63,94,0.3)' }}
           >
@@ -434,6 +436,7 @@ export default function PenjualanOfflineDetail() {
   const [invConfirm, setInvConfirm] = useState(false);
   const [spConfirm, setSpConfirm] = useState(false);
   const [docTanggal, setDocTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const invoiceDue = useDueDate(docTanggal);
   const [docCatatan, setDocCatatan] = useState('');
   const [docLoading, setDocLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -669,6 +672,7 @@ export default function PenjualanOfflineDetail() {
     if ((data.suratJalans?.length ?? 0) > 0) { setSjConfirm(true); } else { setSjModal(true); }
   };
   const openInvModal = () => {
+    invoiceDue.reset();
     if ((data.invoices?.length ?? 0) > 0) { setInvConfirm(true); } else { setInvModal(true); }
   };
   const openSpModal = () => {
@@ -676,9 +680,10 @@ export default function PenjualanOfflineDetail() {
   };
 
   const createDoc = async (type: 'surat-jalan' | 'invoice' | 'surat-pengantar') => {
+    if (type === 'invoice' && !invoiceDue.isValid) return toast.error('Periksa tanggal dokumen dan jatuh tempo');
     setDocLoading(true);
     try {
-      const extra = type === 'invoice' ? { ppn_persen: invPpn } : {};
+      const extra = type === 'invoice' ? { ppn_persen: invPpn, jatuh_tempo: invoiceDue.date } : {};
       await api.post(`/penjualan-offline/${id}/${type}`, { tanggal: docTanggal, catatan: docCatatan, ...extra });
       toast.success('Dokumen berhasil dibuat!');
       closeAllModals();
@@ -1557,7 +1562,7 @@ export default function PenjualanOfflineDetail() {
         onClose={closeAllModals} onSubmit={() => createDoc('invoice')}
         loading={docLoading} tanggal={docTanggal} setTanggal={setDocTanggal}
         catatan={docCatatan} setCatatan={setDocCatatan}
-        showPpn ppn={invPpn} setPpn={setInvPpn}
+        showPpn ppn={invPpn} setPpn={setInvPpn} dueDate={invoiceDue}
       />
       <DocModal
         show={spModal} title="Buat Surat Pengantar"

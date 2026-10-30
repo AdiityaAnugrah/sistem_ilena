@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
+import DueDateField, { useDueDate } from '@/components/forms/DueDateField';
 import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import {
@@ -121,7 +122,7 @@ const ModalWrapper = ({ show, onClose, children }: { show: boolean; onClose: () 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl p-6 animate-fade-in"
+        className="w-full max-w-md max-h-[90dvh] overflow-y-auto mx-3 rounded-2xl p-6 animate-fade-in"
         style={{ background: '#fff', boxShadow: '0 20px 60px rgba(15,23,42,0.2)' }}
         onClick={e => e.stopPropagation()}
       >
@@ -162,12 +163,6 @@ const ModalInput = ({ label, type = 'text', value, onChange, placeholder }: any)
     )}
   </div>
 );
-
-const addDaysIso = (dateValue?: string, days = 14) => {
-  const base = dateValue ? new Date(dateValue) : new Date();
-  base.setDate(base.getDate() + days);
-  return base.toISOString().split('T')[0];
-};
 
 const ModalFooter = ({ onClose, onSubmit, loading, label, disabled }: any) => (
   <div className="flex gap-3 mt-5">
@@ -264,13 +259,14 @@ export default function PenjualanInteriorDetail() {
   const [sjCatatan, setSjCatatan] = useState('');
   const [sjItems, setSjItems] = useState<Record<number, number>>({});
   const [invIntTanggal, setInvIntTanggal] = useState(new Date().toISOString().split('T')[0]);
+  const invoiceDue = useDueDate(invIntTanggal);
   const [invIntSjIds, setInvIntSjIds] = useState<number[]>([]);
   const [invIntCatatan, setInvIntCatatan] = useState('');
 
   // Sub Invoice SJ selection state
   const [subInvSjModal, setSubInvSjModal] = useState<{ open: boolean; proforma: any }>({ open: false, proforma: null });
   const [subInvSjIds, setSubInvSjIds] = useState<number[]>([]);
-  const [subInvJatuhTempo, setSubInvJatuhTempo] = useState(addDaysIso());
+  const subInvoiceDue = useDueDate(subInvSjModal.proforma?.tanggal || new Date().toISOString().slice(0, 10));
 
   // Retur state
   const [returModal, setReturModal] = useState<{ open: boolean; sj: SuratJalanInteriorData | null }>({ open: false, sj: null });
@@ -509,11 +505,12 @@ export default function PenjualanInteriorDetail() {
   };
 
   const createInvoiceInterior = async () => {
+    if (!invoiceDue.isValid) return toast.error('Periksa tanggal dokumen dan jatuh tempo');
     if (invIntSjIds.length === 0) { toast.error('Pilih minimal 1 Surat Jalan'); return; }
     setDocLoading(true);
     try {
       await api.post(`/penjualan-interior/${id}/invoice`, {
-        tanggal: invIntTanggal, surat_jalan_ids: invIntSjIds, catatan: invIntCatatan,
+        tanggal: invIntTanggal, jatuh_tempo: invoiceDue.date, surat_jalan_ids: invIntSjIds, catatan: invIntCatatan,
       });
       toast.success('Invoice Interior berhasil dibuat!');
       setModal(null); setInvIntSjIds([]); fetchData();
@@ -622,7 +619,9 @@ export default function PenjualanInteriorDetail() {
 
   const subtotal = data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0) || 0;
   const ppn = data.pakai_ppn ? subtotal * (parseInt(data.ppn_persen) / 100) : 0;
-  const grandTotal = subtotal + ppn;
+  const biayaAssembly = Math.round(Number(data.biaya_assembly || 0));
+  const biayaKirim = Math.round(Number(data.biaya_kirim || 0));
+  const grandTotal = subtotal + ppn + biayaAssembly + biayaKirim;
   const totalBayar = data.pembayarans?.reduce((s: number, p: any) => s + parseFloat(p.jumlah), 0) || 0;
   const sisa = Math.max(0, grandTotal - totalBayar);
 
@@ -719,31 +718,11 @@ export default function PenjualanInteriorDetail() {
             return;
           }
 
-          const suratJalans = data.suratJalans || [];
-
-          // Tidak ada SJ sama sekali → langsung confirm & generate tanpa SJ
-          if (suratJalans.length === 0) {
-            setConfirmModal({
-              title: 'Generate Sub Invoice',
-              message: `Sub Invoice untuk ${p.nomor_proforma} akan digenerate tanpa Surat Jalan. Nomor baru akan dibuat secara permanen. Lanjutkan?`,
-              onConfirm: doPrint,
-            });
-            return;
-          }
-
-          // Jika sudah punya SJ IDs tersimpan, langsung generate & cetak
-          if (p.sub_invoice_sj_ids) {
-            setConfirmModal({
-              title: 'Generate Sub Invoice',
-              message: `Sub Invoice untuk ${p.nomor_proforma} belum dibuat. Nomor baru akan digenerate secara permanen saat dicetak. Lanjutkan?`,
-              onConfirm: doPrint,
-            });
-            return;
-          }
-
-          // Ada SJ tersedia → tampilkan modal pilih SJ (opsional)
-          setSubInvSjIds([]);
-          setSubInvJatuhTempo(p.jatuh_tempo || addDaysIso(p.tanggal));
+          // Every new Sub-Invoice asks for its due date, even without a Surat Jalan.
+          let savedSjIds: number[] = [];
+          try { savedSjIds = JSON.parse(p.sub_invoice_sj_ids || '[]'); } catch { /* no saved selection */ }
+          setSubInvSjIds(Array.isArray(savedSjIds) ? savedSjIds.map(Number) : []);
+          subInvoiceDue.load(p.jatuh_tempo);
           setSubInvSjModal({ open: true, proforma: p });
         };
         const deleteSubInvoice = (p: any) => {
@@ -1148,6 +1127,8 @@ export default function PenjualanInteriorDetail() {
                       <td className="px-5 py-2 text-right text-sm" style={{ color: '#64748b' }}>{formatRupiah(ppn)}</td>
                     </tr>
                   )}
+                  {biayaAssembly > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600">Biaya assembly</td><td className="px-5 py-2 text-right text-sm">{formatRupiah(biayaAssembly)}</td></tr>}
+                  {biayaKirim > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600">Biaya kirim</td><td className="px-5 py-2 text-right text-sm">{formatRupiah(biayaKirim)}</td></tr>}
                   <tr style={{ background: '#f8fafc' }}>
                     <td colSpan={4} className="px-5 py-3 text-base font-black text-right" style={{ color: '#0f172a' }}>Total</td>
                     <td className="px-5 py-3 text-base font-black text-right" style={{ color: '#FA2F2F' }}>{formatRupiah(grandTotal)}</td>
@@ -1171,7 +1152,7 @@ export default function PenjualanInteriorDetail() {
               {data.items?.some((i: any) => i.qty - i.sudah_kirim > 0) && (
                 <ActionButton onClick={() => setModal('sj')} icon={Truck} label="Surat Jalan" desc="Kirim barang ke customer" />
               )}
-              <ActionButton onClick={() => setModal('invoice-interior')} icon={Receipt} label="Invoice Interior" desc="Tagihan berdasarkan pengiriman" />
+              <ActionButton onClick={() => { invoiceDue.reset(); setModal('invoice-interior'); }} icon={Receipt} label="Invoice Interior" desc="Tagihan berdasarkan pengiriman" />
             </div>
           </div>
 
@@ -1299,6 +1280,7 @@ export default function PenjualanInteriorDetail() {
                             amount: Math.round(parseFloat(item.subtotal) * persNum / 100),
                           }))
                         : [];
+                      itemsWithAmount.push(...[{ nama: 'Biaya assembly', qty: 1, amount: Math.round(biayaAssembly * persNum / 100) }, { nama: 'Biaya kirim', qty: 1, amount: Math.round(biayaKirim * persNum / 100) }].filter(cost => cost.amount > 0));
                       return (
                       <div key={idx} className="rounded-lg p-2.5"
                         style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
@@ -1428,6 +1410,7 @@ export default function PenjualanInteriorDetail() {
                         amount: Math.round(parseFloat(item.subtotal) * persNum / 100),
                       }))
                     : [];
+                  itemsBreakdown.push(...[{ nama: 'Biaya assembly', qty: 1, amount: Math.round(biayaAssembly * persNum / 100) }, { nama: 'Biaya kirim', qty: 1, amount: Math.round(biayaKirim * persNum / 100) }].filter(cost => cost.amount > 0));
                   return (
                     <div key={idx} className="rounded-lg p-2.5" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                       <div className="flex gap-2 items-center">
@@ -1654,6 +1637,7 @@ export default function PenjualanInteriorDetail() {
         <ModalHeader icon={Receipt} title="Buat Invoice Interior" sub="Invoice berdasarkan Surat Jalan yang ada" />
         <div className="space-y-4">
           <ModalInput label="Tanggal Invoice" type="date" value={invIntTanggal} onChange={(e: any) => setInvIntTanggal(e.target.value)} />
+          <DueDateField {...invoiceDue.fieldProps} />
           <div>
             <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
               Surat Jalan Referensi <span className="font-normal" style={{ color: '#94a3b8' }}>(pilih satu atau lebih)</span>
@@ -1713,23 +1697,18 @@ export default function PenjualanInteriorDetail() {
           </div>
           <ModalInput label="Catatan (opsional)" value={invIntCatatan} onChange={(e: any) => setInvIntCatatan(e.target.value)} />
         </div>
-        <ModalFooter onClose={() => { setModal(null); setInvIntSjIds([]); }} onSubmit={createInvoiceInterior} loading={docLoading} label="Buat Invoice" />
+        <ModalFooter onClose={() => { setModal(null); setInvIntSjIds([]); }} onSubmit={createInvoiceInterior} loading={docLoading} disabled={!invoiceDue.isValid} label="Buat Invoice" />
       </ModalWrapper>
 
       {/* ── Modal Pilih Surat Jalan untuk Sub Invoice ── */}
-      <ModalWrapper show={subInvSjModal.open} onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); setSubInvJatuhTempo(addDaysIso()); }}>
-        <ModalHeader icon={Truck} title="Pilih Surat Jalan" sub={`Untuk Sub Invoice ${subInvSjModal.proforma?.nomor_proforma || ''}`} />
+      <ModalWrapper show={subInvSjModal.open} onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); subInvoiceDue.reset(); }}>
+        <ModalHeader icon={Receipt} title="Buat Sub Invoice" sub={`Untuk Proforma ${subInvSjModal.proforma?.nomor_proforma || ''}`} />
         <div className="space-y-4">
           <div className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2"
             style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8' }}>
             📋 Pilih Surat Jalan yang terkait — opsional, boleh tidak dipilih
           </div>
-          <ModalInput
-            label="Jatuh Tempo Sub Invoice"
-            type="date"
-            value={subInvJatuhTempo}
-            onChange={(e: any) => setSubInvJatuhTempo(e.target.value)}
-          />
+          <DueDateField {...subInvoiceDue.fieldProps} />
           <div>
             <label className="block text-xs font-semibold mb-2" style={{ color: '#475569' }}>
               Surat Jalan Tersedia <span className="font-normal" style={{ color: '#94a3b8' }}>(opsional)</span>
@@ -1769,20 +1748,21 @@ export default function PenjualanInteriorDetail() {
           </div>
         </div>
         <ModalFooter
-          onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); setSubInvJatuhTempo(addDaysIso()); }}
+          onClose={() => { setSubInvSjModal({ open: false, proforma: null }); setSubInvSjIds([]); subInvoiceDue.reset(); }}
           onSubmit={async () => {
             const proformaRef = subInvSjModal.proforma;
+            if (!subInvoiceDue.isValid) return toast.error('Periksa tanggal jatuh tempo');
             setDocLoading(true);
             try {
               // Simpan SJ IDs dan jatuh tempo ke proforma (SJ boleh kosong)
               await api.put(`/dokumen/proforma/${proformaRef.id}/sub-invoice/surat-jalan`, {
                 surat_jalan_ids: subInvSjIds,
-                jatuh_tempo: subInvJatuhTempo,
+                jatuh_tempo: subInvoiceDue.date,
               });
               setSubInvSjModal({ open: false, proforma: null });
               setSubInvSjIds([]);
-              setSubInvJatuhTempo(addDaysIso());
-              const jatuhTempoLabel = subInvJatuhTempo ? `, jatuh tempo ${formatDate(subInvJatuhTempo)}` : '';
+              subInvoiceDue.reset();
+              const jatuhTempoLabel = `, jatuh tempo ${formatDate(subInvoiceDue.date)}`;
               const sjLabel = subInvSjIds.length > 0 ? `${subInvSjIds.length} Surat Jalan terpilih` : 'tanpa Surat Jalan';
               setConfirmModal({
                 title: 'Generate Sub Invoice',
@@ -1803,6 +1783,7 @@ export default function PenjualanInteriorDetail() {
             }
           }}
           loading={docLoading}
+          disabled={!subInvoiceDue.isValid}
           label="Lanjutkan"
         />
       </ModalWrapper>

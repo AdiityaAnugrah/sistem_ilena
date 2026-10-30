@@ -11,6 +11,8 @@ const PenjualanInterior = sequelize.define('penjualan_interior', {
   no_npwp: { type: DataTypes.STRING(30) },
   pakai_ppn: { type: DataTypes.TINYINT(1), defaultValue: 0 },
   ppn_persen: { type: DataTypes.ENUM('10', '11'), defaultValue: null },
+  biaya_assembly: { type: DataTypes.DECIMAL(15, 2), allowNull: true, defaultValue: null },
+  biaya_kirim: { type: DataTypes.DECIMAL(15, 2), allowNull: true, defaultValue: null },
   tanggal: { type: DataTypes.DATEONLY, allowNull: false },
   status: { type: DataTypes.ENUM('DRAFT', 'ACTIVE', 'COMPLETED'), defaultValue: 'DRAFT' },
   alamat_provinsi_id: { type: DataTypes.INTEGER, defaultValue: null },

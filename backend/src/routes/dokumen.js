@@ -75,6 +75,9 @@ function injectSignatureHtml(html, signatureId) {
   return html.replace('<div class="sig-body">', `<div class="sig-body">${imgTag}`);
 }
 
+const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
+const { invoiceCosts, itemSubtotal } = require('../utils/interiorCosts');
+
 const router = express.Router();
 
 async function attachBarangOnline(penjualan) {
@@ -455,11 +458,7 @@ async function fetchSubInvoice(id) {
     }],
   });
   if (!proforma) return null;
-  const defaultJatuhTempo = (() => {
-    const base = new Date(proforma.tanggal || Date.now());
-    base.setDate(base.getDate() + 14);
-    return base.toISOString().slice(0, 10);
-  })();
+  const defaultJatuhTempo = resolveInvoiceDates({ tanggal: proforma.tanggal }).jatuh_tempo;
   if (!proforma.nomor_sub_invoice) {
     const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
     const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
@@ -489,19 +488,20 @@ router.put('/proforma/:id/sub-invoice/surat-jalan', authenticate, async (req, re
     if (!Array.isArray(surat_jalan_ids)) {
       return res.status(400).json({ message: 'surat_jalan_ids harus berupa array' });
     }
-    if (jatuh_tempo && !/^\d{4}-\d{2}-\d{2}$/.test(String(jatuh_tempo))) {
-      return res.status(400).json({ message: 'Format jatuh_tempo harus YYYY-MM-DD' });
-    }
     const proforma = await ProformaInvoice.findByPk(req.params.id);
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
+    const dates = resolveInvoiceDates({
+      tanggal: proforma.tanggal,
+      jatuh_tempo: jatuh_tempo === undefined ? (proforma.jatuh_tempo || undefined) : jatuh_tempo,
+    });
     await proforma.update({
       sub_invoice_sj_ids: surat_jalan_ids.length > 0 ? JSON.stringify(surat_jalan_ids) : null,
-      jatuh_tempo: jatuh_tempo || null,
+      jatuh_tempo: dates.jatuh_tempo,
     });
     emitDataUpdated(`penjualan-interior:${proforma.penjualan_interior_id}`, { updatedBy: req.user?.id });
     return res.json({ message: 'Surat Jalan berhasil disimpan' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 
@@ -691,6 +691,7 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
       include: [{
         model: PenjualanInterior, as: 'penjualan',
         include: [
+          { model: PenjualanInteriorItem, as: 'items' },
           { model: Provinsi, as: 'alamatProvinsi' },
           { model: Kabupaten, as: 'alamatKabupaten' },
           { model: Kecamatan, as: 'alamatKecamatan' },
@@ -770,6 +771,8 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
       });
     }
 
+    const shippedSubtotal = suratJalans.reduce((sum, sj) => sum + (sj.items || []).reduce((part, row) => part + (Number(row.item?.subtotal || 0) / Number(row.item?.qty || 1)) * Number(row.qty_kirim || 0), 0), 0);
+    const costs = invoiceCosts(data.penjualan, rawItems.length > 0 ? shippedSubtotal : itemSubtotal(data.penjualan));
     const normalized = {
       nomor_invoice: data.nomor_invoice,
       tanggal: data.tanggal,
@@ -777,6 +780,8 @@ router.get('/invoice-interior/:id/print', authenticatePrint, async (req, res) =>
       catatan: data.catatan,
       ppn_persen: 0, // sudah embedded di harga_satuan
       penjualan: {
+        biaya_assembly: costs.biaya_assembly,
+        biaya_kirim: costs.biaya_kirim,
         nama_penerima: data.penjualan.nama_customer,
         nama_npwp: data.penjualan.nama_pt_npwp,
         pengirim_detail: data.penjualan.alamat_detail,
@@ -807,7 +812,7 @@ router.post('/invoice-interior/:id/email', authenticate, async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Email tujuan wajib diisi' });
     // Re-use the print logic by calling the same handler inline via a lightweight helper
-    const inv = await InvoiceInterior.findByPk(req.params.id, { include: [{ model: PenjualanInterior, as: 'penjualan', include: [{ model: Provinsi, as: 'alamatProvinsi' }, { model: Kabupaten, as: 'alamatKabupaten' }, { model: Kecamatan, as: 'alamatKecamatan' }, { model: Kelurahan, as: 'alamatKelurahan' }] }] });
+    const inv = await InvoiceInterior.findByPk(req.params.id, { include: [{ model: PenjualanInterior, as: 'penjualan', include: [{ model: PenjualanInteriorItem, as: 'items' }, { model: Provinsi, as: 'alamatProvinsi' }, { model: Kabupaten, as: 'alamatKabupaten' }, { model: Kecamatan, as: 'alamatKecamatan' }, { model: Kelurahan, as: 'alamatKelurahan' }] }] });
     if (!inv) return res.status(404).json({ message: 'Invoice Interior tidak ditemukan' });
     const data = inv.toJSON();
     let sjIds = [];
@@ -818,7 +823,9 @@ router.post('/invoice-interior/:id/email', authenticate, async (req, res) => {
     const mergeMap = new Map(); rawItems.forEach(item => { const key = `${item.barang.nama}||${item.harga_satuan}`; if (mergeMap.has(key)) { const ex = mergeMap.get(key); ex.qty += item.qty; ex.subtotal += item.subtotal; } else { mergeMap.set(key, { ...item }); } });
     let invoiceItems = Array.from(mergeMap.values());
     if (invoiceItems.length === 0) { const pItems = await PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: data.penjualan_interior_id } }); invoiceItems = pItems.map(i => { const hb = parseFloat(i.harga_satuan || 0); const hi = ppnPersen > 0 ? Math.round(hb * (1 + ppnPersen / 100)) : hb; return { barang: { id: i.kode_barang, nama: i.nama_barang }, qty: i.qty, harga_satuan: hi, subtotal: hi * i.qty }; }); }
-    const normalized = { nomor_invoice: data.nomor_invoice, tanggal: data.tanggal, jatuh_tempo: data.jatuh_tempo, catatan: data.catatan, ppn_persen: 0, penjualan: { nama_penerima: data.penjualan.nama_customer, nama_npwp: data.penjualan.nama_pt_npwp, pengirim_detail: data.penjualan.alamat_detail, pengirimProvinsi: data.penjualan.alamatProvinsi, pengirimKabupaten: data.penjualan.alamatKabupaten, pengirimKecamatan: data.penjualan.alamatKecamatan, pengirimKelurahan: data.penjualan.alamatKelurahan, pengirim_kode_pos: data.penjualan.alamat_kode_pos, no_po: data.penjualan.no_po, no_npwp: data.penjualan.no_npwp, faktur: data.penjualan.faktur, suratJalans: suratJalans.map(sj => ({ nomor_surat: sj.nomor_surat })), items: invoiceItems } };
+    const shippedSubtotal = suratJalans.reduce((sum, sj) => sum + (sj.items || []).reduce((part, row) => part + (Number(row.item?.subtotal || 0) / Number(row.item?.qty || 1)) * Number(row.qty_kirim || 0), 0), 0);
+    const costs = invoiceCosts(data.penjualan, rawItems.length > 0 ? shippedSubtotal : itemSubtotal(data.penjualan));
+    const normalized = { nomor_invoice: data.nomor_invoice, tanggal: data.tanggal, jatuh_tempo: data.jatuh_tempo, catatan: data.catatan, ppn_persen: 0, penjualan: { biaya_assembly: costs.biaya_assembly, biaya_kirim: costs.biaya_kirim, nama_penerima: data.penjualan.nama_customer, nama_npwp: data.penjualan.nama_pt_npwp, pengirim_detail: data.penjualan.alamat_detail, pengirimProvinsi: data.penjualan.alamatProvinsi, pengirimKabupaten: data.penjualan.alamatKabupaten, pengirimKecamatan: data.penjualan.alamatKecamatan, pengirimKelurahan: data.penjualan.alamatKelurahan, pengirim_kode_pos: data.penjualan.alamat_kode_pos, no_po: data.penjualan.no_po, no_npwp: data.penjualan.no_npwp, faktur: data.penjualan.faktur, suratJalans: suratJalans.map(sj => ({ nomor_surat: sj.nomor_surat })), items: invoiceItems } };
     const html = generateHTMLInvoice(normalized);
     const pdf = await htmlToPdf(html);
     await sendDocumentEmail({ to: email, subject: `Invoice - ${data.nomor_invoice}`, tipeLabel: 'Invoice', nomor: data.nomor_invoice, namaCustomer: data.penjualan?.nama_customer, tanggal: data.tanggal, pdfBuffer: pdf, pdfFilename: `Invoice_${data.nomor_invoice.replace(/\//g, '-')}.pdf` });

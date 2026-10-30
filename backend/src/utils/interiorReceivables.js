@@ -1,3 +1,4 @@
+const { interiorCosts } = require('./interiorCosts');
 const money = value => Math.round(Number(value || 0));
 const plain = row => typeof row.toJSON === 'function' ? row.toJSON() : row;
 
@@ -17,7 +18,8 @@ function subInvoiceTerms(doc) {
     }, 0);
     const ppn = sale.faktur === 'FAKTUR' && sale.pakai_ppn
       ? money(subtotal * Number(sale.ppn_persen || 0) / 100) : 0;
-    return [{ type: term.tipe || 'DP', subtotal, ppn, total: subtotal + ppn }];
+    const costs = interiorCosts(sale, percent / 100);
+    return [{ type: term.tipe || 'DP', subtotal: subtotal + costs.total, ppn, total: subtotal + ppn + costs.total }];
   });
 }
 

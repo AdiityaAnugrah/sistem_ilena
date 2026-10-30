@@ -21,6 +21,8 @@ const { logAction } = require('../middleware/logger');
 const { emitDataUpdated } = require('../socket');
 const { generateNomorSJOnline, generateNomorInvoiceOnline } = require('../utils/generateNomor');
 
+const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
+
 const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
 
@@ -437,6 +439,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
 
 router.post('/:id/invoice', authenticate, async (req, res) => {
   try {
+    const { tanggal, jatuh_tempo } = resolveInvoiceDates(req.body);
     const online = await PenjualanOnline.findByPk(req.params.id);
     if (!online) return res.status(404).json({ message: 'Data tidak ditemukan' });
     if (['DIBATALKAN', 'RETUR'].includes(online.status)) {
@@ -446,9 +449,9 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     if (existing) {
       return res.status(400).json({ message: 'Invoice untuk pesanan ini sudah dibuat' });
     }
-    const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
+
     const nomor_invoice = await generateNomorInvoiceOnline(online.faktur, tanggal, online.is_test === 1);
-    const jatuh_tempo = new Date(new Date(tanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
     const inv = await InvoiceOnline.create({
       penjualan_online_id: online.id,
       nomor_invoice,
@@ -461,7 +464,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     emitDataUpdated(`penjualan-online:${online.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice Online berhasil dibuat' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 

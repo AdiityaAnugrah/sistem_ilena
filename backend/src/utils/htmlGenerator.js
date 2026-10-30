@@ -1,3 +1,4 @@
+const { interiorCosts } = require('./interiorCosts');
 const dayjs = require('dayjs');
 const fs = require('fs');
 const path = require('path');
@@ -1293,6 +1294,12 @@ const generateHTMLSuratPengantarInterior = (sp) => {
   `;
 };
 
+function interiorCostRows(costs) {
+  return [['BIAYA ASSEMBLY', costs.biaya_assembly], ['BIAYA KIRIM', costs.biaya_kirim]]
+    .filter(([, amount]) => amount > 0)
+    .map(([label, amount]) => `<tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">${label}</td><td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(amount)}</td></tr>`).join('');
+}
+
 const generateHTMLInvoice = (inv) => {
   const penjualan = inv.penjualan || {};
   const items = penjualan.items || [];
@@ -1360,7 +1367,8 @@ const generateHTMLInvoice = (inv) => {
   const biayaLain = Number(penjualan.biaya_lain || 0);
   const diskonOrder = Number(penjualan.diskon_order || 0);
   const ppnAmount = Math.round(totalInvoice * ppnPersen / 100);
-  const grandTotal = Math.max(0, totalInvoice + ppnAmount + ongkir + biayaLain - diskonOrder);
+  const costs = interiorCosts(penjualan);
+  const grandTotal = Math.max(0, totalInvoice + ppnAmount + ongkir + biayaLain + costs.total - diskonOrder);
 
   const bankFaktur = "BCA 8715898787 a.n. CATUR BHAKTI MANDIRI";
   const bankNonFaktur = "BCA 8715883488 a.n. EL LIE PURNAMA";
@@ -1510,6 +1518,7 @@ const generateHTMLInvoice = (inv) => {
                         <td colspan="5" class="fw-semibold">SUBTOTAL</td>
                         <td class="num fw-semibold">${formatRupiah(totalInvoice)}</td>
                     </tr>
+                    ${interiorCostRows(costs)}
                     ${ongkir > 0 ? `<tr><td colspan="5" class="fw-semibold">ONGKIR</td><td class="num fw-semibold">${formatRupiah(ongkir)}</td></tr>` : ''}
                     ${biayaLain > 0 ? `<tr><td colspan="5" class="fw-semibold">BIAYA LAIN</td><td class="num fw-semibold">${formatRupiah(biayaLain)}</td></tr>` : ''}
                     ${diskonOrder > 0 ? `<tr><td colspan="5" class="fw-semibold">DISKON PESANAN</td><td class="num fw-semibold">- ${formatRupiah(diskonOrder)}</td></tr>` : ''}
@@ -1547,11 +1556,11 @@ const generateHTMLInvoice = (inv) => {
                         <td style="white-space:nowrap; font-size:11.5px;">:
                             <span class="text-muted">${sjString || '-'}</span>
                         </td>
-                    </tr>
+                    </tr>` : ''}
                     <tr>
                         <td class="pe-3" style="white-space:nowrap; font-size:11.5px;">Jatuh Tempo</td>
                         <td style="white-space:nowrap; font-size:11.5px;">: ${jatuhTempoFormat}</td>
-                    </tr>` : ''}
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -1612,7 +1621,8 @@ const generateHTMLProforma = (inv) => {
 
   const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
   const ppnAmount = Math.round(subtotalTotal * ppnPersen / 100);
-  const grandTotal = subtotalTotal + ppnAmount;
+  const costs = interiorCosts(penjualan);
+  const grandTotal = subtotalTotal + ppnAmount + costs.total;
 
   // Summary rows
   const summaryRows = isFaktur ? `
@@ -1620,6 +1630,7 @@ const generateHTMLProforma = (inv) => {
         <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
     ${ppnPersen > 0 ? `<tr><td colspan="5" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
         <td class="num" style="font-size:11.5px;">${formatRupiah(ppnAmount)}</td></tr>` : ''}
+    ${interiorCostRows(costs)}
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
@@ -1627,6 +1638,7 @@ const generateHTMLProforma = (inv) => {
   ` : `
     <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">SUBTOTAL</td>
         <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
+    ${interiorCostRows(costs)}
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
@@ -1931,20 +1943,26 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
 
   const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
   const ppnAmount = Math.round(grandTotalSub * ppnPersen / 100);
-  const grandTotalWithPPN = grandTotalSub + ppnAmount;
+  const costs = terms.reduce((sum, term) => {
+    const part = interiorCosts(penjualan, Number(term.persen || 0) / 100);
+    return { biaya_assembly: sum.biaya_assembly + part.biaya_assembly, biaya_kirim: sum.biaya_kirim + part.biaya_kirim, total: sum.total + part.total };
+  }, { biaya_assembly: 0, biaya_kirim: 0, total: 0 });
+  const grandTotalWithPPN = grandTotalSub + ppnAmount + costs.total;
 
   const summaryRow = isFaktur ? `
     <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">DASAR PENGENAAN PAJAK</td>
         <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(grandTotalSub)}</td></tr>
     ${ppnPersen > 0 ? `<tr><td colspan="5" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
         <td class="num" style="font-size:11.5px;">${formatRupiah(ppnAmount)}</td></tr>` : ''}
+    ${interiorCostRows(costs)}
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalWithPPN)}</td>
     </tr>` : `
+    ${interiorCostRows(costs)}
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
-        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalSub)}</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalSub + costs.total)}</td>
     </tr>`;
 
   const npwpRow = penjualan.no_npwp

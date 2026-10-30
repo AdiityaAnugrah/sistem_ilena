@@ -227,7 +227,7 @@ router.get('/semua', authenticate, async (req, res) => {
             THEN 1 + (CAST(CAST(pi.ppn_persen AS CHAR) AS DECIMAL(5,2)) / 100)
             ELSE 1
           END
-        )), 0) AS totalNilai
+        ) + COALESCE(pi.biaya_assembly, 0) + COALESCE(pi.biaya_kirim, 0)), 0) AS totalNilai
         FROM penjualan_interior pi
         ${interiorWhereClause}
       `);

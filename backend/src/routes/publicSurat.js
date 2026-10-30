@@ -11,6 +11,8 @@ const {
   SuratPengantarInterior, SuratJalanOnline, ReturOnline,
 } = require('../models');
 
+const { interiorTotal } = require('../utils/interiorCosts');
+
 const router = express.Router();
 
 const itemNetSubtotal = (item, returQty = 0) => {
@@ -165,7 +167,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
 
     if (sumber === 'INTERIOR') {
       const penjualan = await PenjualanInterior.findByPk(penjualanId, {
-        attributes: ['id', 'nama_customer', 'no_hp', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'is_test'],
+        attributes: ['id', 'nama_customer', 'no_hp', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim', 'is_test'],
       });
       if (!penjualan || penjualan.is_test) return res.status(404).json({ message: 'Tidak ditemukan' });
 
@@ -202,8 +204,8 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
       ]);
 
       const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
-      const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
-      const grandTotal = subtotal + ppn;
+
+      const grandTotal = interiorTotal(penjualan, subtotal).total;
       const totalBayar = pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0);
       const sisaTagihan = Math.max(0, grandTotal - totalBayar);
       const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);

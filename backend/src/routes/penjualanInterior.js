@@ -16,6 +16,9 @@ const { logAction } = require('../middleware/logger');
 const { generateNomorProforma, generateNomorSJ, generateNomorInvoice, generateNomorSPInt } = require('../utils/generateNomor');
 const { emitDataUpdated } = require('../socket');
 
+const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
+const { optionalCost, interiorTotal } = require('../utils/interiorCosts');
+
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
@@ -55,7 +58,7 @@ function cleanupUploadedBukti(req) {
 // ── Auto-recalculate status interior ──────────────────────────────────────────
 async function recalculateStatusInterior(penjualanId) {
   const [penjualan, items, pembayarans, proformaCount, sjCount, invoiceCount] = await Promise.all([
-    PenjualanInterior.findByPk(penjualanId, { attributes: ['id', 'status', 'pakai_ppn', 'ppn_persen'] }),
+    PenjualanInterior.findByPk(penjualanId, { attributes: ['id', 'status', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'] }),
     PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['qty', 'subtotal', 'sudah_kirim'] }),
     PembayaranInterior.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['jumlah'] }),
     ProformaInvoice.count({ where: { penjualan_interior_id: penjualanId } }),
@@ -72,8 +75,8 @@ async function recalculateStatusInterior(penjualanId) {
 
   const allDelivered = items.length > 0 && items.every(i => (i.sudah_kirim || 0) >= i.qty);
   const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
-  const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
-  const grandTotal = money(subtotal + ppn);
+
+  const grandTotal = interiorTotal(penjualan, subtotal).total;
   const totalBayar = money(pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0));
   const fullyPaid = grandTotal > 0 && totalBayar >= grandTotal;
 
@@ -117,7 +120,11 @@ router.post('/', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Minimal 1 item wajib diisi' });
     }
 
+    const biaya_assembly = optionalCost(req.body.biaya_assembly, 'Biaya assembly');
+    const biaya_kirim = optionalCost(req.body.biaya_kirim, 'Biaya kirim');
     const penjualan = await PenjualanInterior.create({
+      biaya_assembly,
+      biaya_kirim,
       faktur,
       no_po,
       nama_customer,
@@ -153,7 +160,7 @@ router.post('/', authenticate, async (req, res) => {
     emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     return res.status(201).json({ id: penjualan.id, message: 'Penjualan interior berhasil dibuat' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 
@@ -180,13 +187,13 @@ router.get('/', authenticate, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const summaryRows = await PenjualanInterior.findAll({
       where,
-      attributes: ['id', 'pakai_ppn', 'ppn_persen'],
+      attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
       include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] }],
     });
     const totalNilai = summaryRows.reduce((sum, penjualan) => {
       const subtotal = (penjualan.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0);
-      const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen || 0) / 100) : 0;
-      return sum + money(subtotal + ppn);
+
+      return sum + interiorTotal(penjualan, subtotal).total;
     }, 0);
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
@@ -232,10 +239,7 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
 
     const tanggal = req.body.tanggal || new Date().toISOString().split('T')[0];
     const subtotal = penjualan.items.reduce((s, i) => s + parseFloat(i.subtotal), 0);
-    let total = subtotal;
-    if (penjualan.pakai_ppn && penjualan.ppn_persen) {
-      total = subtotal * (1 + parseInt(penjualan.ppn_persen) / 100);
-    }
+    const total = interiorTotal(penjualan, subtotal).total;
 
     const nomor_proforma = await generateNomorProforma(tanggal, penjualan.is_test === 1);
     const terms = req.body.terms && req.body.terms.length > 0
@@ -381,8 +385,8 @@ router.post('/:id/pembayaran', authenticate, uploadBukti.single('bukti_bayar'), 
 
     // Calculate Grand Total
     const subtotal = penjualan.items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
-    const ppn = penjualan.pakai_ppn ? subtotal * (parseInt(penjualan.ppn_persen) / 100) : 0;
-    const grandTotal = money(subtotal + ppn);
+
+    const grandTotal = interiorTotal(penjualan, subtotal).total;
 
     // Rule: PELUNASAN_PENUH amount must equal Grand Total (within 0.01 tolerance)
     if (tipe === 'PELUNASAN_PENUH') {
@@ -513,10 +517,11 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
 // POST /api/penjualan-interior/:id/invoice
 router.post('/:id/invoice', authenticate, async (req, res) => {
   try {
+    const { tanggal: invTanggal, jatuh_tempo } = resolveInvoiceDates(req.body);
     const penjualan = await PenjualanInterior.findByPk(req.params.id);
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    const { tanggal, catatan, surat_jalan_ids } = req.body;
+    const { catatan, surat_jalan_ids } = req.body;
     const sjIds = Array.isArray(surat_jalan_ids) ? surat_jalan_ids.filter(Boolean) : [];
     if (sjIds.length === 0) return res.status(400).json({ message: 'Minimal 1 Surat Jalan wajib dipilih' });
 
@@ -545,11 +550,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
         message: `Surat Jalan ini sudah digunakan pada Invoice ${conflictInv?.nomor_invoice || 'lain'}. Tidak boleh dibuat invoice duplikat.`,
       });
     }
-
-    const invTanggal = tanggal || new Date().toISOString().split('T')[0];
     const nomor_invoice = await generateNomorInvoice(penjualan.faktur, invTanggal, penjualan.is_test === 1);
-    const jatuh_tempo = new Date(new Date(invTanggal).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
     const inv = await InvoiceInterior.create({
       penjualan_interior_id: penjualan.id,
       surat_jalan_interior_id: sjIds[0] || null, // backward compat: first SJ as primary
@@ -566,7 +567,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice interior berhasil dibuat' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 
