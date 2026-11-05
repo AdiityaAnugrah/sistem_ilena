@@ -54,7 +54,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
       PenjualanInterior.findAll({
         where: { ...baseWhere, status: { [Op.ne]: 'COMPLETED' } },
         attributes: ['id', 'nama_customer', 'no_po', 'tanggal', 'status', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim', 'created_at'],
-        include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] }],
+        include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['qty', 'harga_satuan', 'subtotal'] }],
         order: [['created_at', 'DESC']],
         limit: 5,
       }),

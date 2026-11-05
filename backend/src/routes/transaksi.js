@@ -9,6 +9,7 @@ const {
 const { authenticate } = require('../middleware/auth');
 
 const { invoiceCosts } = require('../utils/interiorCosts');
+const { interiorItemAmounts, interiorGoodsAmounts } = require('../utils/interiorVat');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -79,6 +80,7 @@ async function invoiceInteriorAmount(inv) {
   }
 
   let subtotal = 0;
+  let invoiceGross = 0;
   if (ids.length > 0) {
     const sjs = await SuratJalanInterior.findAll({
       where: { id: { [Op.in]: ids } },
@@ -86,17 +88,19 @@ async function invoiceInteriorAmount(inv) {
     });
     for (const sj of sjs) {
       for (const sjItem of (sj.items || [])) {
-        const baseItem = sjItem.item;
-        const unit = baseItem?.qty ? Number(baseItem.subtotal || 0) / Number(baseItem.qty) : 0;
-        subtotal += unit * Number(sjItem.qty_kirim || 0);
+        const amount = interiorItemAmounts(sjItem.item, inv.penjualan, sjItem.qty_kirim);
+        subtotal += amount.subtotal;
+        invoiceGross += amount.total;
       }
     }
   } else {
-    subtotal = (inv.penjualan?.items || []).reduce((s, i) => s + Number(i.subtotal || 0), 0);
+    const goods = interiorGoodsAmounts(inv.penjualan?.items || [], inv.penjualan);
+    subtotal = goods.subtotal;
+    invoiceGross = goods.total;
   }
-  const ppn = inv.penjualan?.pakai_ppn ? subtotal * (Number(inv.penjualan.ppn_persen || 0) / 100) : 0;
+  const ppn = money(invoiceGross) - money(subtotal);
   const costs = invoiceCosts(inv.penjualan, subtotal);
-  return { subtotal: money(subtotal) + costs.total, ppn: money(ppn), total: money(subtotal + ppn + costs.total) };
+  return { subtotal: money(subtotal) + costs.total, ppn, total: money(invoiceGross) + costs.total };
 }
 
 const matches = (trx, { sumber, jenis, search }) => {
@@ -260,10 +264,10 @@ router.get('/', authenticate, async (req, res) => {
     for (const r of interiorReturs) {
       const baseItem = r.item;
       const penjualan = baseItem?.penjualan;
-      const unit = baseItem?.qty ? Number(baseItem.subtotal || 0) / Number(baseItem.qty) : 0;
-      const subtotal = money(unit * Number(r.qty_retur || 0));
-      const ppn = penjualan?.pakai_ppn ? money(subtotal * Number(penjualan.ppn_persen || 0) / 100) : 0;
-      const total = money(subtotal + ppn);
+      const amount = interiorItemAmounts(baseItem, penjualan, r.qty_retur);
+      const subtotal = money(amount.subtotal);
+      const total = money(amount.total);
+      const ppn = total - subtotal;
       if (total <= 0) continue;
       push({
         id: `INTERIOR-RETUR-${r.id}`,

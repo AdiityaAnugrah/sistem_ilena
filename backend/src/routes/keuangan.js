@@ -11,6 +11,14 @@ const { authenticate } = require('../middleware/auth');
 
 const { interiorTotal } = require('../utils/interiorCosts');
 
+function interiorNetItems(items = [], returQtyMap = {}) {
+  return items.map(item => {
+    const qty = Number(item.qty || 0);
+    const remaining = Math.max(0, qty - Number(returQtyMap[item.id] || 0));
+    return { qty: remaining, harga_satuan: item.harga_satuan ?? (qty ? Number(item.subtotal || 0) / qty : 0) };
+  });
+}
+
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
@@ -313,7 +321,7 @@ router.get('/interior', authenticate, async (req, res) => {
     const allProyek = await PenjualanInterior.findAll({
       where,
       include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
+        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] },
         { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah'] },
       ],
       attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
@@ -325,7 +333,7 @@ router.get('/interior', authenticate, async (req, res) => {
     let totalNilaiProyek = 0, totalTerbayar = 0;
     for (const p of allProyek) {
       const subtotal = sumItemsNetAfterRetur(p.items, interiorReturQtyMap);
-      totalNilaiProyek += interiorTotal(p, subtotal).total;
+      totalNilaiProyek += interiorTotal(p, subtotal, interiorNetItems(p.items, interiorReturQtyMap)).total;
       totalTerbayar += p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0);
     }
     totalNilaiProyek = money(totalNilaiProyek);
@@ -337,7 +345,7 @@ router.get('/interior', authenticate, async (req, res) => {
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
       include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
+        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] },
         { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah', 'tipe', 'tanggal'] },
       ],
       order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
@@ -351,7 +359,7 @@ router.get('/interior', authenticate, async (req, res) => {
 
     const list = rows.map(p => {
       const subtotal = sumItemsNetAfterRetur(p.items, listReturQtyMap);
-      const grandTotal = interiorTotal(p, subtotal).total;
+      const grandTotal = interiorTotal(p, subtotal, interiorNetItems(p.items, listReturQtyMap)).total;
       const terbayar = money(p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0));
       const sisa = money(Math.max(0, grandTotal - terbayar));
       const persen = grandTotal > 0 ? Math.min(100, Math.round((terbayar / grandTotal) * 100)) : 0;

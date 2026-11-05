@@ -1,4 +1,5 @@
 const money = value => Math.round(Number(value || 0));
+const { interiorGoodsAmounts } = require('./interiorVat');
 
 function optionalCost(value, label) {
   if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) return null;
@@ -14,7 +15,7 @@ function itemSubtotal(sale = {}) {
   return (sale.items || []).reduce((sum, item) => sum + Number(item.subtotal || Number(item.qty || 0) * Number(item.harga_satuan || 0)), 0);
 }
 
-// Optional project costs are added separately; the existing goods VAT rule stays intact.
+// VAT applies to goods only; optional project costs are added separately.
 // Partial shipment/term invoices receive only their proportional share of these costs.
 function interiorCosts(sale = {}, ratio = 1) {
   const proportion = Math.max(0, Math.min(1, Number(ratio) || 0));
@@ -28,9 +29,8 @@ function invoiceCosts(sale = {}, goodsSubtotal) {
   return interiorCosts(sale, projectSubtotal > 0 ? Number(goodsSubtotal) / projectSubtotal : 1);
 }
 
-function interiorTotal(sale = {}, goodsSubtotal = itemSubtotal(sale)) {
-  const subtotal = money(goodsSubtotal);
-  const ppn = sale.pakai_ppn ? money(subtotal * Number(sale.ppn_persen || 0) / 100) : 0;
+function interiorTotal(sale = {}, goodsSubtotal = itemSubtotal(sale), items = sale.items) {
+  const { subtotal, ppn } = interiorGoodsAmounts(items || [{ qty: 1, subtotal: goodsSubtotal }], sale);
   const costs = interiorCosts(sale);
   return { subtotal, ppn, ...costs, total: subtotal + ppn + costs.total };
 }

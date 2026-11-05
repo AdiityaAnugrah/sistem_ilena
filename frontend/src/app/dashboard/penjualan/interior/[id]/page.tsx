@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { interiorGoodsAmounts } from '@/lib/interiorVat';
 import DateInput from '@/components/ui/DateInput';
 import DueDateField, { useDueDate } from '@/components/forms/DueDateField';
 import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
@@ -618,7 +619,7 @@ export default function PenjualanInteriorDetail() {
   );
 
   const subtotal = data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0) || 0;
-  const ppn = data.pakai_ppn ? subtotal * (parseInt(data.ppn_persen) / 100) : 0;
+  const { ppn } = interiorGoodsAmounts(data.items || [], data);
   const biayaAssembly = Math.round(Number(data.biaya_assembly || 0));
   const biayaKirim = Math.round(Number(data.biaya_kirim || 0));
   const grandTotal = subtotal + ppn + biayaAssembly + biayaKirim;

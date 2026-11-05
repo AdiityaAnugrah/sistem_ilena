@@ -1,9 +1,10 @@
+const { interiorTermAmounts } = require('./interiorVat');
 const { interiorCosts } = require('./interiorCosts');
 const money = value => Math.round(Number(value || 0));
 const plain = row => typeof row.toJSON === 'function' ? row.toJSON() : row;
 
 // Sub-Invoice.total is the WHOLE project, not the selected installment.
-// Match generateHTMLSubInvoice: round each item/percentage, then VAT for FAKTUR.
+// Match Sub-Invoice: allocate each VAT-inclusive line to the selected term.
 function subInvoiceTerms(doc) {
   let terms;
   try { terms = typeof doc.terms === 'string' ? JSON.parse(doc.terms) : doc.terms; } catch { return []; }
@@ -12,12 +13,7 @@ function subInvoiceTerms(doc) {
   return terms.flatMap(term => {
     const percent = parseFloat(term.persen);
     if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return [];
-    const subtotal = (sale.items || []).reduce((sum, item) => {
-      const base = Number(item.subtotal) || Number(item.qty || 0) * Number(item.harga_satuan || 0);
-      return sum + money(base * percent / 100);
-    }, 0);
-    const ppn = sale.faktur === 'FAKTUR' && sale.pakai_ppn
-      ? money(subtotal * Number(sale.ppn_persen || 0) / 100) : 0;
+    const { subtotal, ppn } = interiorTermAmounts(sale.items || [], sale, percent);
     const costs = interiorCosts(sale, percent / 100);
     return [{ type: term.tipe || 'DP', subtotal: subtotal + costs.total, ppn, total: subtotal + ppn + costs.total }];
   });

@@ -59,7 +59,7 @@ function cleanupUploadedBukti(req) {
 async function recalculateStatusInterior(penjualanId) {
   const [penjualan, items, pembayarans, proformaCount, sjCount, invoiceCount] = await Promise.all([
     PenjualanInterior.findByPk(penjualanId, { attributes: ['id', 'status', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'] }),
-    PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['qty', 'subtotal', 'sudah_kirim'] }),
+    PenjualanInteriorItem.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['qty', 'harga_satuan', 'subtotal', 'sudah_kirim'] }),
     PembayaranInterior.findAll({ where: { penjualan_interior_id: penjualanId }, attributes: ['jumlah'] }),
     ProformaInvoice.count({ where: { penjualan_interior_id: penjualanId } }),
     SuratJalanInterior.count({ where: { penjualan_interior_id: penjualanId } }),
@@ -76,7 +76,7 @@ async function recalculateStatusInterior(penjualanId) {
   const allDelivered = items.length > 0 && items.every(i => (i.sudah_kirim || 0) >= i.qty);
   const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
 
-  const grandTotal = interiorTotal(penjualan, subtotal).total;
+  const grandTotal = interiorTotal(penjualan, subtotal, items).total;
   const totalBayar = money(pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0));
   const fullyPaid = grandTotal > 0 && totalBayar >= grandTotal;
 
@@ -188,7 +188,7 @@ router.get('/', authenticate, async (req, res) => {
     const summaryRows = await PenjualanInterior.findAll({
       where,
       attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
-      include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['subtotal'] }],
+      include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['qty', 'harga_satuan', 'subtotal'] }],
     });
     const totalNilai = summaryRows.reduce((sum, penjualan) => {
       const subtotal = (penjualan.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0);
@@ -223,7 +223,12 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     const penjualan = await PenjualanInterior.findByPk(req.params.id, { include: fullInclude });
     if (!penjualan) return res.status(404).json({ message: 'Data tidak ditemukan' });
-    return res.json(penjualan);
+    const data = { ...(typeof penjualan.toJSON === 'function' ? penjualan.toJSON() : penjualan) };
+    if (Array.isArray(data.proformas)) {
+      const total = interiorTotal(data).total;
+      data.proformas = data.proformas.map(proforma => ({ ...proforma, total }));
+    }
+    return res.json(data);
   } catch (err) {
     return res.status(500).json({ message: 'Server error', error: err.message });
   }

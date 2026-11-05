@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
+import { interiorGoodsAmounts } from '@/lib/interiorVat';
 import { Input } from '@/components/ui/input';
 import DateInput from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
@@ -53,7 +54,7 @@ export default function PenjualanInteriorBaru() {
 
   const getSubtotal = (item: any) => item.qty * item.harga_satuan;
   const subtotalTotal = items.reduce((s, i) => s + getSubtotal(i), 0);
-  const ppnValue = pakaiPPN ? subtotalTotal * (parseInt(ppnPersen) / 100) : 0;
+  const { ppn: ppnValue } = interiorGoodsAmounts(items, { pakai_ppn: pakaiPPN, ppn_persen: ppnPersen });
   const assemblyValue = Math.round(Number(biayaAssembly || 0));
   const kirimValue = Math.round(Number(biayaKirim || 0));
   const grandTotal = subtotalTotal + ppnValue + assemblyValue + kirimValue;

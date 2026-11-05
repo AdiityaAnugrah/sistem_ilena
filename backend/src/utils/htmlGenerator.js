@@ -1,3 +1,4 @@
+const { interiorGoodsAmounts, interiorTermAmounts } = require('./interiorVat');
 const { interiorCosts } = require('./interiorCosts');
 const dayjs = require('dayjs');
 const fs = require('fs');
@@ -1620,7 +1621,7 @@ const generateHTMLProforma = (inv) => {
   }).join('');
 
   const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
-  const ppnAmount = Math.round(subtotalTotal * ppnPersen / 100);
+  const { ppn: ppnAmount } = interiorGoodsAmounts(items, penjualan);
   const costs = interiorCosts(penjualan);
   const grandTotal = subtotalTotal + ppnAmount + costs.total;
 
@@ -1942,7 +1943,10 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   });
 
   const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
-  const ppnAmount = Math.round(grandTotalSub * ppnPersen / 100);
+  const ppnAmount = terms.reduce((sum, term) => {
+    const percent = Number(term.persen || 0);
+    return percent > 0 ? sum + interiorTermAmounts(items, penjualan, percent).ppn : sum;
+  }, 0);
   const costs = terms.reduce((sum, term) => {
     const part = interiorCosts(penjualan, Number(term.persen || 0) / 100);
     return { biaya_assembly: sum.biaya_assembly + part.biaya_assembly, biaya_kirim: sum.biaya_kirim + part.biaya_kirim, total: sum.total + part.total };
@@ -1962,7 +1966,7 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
     ${interiorCostRows(costs)}
     <tr style="background:#fff8f8;">
         <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
-        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalSub + costs.total)}</td>
+        <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotalWithPPN)}</td>
     </tr>`;
 
   const npwpRow = penjualan.no_npwp

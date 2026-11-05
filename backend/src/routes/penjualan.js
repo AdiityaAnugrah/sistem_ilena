@@ -218,15 +218,12 @@ router.get('/semua', authenticate, async (req, res) => {
     if (includeInterior) {
       summaryParts.push(`
         SELECT COALESCE(SUM((
-          SELECT COALESCE(SUM(subtotal), 0)
+          SELECT COALESCE(SUM(CASE
+            WHEN pi.pakai_ppn = 1 AND pi.ppn_persen IS NOT NULL
+            THEN ROUND(harga_satuan * (1 + CAST(CAST(pi.ppn_persen AS CHAR) AS DECIMAL(5,2)) / 100), 0) * qty
+            ELSE subtotal END), 0)
           FROM penjualan_interior_items
           WHERE penjualan_interior_id = pi.id
-        ) * (
-          CASE
-            WHEN pi.pakai_ppn = 1 AND pi.ppn_persen IS NOT NULL
-            THEN 1 + (CAST(CAST(pi.ppn_persen AS CHAR) AS DECIMAL(5,2)) / 100)
-            ELSE 1
-          END
         ) + COALESCE(pi.biaya_assembly, 0) + COALESCE(pi.biaya_kirim, 0)), 0) AS totalNilai
         FROM penjualan_interior pi
         ${interiorWhereClause}

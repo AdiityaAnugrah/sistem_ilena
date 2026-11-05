@@ -11,6 +11,7 @@ const { authenticate } = require('../middleware/auth');
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
 
 const { invoiceCosts } = require('../utils/interiorCosts');
+const { interiorItemAmounts, interiorGoodsAmounts } = require('../utils/interiorVat');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -55,6 +56,7 @@ async function invoiceInteriorAmount(inv) {
   }
 
   let subtotal = 0;
+  let invoiceGross = 0;
   if (ids.length > 0) {
     const sjs = await SuratJalanInterior.findAll({
       where: { id: { [Op.in]: ids } },
@@ -62,15 +64,19 @@ async function invoiceInteriorAmount(inv) {
     });
     for (const sj of sjs) {
       for (const sjItem of (sj.items || [])) {
-        subtotal += itemUnitValue(sjItem.item) * Number(sjItem.qty_kirim || 0);
+        const amount = interiorItemAmounts(sjItem.item, inv.penjualan, sjItem.qty_kirim);
+        subtotal += amount.subtotal;
+        invoiceGross += amount.total;
       }
     }
   } else {
-    subtotal = (inv.penjualan?.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+    const goods = interiorGoodsAmounts(inv.penjualan?.items || [], inv.penjualan);
+    subtotal = goods.subtotal;
+    invoiceGross = goods.total;
   }
 
   subtotal = money(subtotal);
-  const ppn = inv.penjualan?.pakai_ppn ? money(subtotal * Number(inv.penjualan.ppn_persen || 0) / 100) : 0;
+  const ppn = money(invoiceGross) - money(subtotal);
   const costs = invoiceCosts(inv.penjualan, subtotal);
   return { subtotal: subtotal + costs.total, ppn, total: money(subtotal + ppn + costs.total) };
 }
@@ -186,13 +192,7 @@ async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
   return { normalPaymentAmounts, usageByInvoice, history, rekapRows: [...rekapMap.values()] };
 }
 
-const interiorReturTotal = (retur) => {
-  const item = retur.item;
-  const penjualan = item?.penjualan;
-  const base = money(itemUnitValue(item) * Number(retur.qty_retur || 0));
-  const ppn = penjualan?.pakai_ppn ? money(base * Number(penjualan.ppn_persen || 0) / 100) : 0;
-  return money(base + ppn);
-};
+const interiorReturTotal = (retur) => money(interiorItemAmounts(retur.item, retur.item?.penjualan, retur.qty_retur).total);
 
 function inPeriod(date, from, to) {
   if (from && date < from) return false;

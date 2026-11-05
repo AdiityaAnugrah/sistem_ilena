@@ -205,7 +205,7 @@ router.get('/:sumber/:penjualanId', async (req, res) => {
 
       const subtotal = items.reduce((s, i) => s + parseFloat(i.subtotal || 0), 0);
 
-      const grandTotal = interiorTotal(penjualan, subtotal).total;
+      const grandTotal = interiorTotal(penjualan, subtotal, items).total;
       const totalBayar = pembayarans.reduce((s, p) => s + parseFloat(p.jumlah || 0), 0);
       const sisaTagihan = Math.max(0, grandTotal - totalBayar);
       const totalQty = items.reduce((s, i) => s + (i.qty || 0), 0);
