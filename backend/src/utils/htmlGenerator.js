@@ -1,4 +1,4 @@
-const { interiorGoodsAmounts, interiorTermAmounts } = require('./interiorVat');
+const { interiorItemAmounts, interiorGoodsAmounts, interiorTermAmounts } = require('./interiorVat');
 const { interiorCosts } = require('./interiorCosts');
 const dayjs = require('dayjs');
 const fs = require('fs');
@@ -1608,15 +1608,19 @@ const generateHTMLProforma = (inv) => {
   let subtotalTotal = 0;
   const itemRows = items.map((item, index) => {
     const subtotal = Number(item.subtotal || 0) || (item.qty * (item.harga_satuan || 0));
+    const { ppn: itemPpn } = interiorItemAmounts(item, penjualan);
     subtotalTotal += subtotal;
     return `
       <tr>
           <td class="text-center">${index + 1}</td>
-          <td class="text-center" style="font-size:11px;">${item.kode_barang || '-'}</td>
-          <td style="font-size:11px;">${(item.nama_barang || '-').toUpperCase()}</td>
-          <td class="text-center">${item.qty}</td>
+          <td style="font-size:11px;overflow-wrap:anywhere;">
+            <div>${escapeHtml((item.nama_barang || '-').toUpperCase())}</div>
+            <div class="proforma-item-code" style="font-size:9px;color:#475569;margin-top:2px;">${escapeHtml(item.kode_barang || '-')}</div>
+          </td>
+          <td class="text-center">${escapeHtml(item.qty)}</td>
           <td class="num">${formatRupiah(item.harga_satuan)}</td>
-          <td class="num">${formatRupiah(subtotal)}</td>
+          <td class="num">${formatRupiah(itemPpn)}</td>
+          <td class="num">${formatRupiah(subtotal + itemPpn)}</td>
       </tr>`;
   }).join('');
 
@@ -1843,10 +1847,10 @@ const generateHTMLProforma = (inv) => {
                 <thead>
                     <tr>
                         <th class="text-center" style="width:10px;">NO</th>
-                        <th class="text-center">KODE BARANG</th>
                         <th class="text-center">NAMA BARANG</th>
                         <th class="text-center">KUANTITAS</th>
                         <th class="text-center">HARGA SATUAN</th>
+                        <th class="text-center">PPN</th>
                         <th class="text-center">JUMLAH</th>
                     </tr>
                 </thead>
