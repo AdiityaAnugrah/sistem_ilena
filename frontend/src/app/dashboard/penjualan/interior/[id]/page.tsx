@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import { interiorGoodsAmounts } from '@/lib/interiorVat';
+import { interiorGoodsAmounts, interiorItemAmounts } from '@/lib/interiorVat';
 import DateInput from '@/components/ui/DateInput';
 import DueDateField, { useDueDate } from '@/components/forms/DueDateField';
 import { formatDate, formatRupiah, PEMBAYARAN_TIPE } from '@/lib/utils';
@@ -618,11 +618,10 @@ export default function PenjualanInteriorDetail() {
     </div>
   );
 
-  const subtotal = data.items?.reduce((s: number, i: any) => s + parseFloat(i.subtotal), 0) || 0;
-  const { ppn } = interiorGoodsAmounts(data.items || [], data);
+  const { ppn, total: goodsTotal } = interiorGoodsAmounts(data.items || [], data);
   const biayaAssembly = Math.round(Number(data.biaya_assembly || 0));
   const biayaKirim = Math.round(Number(data.biaya_kirim || 0));
-  const grandTotal = subtotal + ppn + biayaAssembly + biayaKirim;
+  const grandTotal = goodsTotal + biayaAssembly + biayaKirim;
   const totalBayar = data.pembayarans?.reduce((s: number, p: any) => s + parseFloat(p.jumlah), 0) || 0;
   const sisa = Math.max(0, grandTotal - totalBayar);
 
@@ -1093,7 +1092,7 @@ export default function PenjualanInteriorDetail() {
               <table className="w-full">
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                    {['Kode', 'Nama Barang', 'Terkirim', 'Harga', 'Subtotal'].map(h => (
+                    {['Kode', 'Nama Barang', 'Terkirim', 'Harga Satuan', 'Jumlah'].map(h => (
                       <th key={h} className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-left" style={{ color: '#94a3b8' }}>{h}</th>
                     ))}
                   </tr>
@@ -1101,6 +1100,7 @@ export default function PenjualanInteriorDetail() {
                 <tbody>
                   {data.items?.map((item: any, idx: number) => {
                     const done = item.sudah_kirim >= item.qty;
+                    const amount = interiorItemAmounts(item, data);
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #f8fafc', background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
                         <td className="px-5 py-3 text-xs font-mono" style={{ color: '#94a3b8' }}>{item.kode_barang}</td>
@@ -1111,28 +1111,28 @@ export default function PenjualanInteriorDetail() {
                             {item.sudah_kirim}/{item.qty}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-sm" style={{ color: '#475569' }}>{formatRupiah(item.harga_satuan)}</td>
-                        <td className="px-5 py-3 text-sm font-bold text-right" style={{ color: '#1e293b' }}>{formatRupiah(item.subtotal)}</td>
+                        <td className="px-5 py-3 text-sm whitespace-nowrap" style={{ color: '#475569' }}>{formatRupiah(amount.inclusiveUnit)}</td>
+                        <td className="px-5 py-3 text-sm font-bold text-right whitespace-nowrap" style={{ color: '#1e293b' }}>{formatRupiah(amount.total)}</td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3 text-sm font-bold text-right" style={{ color: '#475569' }}>Subtotal</td>
-                    <td className="px-5 py-3 text-right font-bold" style={{ color: '#1e293b' }}>{formatRupiah(subtotal)}</td>
+                    <td colSpan={4} className="px-5 py-3 text-sm font-bold text-right whitespace-nowrap" style={{ color: '#475569' }}>Subtotal{data.pakai_ppn ? ' (termasuk PPN)' : ''}</td>
+                    <td className="px-5 py-3 text-right font-bold whitespace-nowrap" style={{ color: '#1e293b' }}>{formatRupiah(goodsTotal)}</td>
                   </tr>
                   {!!data.pakai_ppn && (
                     <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={4} className="px-5 py-2 text-right text-sm" style={{ color: '#64748b' }}>PPN {data.ppn_persen}%</td>
-                      <td className="px-5 py-2 text-right text-sm" style={{ color: '#64748b' }}>{formatRupiah(ppn)}</td>
+                      <td colSpan={4} className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>PPN {data.ppn_persen}% (sudah termasuk)</td>
+                      <td className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{formatRupiah(ppn)}</td>
                     </tr>
                   )}
-                  {biayaAssembly > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600">Biaya assembly</td><td className="px-5 py-2 text-right text-sm">{formatRupiah(biayaAssembly)}</td></tr>}
-                  {biayaKirim > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600">Biaya kirim</td><td className="px-5 py-2 text-right text-sm">{formatRupiah(biayaKirim)}</td></tr>}
+                  {biayaAssembly > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600 whitespace-nowrap">Biaya assembly</td><td className="px-5 py-2 text-right text-sm whitespace-nowrap">{formatRupiah(biayaAssembly)}</td></tr>}
+                  {biayaKirim > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600 whitespace-nowrap">Biaya kirim</td><td className="px-5 py-2 text-right text-sm whitespace-nowrap">{formatRupiah(biayaKirim)}</td></tr>}
                   <tr style={{ background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3 text-base font-black text-right" style={{ color: '#0f172a' }}>Total</td>
-                    <td className="px-5 py-3 text-base font-black text-right" style={{ color: '#FA2F2F' }}>{formatRupiah(grandTotal)}</td>
+                    <td colSpan={4} className="px-5 py-3 text-base font-black text-right whitespace-nowrap" style={{ color: '#0f172a' }}>Total</td>
+                    <td className="px-5 py-3 text-base font-black text-right whitespace-nowrap" style={{ color: '#FA2F2F' }}>{formatRupiah(grandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>

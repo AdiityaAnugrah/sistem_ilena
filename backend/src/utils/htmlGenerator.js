@@ -1295,10 +1295,10 @@ const generateHTMLSuratPengantarInterior = (sp) => {
   `;
 };
 
-function interiorCostRows(costs) {
+function interiorCostRows(costs, labelColspan = 5) {
   return [['BIAYA ASSEMBLY', costs.biaya_assembly], ['BIAYA KIRIM', costs.biaya_kirim]]
     .filter(([, amount]) => amount > 0)
-    .map(([label, amount]) => `<tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">${label}</td><td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(amount)}</td></tr>`).join('');
+    .map(([label, amount]) => `<tr><td colspan="${labelColspan}" class="fw-semibold" style="font-size:11.5px;">${label}</td><td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(amount)}</td></tr>`).join('');
 }
 
 const generateHTMLInvoice = (inv) => {
@@ -1601,6 +1601,7 @@ const generateHTMLProforma = (inv) => {
   const tanggalFormat = dayjs(inv.tanggal).format('DD MMMM YYYY');
   const jatuhTempoFormat = inv.jatuh_tempo ? dayjs(inv.jatuh_tempo).format('DD MMMM YYYY') : '-';
   const isFaktur = penjualan.faktur === 'FAKTUR';
+  const labelColspan = isFaktur ? 5 : 4;
   const bankInfo = isFaktur
     ? 'BCA 8715898787 a.n. CATUR BHAKTI MANDIRI'
     : 'BCA 8715883488 a.n. EL LIE PURNAMA';
@@ -1619,7 +1620,7 @@ const generateHTMLProforma = (inv) => {
           </td>
           <td class="text-center">${escapeHtml(item.qty)}</td>
           <td class="num">${formatRupiah(item.harga_satuan)}</td>
-          <td class="num">${formatRupiah(itemPpn)}</td>
+          ${isFaktur ? `<td class="num">${formatRupiah(itemPpn)}</td>` : ''}
           <td class="num">${formatRupiah(subtotal + itemPpn)}</td>
       </tr>`;
   }).join('');
@@ -1631,21 +1632,21 @@ const generateHTMLProforma = (inv) => {
 
   // Summary rows
   const summaryRows = isFaktur ? `
-    <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">DASAR PENGENAAN PAJAK</td>
+    <tr><td colspan="${labelColspan}" class="fw-semibold" style="font-size:11.5px;">DASAR PENGENAAN PAJAK</td>
         <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
-    ${ppnPersen > 0 ? `<tr><td colspan="5" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
+    ${ppnPersen > 0 ? `<tr><td colspan="${labelColspan}" style="font-size:11.5px;">PPN ${ppnPersen}%</td>
         <td class="num" style="font-size:11.5px;">${formatRupiah(ppnAmount)}</td></tr>` : ''}
-    ${interiorCostRows(costs)}
+    ${interiorCostRows(costs, labelColspan)}
     <tr style="background:#fff8f8;">
-        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td colspan="${labelColspan}" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
     </tr>
   ` : `
-    <tr><td colspan="5" class="fw-semibold" style="font-size:11.5px;">SUBTOTAL</td>
+    <tr><td colspan="${labelColspan}" class="fw-semibold" style="font-size:11.5px;">SUBTOTAL</td>
         <td class="num fw-semibold" style="font-size:11.5px;">${formatRupiah(subtotalTotal)}</td></tr>
-    ${interiorCostRows(costs)}
+    ${interiorCostRows(costs, labelColspan)}
     <tr style="background:#fff8f8;">
-        <td colspan="5" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
+        <td colspan="${labelColspan}" class="fw-bold" style="color:#dc2626;font-size:11.5px;">JUMLAH</td>
         <td class="num fw-bold" style="color:#dc2626;font-size:11.5px;">${formatRupiah(grandTotal)}</td>
     </tr>
   `;
@@ -1691,7 +1692,7 @@ const generateHTMLProforma = (inv) => {
 
       termRows += `
         <tr style="background:#f0fdf4;">
-            <td colspan="5" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(p.tanggal).format('DD/MM/YYYY')}</span></td>
+            <td colspan="${labelColspan}" style="font-size:11.5px;font-weight:600;">${label} <span style="font-size:10px;color:#16a34a;font-style:italic;">terbayar tanggal ${dayjs(p.tanggal).format('DD/MM/YYYY')}</span></td>
             <td class="num" style="font-size:11.5px;">${formatRupiah(Number(p.jumlah || 0))}</td>
         </tr>`;
     });
@@ -1721,7 +1722,7 @@ const generateHTMLProforma = (inv) => {
 
         termRows += `
           <tr style="background:#fafafa;">
-              <td colspan="5" style="font-size:11.5px;font-weight:600;">${label}${persenLabel} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
+              <td colspan="${labelColspan}" style="font-size:11.5px;font-weight:600;">${label}${persenLabel} <span style="font-size:10px;color:#94a3b8;font-style:italic;">belum terbayar</span></td>
               <td class="num" style="font-size:11.5px;">${jumlah > 0 ? formatRupiah(jumlah) : ''}</td>
           </tr>`;
 
@@ -1731,7 +1732,7 @@ const generateHTMLProforma = (inv) => {
     const sisa = grandTotal - totalPaid;
     termRows += `
       <tr style="background:#fef2f2;">
-          <td colspan="5" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
+          <td colspan="${labelColspan}" style="font-size:11.5px;font-weight:700;color:#dc2626;">SISA</td>
           <td class="num fw-bold" style="font-size:11.5px;color:#dc2626;">${formatRupiah(Math.max(0, sisa))}</td>
       </tr>`;
 
@@ -1850,7 +1851,7 @@ const generateHTMLProforma = (inv) => {
                         <th class="text-center">NAMA BARANG</th>
                         <th class="text-center">KUANTITAS</th>
                         <th class="text-center">HARGA SATUAN</th>
-                        <th class="text-center">PPN</th>
+                        ${isFaktur ? '<th class="text-center">PPN</th>' : ''}
                         <th class="text-center">JUMLAH</th>
                     </tr>
                 </thead>

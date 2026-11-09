@@ -43,3 +43,35 @@ describe('Interior Proforma product table', () => {
     expect(generateHTMLProforma({ ...doc, penjualan: { ...sale, biaya_assembly: 100000 } })).toContain('BIAYA ASSEMBLY');
   });
 });
+
+
+describe('Non-faktur Proforma column visibility', () => {
+  const render = overrides => generateHTMLProforma({ ...doc, ...overrides,
+    penjualan: { ...sale, faktur: 'NON FAKTUR', pakai_ppn: 0, biaya_assembly: 100000, biaya_kirim: 200000,
+      pembayarans: [{ tipe: 'DP', jumlah: 10000, tanggal: '2026-11-09' }] } });
+  test('hides only PPN and preserves product code and base amount', () => {
+    const html = render();
+    expect(header(html)).toEqual(['NO', 'NAMA BARANG', 'KUANTITAS', 'HARGA SATUAN', 'JUMLAH']);
+    const cells = [...firstRow(html).matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)];
+    expect(cells).toHaveLength(5);
+    expect(cells[1][1]).toContain('KD-AK-REST25-MOLA');
+    expect(cells[3][1]).toBe('Rp 10.005');
+    expect(cells[4][1]).toBe('Rp 30.015');
+    expect(html).toContain('Rp 330.015');
+  });
+  test('aligns every summary, fee, paid/unpaid term and balance row to five columns', () => {
+    const html = render({ terms: JSON.stringify([{ tipe: 'DP', jumlah: 10000 }, { tipe: 'TERMIN_1', jumlah: 20000 }]) });
+    const tbody = html.match(/<tbody>([\s\S]*?)<\/tbody>/)[1];
+    const rows = [...tbody.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)];
+    expect(rows.length).toBeGreaterThan(6);
+    for (const [, row] of rows) {
+      const width = [...row.matchAll(/<td\b([^>]*)>/g)].reduce((n, cell) => n + Number(cell[1].match(/colspan="(\d+)"/)?.[1] || 1), 0);
+      expect(width).toBe(5);
+    }
+    expect(tbody).toContain('BIAYA ASSEMBLY');
+    expect(tbody).toContain('BIAYA KIRIM');
+    expect(tbody).toContain('belum terbayar');
+    expect(tbody).toContain('terbayar tanggal');
+    expect(tbody).toContain('SISA');
+  });
+});
