@@ -5,19 +5,39 @@ const money = v => Math.round(Number(v || 0));
 const customerKey = name => String(name || 'Tanpa Nama').trim().toLowerCase().replace(/\s+/g, ' ');
 
 function createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem }) {
-  async function invoiceInteriorAmount(inv) {
-    if (inv._ledgerAmount) return inv._ledgerAmount;
-    let ids = [];
+  function shipmentIds(inv) {
     if (inv.surat_jalan_ids) {
-      try { ids = JSON.parse(inv.surat_jalan_ids).map(Number).filter(Boolean); } catch { ids = []; }
-    } else if (inv.surat_jalan_interior_id) {
-      ids = [Number(inv.surat_jalan_interior_id)];
+      try {
+        const ids = JSON.parse(inv.surat_jalan_ids);
+        return Array.isArray(ids) ? ids.map(Number).filter(id => Number.isInteger(id) && id > 0) : [];
+      } catch { return []; }
     }
+    return inv.surat_jalan_interior_id ? [Number(inv.surat_jalan_interior_id)] : [];
+  }
+
+  async function prepareInvoiceAmounts(invoices) {
+    const ids = [...new Set(invoices.flatMap(shipmentIds))];
+    if (!ids.length || (ids.length === 1 && invoices.length === 1)) return invoiceInteriorAmount;
+    const shipments = new Map();
+    // Chunk the IN clause, not the historical ledger: opening balances need all prior events.
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const rows = await SuratJalanInterior.findAll({
+        where: { id: { [Op.in]: ids.slice(offset, offset + 500) } },
+        include: [{ model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] }],
+      });
+      for (const row of rows) shipments.set(Number(row.id), row);
+    }
+    return inv => invoiceInteriorAmount(inv, shipments);
+  }
+
+  async function invoiceInteriorAmount(inv, shipments) {
+    if (inv._ledgerAmount) return inv._ledgerAmount;
+    const ids = shipmentIds(inv);
 
     let subtotal = 0;
     let invoiceGross = 0;
     if (ids.length > 0) {
-      const sjs = await SuratJalanInterior.findAll({
+      const sjs = shipments ? ids.map(id => shipments.get(id)).filter(Boolean) : await SuratJalanInterior.findAll({
         where: { id: { [Op.in]: ids } },
         include: [{ model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] }],
       });
@@ -152,6 +172,6 @@ function createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, Pen
   }
 
 
-  return { invoiceInteriorAmount, buildInteriorAdvanceState };
+  return { invoiceInteriorAmount, prepareInvoiceAmounts, buildInteriorAdvanceState };
 }
 module.exports = { createInteriorFinance };

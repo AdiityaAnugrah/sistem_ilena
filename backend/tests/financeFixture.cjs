@@ -5,7 +5,7 @@ const { createRequire } = require('module');
 const assert = require('assert/strict');
 const root = path.resolve(__dirname, '../..');
 
-const modelNames = ['ChartOfAccount', 'PenjualanOffline', 'PenjualanOfflineItem', 'PembayaranOffline', 'SuratJalan', 'Invoice', 'SuratPengantar', 'SuratPengantarSub', 'ReturOffline', 'MutasiDisplay', 'MutasiDisplayItem', 'PenjualanInterior', 'PenjualanInteriorItem', 'PembayaranInterior', 'InvoiceInterior', 'ProformaInvoice', 'SuratJalanInterior', 'SuratJalanInteriorItem', 'ReturSJInterior', 'PenjualanOnline', 'PenjualanOnlineItem', 'PembayaranOnline', 'InvoiceOnline', 'SuratJalanOnline', 'ReturOnline'];
+const modelNames = ['ChartOfAccount', 'PenjualanOffline', 'PenjualanOfflineItem', 'PembayaranOffline', 'SuratJalan', 'Invoice', 'SuratPengantar', 'SuratPengantarSub', 'ReturOffline', 'MutasiDisplay', 'MutasiDisplayItem', 'PenjualanInterior', 'PenjualanInteriorItem', 'PembayaranInterior', 'InvoiceInterior', 'ProformaInvoice', 'SuratJalanInterior', 'SuratJalanInteriorItem', 'ReturSJInterior', 'SuratPengantarInterior', 'SuratPengantarInteriorItem', 'PenjualanOnline', 'PenjualanOnlineItem', 'PembayaranOnline', 'InvoiceOnline', 'SuratJalanOnline', 'ReturOnline'];
 function models() {
   const result = Object.fromEntries(modelNames.map(name => [name, {
     findAll: async () => [], findAndCountAll: async () => ({ count: 0, rows: [] }),

@@ -11,7 +11,7 @@ const models = require('../../models');
 const app = express();
 app.use('/piutang-usaha', require('../piutangUsaha'));
 const offline = ['Invoice', 'PembayaranOffline', 'ReturOffline', 'SuratPengantar', 'PenjualanOffline', 'MutasiDisplay'];
-const interior = ['ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior', 'ReturSJInterior'];
+const interior = ['ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior'];
 
 beforeEach(() => {
   jest.resetAllMocks();
@@ -42,6 +42,7 @@ describe('isolasi sumber laporan piutang', () => {
     const res = await request(app).get('/piutang-usaha/rekap');
     expect(res.status).toBe(200);
     [...offline, ...interior].forEach(name => expect(models[name].findAll).toHaveBeenCalledTimes(1));
+    expect(models.ReturSJInterior.findAll).not.toHaveBeenCalled();
   });
   test.each([['ADMIN', 0], ['TEST', 1]])('pemisahan data role %s tetap dipertahankan', async (role, isTest) => {
     const res = await request(app).get('/piutang-usaha/rekap?sumber=interior').set('x-test-role', role);

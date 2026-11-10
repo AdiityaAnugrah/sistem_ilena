@@ -4,20 +4,13 @@ const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
   PenjualanOnline, PenjualanOnlineItem, ReturOnline,
-  ReturOffline, ReturSJInterior,
+  ReturOffline,
   sequelize,
 } = require('../models');
+const { financeDateRangeError } = require('../utils/financeDateRange');
 const { authenticate } = require('../middleware/auth');
 
 const { interiorTotal } = require('../utils/interiorCosts');
-
-function interiorNetItems(items = [], returQtyMap = {}) {
-  return items.map(item => {
-    const qty = Number(item.qty || 0);
-    const remaining = Math.max(0, qty - Number(returQtyMap[item.id] || 0));
-    return { qty: remaining, harga_satuan: item.harga_satuan ?? (qty ? Number(item.subtotal || 0) / qty : 0) };
-  });
-}
 
 const router = express.Router();
 
@@ -38,23 +31,6 @@ const sumItemsNetAfterRetur = (items = [], returQtyMap = {}) =>
   items.reduce((sum, item) => sum + itemNetSubtotal(item, returQtyMap[item.id] || 0), 0);
 const sumPayments = (payments = []) => money(payments.reduce((sum, p) => sum + Number(p.jumlah || 0), 0));
 
-const getInteriorReturQtyMap = async (itemIds = []) => {
-  const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
-  if (ids.length === 0) return {};
-  const rows = await ReturSJInterior.findAll({
-    where: { penjualan_interior_item_id: { [Op.in]: ids } },
-    attributes: [
-      'penjualan_interior_item_id',
-      [sequelize.fn('SUM', sequelize.col('qty_retur')), 'total_retur'],
-    ],
-    group: ['penjualan_interior_item_id'],
-    raw: true,
-  });
-  return rows.reduce((map, row) => {
-    map[row.penjualan_interior_item_id] = Number(row.total_retur || 0);
-    return map;
-  }, {});
-};
 
 const getReturQtyMap = async (itemIds = []) => {
   const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
@@ -99,6 +75,8 @@ const getOfflineProgress = (penjualan) => {
 // GET /api/keuangan/offline
 router.get('/offline', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20, tab = 'penjualan', search = '' } = req.query;
     const pageInt = Math.max(1, parseInt(page));
@@ -320,6 +298,8 @@ router.get('/offline', authenticate, async (req, res) => {
 // GET /api/keuangan/interior
 router.get('/interior', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20 } = req.query;
     const pageInt = Math.max(1, parseInt(page));
@@ -342,13 +322,10 @@ router.get('/interior', authenticate, async (req, res) => {
       attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
     });
 
-    const interiorReturQtyMap = await getInteriorReturQtyMap(
-      allProyek.flatMap(p => (p.items || []).map(item => item.id))
-    );
     let totalNilaiProyek = 0, totalTerbayar = 0, totalOutstanding = 0;
     for (const p of allProyek) {
-      const subtotal = sumItemsNetAfterRetur(p.items, interiorReturQtyMap);
-      const projectTotal = interiorTotal(p, subtotal, interiorNetItems(p.items, interiorReturQtyMap)).total;
+      const subtotal = sumItemsNetAfterRetur(p.items);
+      const projectTotal = interiorTotal(p, subtotal, p.items).total;
       const paid = sumPayments(p.pembayarans || []);
       totalNilaiProyek += projectTotal;
       totalTerbayar += paid;
@@ -371,13 +348,10 @@ router.get('/interior', authenticate, async (req, res) => {
       offset,
       distinct: true,
     });
-    const listReturQtyMap = await getInteriorReturQtyMap(
-      rows.flatMap(p => (p.items || []).map(item => item.id))
-    );
 
     const list = rows.map(p => {
-      const subtotal = sumItemsNetAfterRetur(p.items, listReturQtyMap);
-      const grandTotal = interiorTotal(p, subtotal, interiorNetItems(p.items, listReturQtyMap)).total;
+      const subtotal = sumItemsNetAfterRetur(p.items);
+      const grandTotal = interiorTotal(p, subtotal, p.items).total;
       const terbayar = money(p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0));
       const sisa = money(Math.max(0, grandTotal - terbayar));
       const persen = grandTotal > 0 ? Math.min(100, Math.round((terbayar / grandTotal) * 100)) : 0;
@@ -414,6 +388,8 @@ router.get('/interior', authenticate, async (req, res) => {
 // GET /api/keuangan/online
 router.get('/online', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20 } = req.query;
     const pageInt = Math.max(1, parseInt(page, 10) || 1);

@@ -48,7 +48,7 @@ test.each(['piutangUsaha', 'transaksi'])('%s recognizes the same rounded invoice
   }
 });
 
-test('finance reduces a return using the same rounded inclusive unit', async () => {
+test('physical SJ return leaves the rounded project value unchanged', async () => {
   const fixture = invoiceFixture(root, 'keuangan');
   fixture.models.sequelize.fn = (...args) => args;
   fixture.models.sequelize.col = name => name;
@@ -57,6 +57,6 @@ test('finance reduces a return using the same rounded inclusive unit', async () 
   fixture.models.ReturSJInterior.findAll = async () => [{ penjualan_interior_item_id: 1, total_retur: 1 }];
   const result = await fixture.call('get', '/interior');
   expect(result.status).toBe(200);
-  expect(result.body.summary.totalNilaiProyek).toBe(22212);
-  expect(result.body.list[0].grandTotal).toBe(22212);
+  expect(result.body.summary.totalNilaiProyek).toBe(33318);
+  expect(result.body.list[0].grandTotal).toBe(33318);
 });

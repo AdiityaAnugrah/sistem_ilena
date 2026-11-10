@@ -5,16 +5,16 @@ const {
   PenjualanOnline, PenjualanOnlineItem, InvoiceOnline, PembayaranOnline, ReturOnline,
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior, ProformaInvoice,
-  SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
+  SuratJalanInterior, SuratJalanInteriorItem,
 } = require('../models');
+const { financeDateRangeError } = require('../utils/financeDateRange');
 const { authenticate } = require('../middleware/auth');
 
 const { buildOnlineJournal } = require('../utils/onlineJournal');
 const { createInteriorFinance } = require('../utils/interiorFinance');
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
 const { selectLatestBySale } = require('../utils/financialDocuments');
-const { invoiceInteriorAmount, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
-const { interiorItemAmounts } = require('../utils/interiorVat');
+const { invoiceInteriorAmount, prepareInvoiceAmounts, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -100,6 +100,8 @@ router.get('/coa', authenticate, async (req, res) => {
 // GET /api/transaksi
 router.get('/', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     await ensureDefaultCoa();
     const { from, to, sumber, jenis, search, page = 1, limit = 25 } = req.query;
     const isTest = req.user.role === 'TEST' ? 1 : 0;
@@ -115,8 +117,8 @@ router.get('/', authenticate, async (req, res) => {
     });
 
     const find = (source, model, options) => !sumber || sumber === source ? model.findAll(options) : Promise.resolve([]);
-    const invoiceWhere = Object.keys(dateWhere).length ? { tanggal: dateWhere } : {};
-    const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorReturs, interiorSubInvoices, onlineInvoices, onlinePayments, onlineReturs] = await Promise.all([
+    const invoiceWhere = Reflect.ownKeys(dateWhere).length ? { tanggal: dateWhere } : {};
+    const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorSubInvoices, onlineInvoices, onlinePayments, onlineReturs] = await Promise.all([
       find('OFFLINE', Invoice, {
         where: invoiceWhere,
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [
@@ -125,11 +127,11 @@ router.get('/', authenticate, async (req, res) => {
         ] }],
       }),
       find('OFFLINE', PembayaranOffline, {
-        where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
+        where: Reflect.ownKeys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }],
       }),
       find('OFFLINE', ReturOffline, {
-        where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
+        where: Reflect.ownKeys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] }, { model: PenjualanOfflineItem, as: 'item' }],
       }),
       find('INTERIOR', InvoiceInterior, {
@@ -137,12 +139,8 @@ router.get('/', authenticate, async (req, res) => {
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
       }),
       find('INTERIOR', PembayaranInterior, {
-        where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
+        where: Reflect.ownKeys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
-      }),
-      find('INTERIOR', ReturSJInterior, {
-        where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
-        include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
       }),
       find('INTERIOR', ProformaInvoice, {
         where: { ...invoiceWhere, nomor_sub_invoice: { [Op.ne]: null } },
@@ -218,7 +216,8 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+    const getInvoiceAmount = await prepareInvoiceAmounts(interiorInvoices);
+    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, getInvoiceAmount);
     const advanceState = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
     for (const inv of effectiveInteriorInvoices) {
       const amount = await invoiceInteriorAmount(inv);
@@ -260,28 +259,7 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    for (const r of interiorReturs) {
-      const baseItem = r.item;
-      const penjualan = baseItem?.penjualan;
-      const amount = interiorItemAmounts(baseItem, penjualan, r.qty_retur);
-      const subtotal = money(amount.subtotal);
-      const total = money(amount.total);
-      const ppn = total - subtotal;
-      if (total <= 0) continue;
-      push({
-        id: `INTERIOR-RETUR-${r.id}`,
-        tanggal: r.tanggal,
-        sumber: 'INTERIOR',
-        jenis: 'RETUR',
-        referensi: `Retur SJ #${r.surat_jalan_interior_id}`,
-        customer: penjualan?.nama_customer,
-        no_po: penjualan?.no_po,
-        nilai: total,
-        keterangan: r.catatan || 'Retur penjualan interior',
-        detail_url: `/dashboard/penjualan/interior/${baseItem?.penjualan_interior_id}`,
-        lines: [line('4202', subtotal, 0), ...(ppn > 0 ? [line('2101', ppn, 0)] : []), line('1201', 0, total)],
-      });
-    }
+    // Physical SJ returns do not reverse invoices or customer payments.
 
     for (const entry of buildOnlineJournal(onlineInvoices, onlinePayments, onlineReturs, line)) push(entry);
 

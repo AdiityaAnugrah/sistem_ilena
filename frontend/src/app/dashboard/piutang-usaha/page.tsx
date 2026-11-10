@@ -10,6 +10,15 @@ import { formatDate, formatRupiah } from '@/lib/utils';
 import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
 import { useFinanceRefresh } from '@/hooks/useFinanceRefresh';
 
+function dateRangeError(from: string, to: string): string {
+  for (const value of [from, to]) {
+    if (!value) continue;
+    const date = new Date(`${value}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return 'Tanggal tidak valid';
+  }
+  return from && to && from > to ? 'Tanggal awal harus sebelum atau sama dengan tanggal akhir' : '';
+}
+
 type Tab = 'rekap' | 'detail';
 type ViewPage = 'offline' | 'interior' | 'uangMuka';
 type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
@@ -218,6 +227,8 @@ function PiutangUsahaContent() {
     setLoading(true);
     setLoadError('');
     try {
+      const invalidRange = dateRangeError(from, to);
+      if (invalidRange) throw new Error(invalidRange);
       if (viewPage === 'uangMuka') await fetchUangMuka(uangMukaPage, selectedUangMuka, controller.signal);
       else if (tab === 'detail' && selectedCustomer) await fetchDetail(detailPage, selectedCustomer, controller.signal);
       else await fetchRekap(rekapPage, controller.signal);
@@ -226,7 +237,7 @@ function PiutangUsahaContent() {
     } finally {
       if (currentRequest === requestId.current) setLoading(false);
     }
-  }, [viewPage, tab, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
+  }, [from, to, viewPage, tab, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useFinanceRefresh(() => { void fetchData(); });
@@ -262,6 +273,8 @@ function PiutangUsahaContent() {
   };
 
   const exportCsv = async () => {
+    const invalidRange = dateRangeError(from, to);
+    if (invalidRange) { setLoadError(invalidRange); return; }
     setExporting(true);
     try {
       let exportRekapRows = rekapRows;

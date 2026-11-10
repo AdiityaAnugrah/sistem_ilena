@@ -4,13 +4,14 @@ const {
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
   SuratPengantar, MutasiDisplay, MutasiDisplayItem,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior, ProformaInvoice,
-  SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
+  SuratJalanInterior, SuratJalanInteriorItem,
 } = require('../models');
+const { financeDateRangeError } = require('../utils/financeDateRange');
 const { authenticate } = require('../middleware/auth');
 
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
+const { searchInteriorProjects } = require('../utils/interiorLedgerScope');
 
-const { interiorItemAmounts } = require('../utils/interiorVat');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -46,9 +47,7 @@ const offlineReturTotal = (retur) => {
 };
 
 const { createInteriorFinance } = require('../utils/interiorFinance');
-const { invoiceInteriorAmount, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
-
-const interiorReturTotal = (retur) => money(interiorItemAmounts(retur.item, retur.item?.penjualan, retur.qty_retur).total);
+const { invoiceInteriorAmount, prepareInvoiceAmounts, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
 
 function inPeriod(date, from, to) {
   if (from && date < from) return false;
@@ -95,10 +94,22 @@ function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationIt
   return money(sisaDisplay + sudahDiprosesJual + sudahMutasiKeluar);
 }
 
-async function buildPiutangEntries(isTest, source = '', to = '') {
+async function buildPiutangEntries(isTest, source = '', to = '', scope = {}) {
   // Query only the selected ledger; unrelated modules must not block this report.
+  const documentWhere = to ? { tanggal: { [Op.lte]: to } } : {};
   const includeOffline = source !== 'INTERIOR';
   const includeInterior = source !== 'OFFLINE';
+  const interiorWhere = { is_test: isTest, ...(scope.faktur ? { faktur: scope.faktur } : {}) };
+  if (includeInterior && scope.customer_key) {
+    const projects = await PenjualanInterior.findAll({ where: interiorWhere, attributes: ['id', 'nama_customer', 'faktur'] });
+    interiorWhere.id = { [Op.in]: projects.filter(project => {
+      const key = customerKey(project.nama_customer);
+      return scope.customer_key === key || scope.customer_key === `INTERIOR:${project.faktur || 'NON_FAKTUR'}:${key}`;
+    }).map(project => Number(project.id)) };
+  } else if (includeInterior && scope.search) {
+    const ids = await searchInteriorProjects({ PenjualanInterior, InvoiceInterior, PembayaranInterior, ProformaInvoice }, interiorWhere, documentWhere, scope.search);
+    interiorWhere.id = { [Op.in]: ids };
+  }
   const entries = [];
   const push = (entry) => {
     const customer = entry.customer || 'Tanpa Nama';
@@ -114,20 +125,24 @@ async function buildPiutangEntries(isTest, source = '', to = '') {
     });
   };
 
-  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorReturs, interiorSubInvoices] = await Promise.all([
+  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorSubInvoices] = await Promise.all([
     includeOffline ? Invoice.findAll({
+      where: documentWhere,
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
     }) : [],
     includeOffline ? PembayaranOffline.findAll({
+      where: documentWhere,
       include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }],
     }) : [],
     includeOffline ? ReturOffline.findAll({
+      where: documentWhere,
       include: [
         { model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] },
         { model: PenjualanOfflineItem, as: 'item' },
       ],
     }) : [],
     includeOffline ? SuratPengantar.findAll({
+      where: documentWhere,
       include: [{
         model: PenjualanOffline,
         as: 'penjualan',
@@ -147,17 +162,16 @@ async function buildPiutangEntries(isTest, source = '', to = '') {
       ],
     }) : [],
     includeInterior ? InvoiceInterior.findAll({
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
+      where: documentWhere,
+      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
     }) : [],
     includeInterior ? PembayaranInterior.findAll({
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
-    }) : [],
-    includeInterior ? ReturSJInterior.findAll({
-      include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
+      where: documentWhere,
+      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere }],
     }) : [],
     includeInterior ? ProformaInvoice.findAll({
-      where: { nomor_sub_invoice: { [Op.ne]: null } },
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
+      where: { ...documentWhere, nomor_sub_invoice: { [Op.ne]: null } },
+      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
     }) : [],
   ]);
 
@@ -299,7 +313,8 @@ async function buildPiutangEntries(isTest, source = '', to = '') {
     });
   }
 
-  const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+  const getInvoiceAmount = await prepareInvoiceAmounts(interiorInvoices);
+  const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, getInvoiceAmount);
   const interiorAdvanceState = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
 
   for (const inv of effectiveInteriorInvoices) {
@@ -361,35 +376,19 @@ async function buildPiutangEntries(isTest, source = '', to = '') {
     });
   }
 
-  for (const r of interiorReturs) {
-    const amount = interiorReturTotal(r);
-    const penjualan = r.item?.penjualan;
-    if (amount <= 0) continue;
-    push({
-      id: `INTERIOR-RETUR-${r.id}`,
-      tanggal: r.tanggal,
-      sumber: 'INTERIOR',
-      jenis: 'RETUR',
-      referensi: `Retur SJ #${r.surat_jalan_interior_id}`,
-      customer: penjualan?.nama_customer,
-      faktur: penjualan?.faktur,
-      no_po: penjualan?.no_po,
-      keterangan: `Retur Interior${r.catatan ? ` - ${r.catatan}` : ''}`,
-      debit: 0,
-      kredit: amount,
-      detail_url: `/dashboard/penjualan/interior/${r.item?.penjualan_interior_id}`,
-    });
-  }
+  // Retur SJ is a physical goods movement, not an approved financial credit.
 
   return entries.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.id).localeCompare(String(b.id)));
 }
 
 router.get('/rekap', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const { from, to, search, sumber, faktur, page = 1, limit = 25, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to))
+    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to, { faktur: fakturFilter, search }))
       .filter(entry => entryMatches(entry, { sumber: sourceFilter, faktur: fakturFilter }));
     entries = filterLedgerBySearch(entries, search);
 
@@ -473,10 +472,12 @@ router.get('/rekap', authenticate, async (req, res) => {
 
 router.get('/detail', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to))
+    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to, { faktur: fakturFilter, customer_key, search }))
       .filter(entry => entryMatches(entry, { customer_key, sumber: sourceFilter, faktur: fakturFilter }));
     if (!customer_key) allEntries = filterLedgerBySearch(allEntries, search);
 
@@ -514,7 +515,7 @@ router.get('/detail', authenticate, async (req, res) => {
       acc.kredit += row.kredit || 0;
       return acc;
     }, { saldoAwal: money(saldoAwal), debit: 0, kredit: 0, saldoAkhir: saldo });
-    summary.saldoAkhir = detailRows[detailRows.length - 1]?.saldo || money(saldoAwal);
+    summary.saldoAkhir = detailRows[detailRows.length - 1]?.saldo ?? money(saldoAwal);
 
     const pageInt = Math.max(1, parseInt(page));
     const limitInt = Math.min(200, Math.max(1, parseInt(limit)));
@@ -534,21 +535,27 @@ router.get('/detail', authenticate, async (req, res) => {
 
 router.get('/uang-muka-interior', authenticate, async (req, res) => {
   try {
+    const dateError = financeDateRangeError(req.query);
+    if (dateError) return res.status(400).json({ message: dateError });
     const { from, to, search, status, key, page = 1, limit = 25, all } = req.query;
     const isTest = req.user.role === 'TEST' ? 1 : 0;
+    const documentWhere = to ? { tanggal: { [Op.lte]: to } } : {};
     const [interiorInvoices, interiorPayments, interiorSubInvoices] = await Promise.all([
       InvoiceInterior.findAll({
+        where: documentWhere,
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
       }),
       PembayaranInterior.findAll({
+        where: documentWhere,
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
       }),
       ProformaInvoice.findAll({
-        where: { nomor_sub_invoice: { [Op.ne]: null } },
+        where: { ...documentWhere, nomor_sub_invoice: { [Op.ne]: null } },
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
       }),
     ]);
-    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+    const getInvoiceAmount = await prepareInvoiceAmounts(interiorInvoices);
+    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, getInvoiceAmount);
     const state = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
     const q = String(search || '').trim().toLowerCase();
     const statusFilter = String(status || '').toUpperCase();

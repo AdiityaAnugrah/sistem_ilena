@@ -19,6 +19,7 @@ const { emitDataUpdated } = require('../socket');
 
 const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
 const { optionalCost, interiorTotal } = require('../utils/interiorCosts');
+const { returnedQuantities } = require('../utils/interiorLogistics');
 
 const router = express.Router();
 
@@ -586,7 +587,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
 
 // POST /api/penjualan-interior/:id/retur-sj
 router.post('/:id/retur-sj', authenticate, async (req, res) => {
-  const t = await sequelize.transaction();
+  const t = await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
   try {
     const penjualan = await PenjualanInterior.findByPk(req.params.id, { transaction: t });
     if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
@@ -612,8 +613,15 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan atau bukan milik penjualan ini' }); }
 
     const previous = await ReturSJInterior.findAll({ where: { surat_jalan_interior_id }, transaction: t });
-    const returned = new Map();
-    for (const row of previous) returned.set(Number(row.penjualan_interior_item_id), (returned.get(Number(row.penjualan_interior_item_id)) || 0) + Number(row.qty_retur || 0));
+    const redeliveries = await SuratPengantarInterior.findAll({
+      where: { surat_jalan_interior_id },
+      include: [{ model: SuratPengantarInteriorItem, as: 'items' }], transaction: t,
+    });
+    const returned = returnedQuantities(previous, redeliveries);
+    if ([...returned.values()].some(qty => qty < 0)) {
+      await t.rollback();
+      return res.status(409).json({ message: 'Jumlah pengiriman ulang melebihi retur. Periksa dokumen Surat Pengantar sebelumnya.' });
+    }
     for (const item of items) {
       const { penjualan_interior_item_id, qty_retur } = item;
 
@@ -667,7 +675,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
 
 // POST /api/penjualan-interior/:id/sp-from-retur
 router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
-  const t = await sequelize.transaction();
+  const t = await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
   try {
     const penjualan = await PenjualanInterior.findByPk(req.params.id, { transaction: t });
     if (!penjualan) { await t.rollback(); return res.status(404).json({ message: 'Penjualan tidak ditemukan' }); }
@@ -678,6 +686,7 @@ router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
     const sj = await SuratJalanInterior.findOne({
       where: { id: surat_jalan_interior_id, penjualan_interior_id: req.params.id },
       transaction: t,
+      lock: t.LOCK.UPDATE,
     });
     if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan' }); }
 
@@ -687,12 +696,17 @@ router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
     });
     if (!returs.length) { await t.rollback(); return res.status(400).json({ message: 'Tidak ada data retur untuk SJ ini' }); }
 
-    // Aggregate qty retur per item
-    const itemMap = {};
-    for (const r of returs) {
-      const k = r.penjualan_interior_item_id;
-      itemMap[k] = (itemMap[k] || 0) + r.qty_retur;
+    const redeliveries = await SuratPengantarInterior.findAll({
+      where: { surat_jalan_interior_id },
+      include: [{ model: SuratPengantarInteriorItem, as: 'items' }], transaction: t,
+    });
+    const remaining = returnedQuantities(returs, redeliveries);
+    if ([...remaining.values()].some(qty => qty < 0)) {
+      await t.rollback();
+      return res.status(409).json({ message: 'Jumlah pengiriman ulang melebihi retur. Periksa dokumen Surat Pengantar sebelumnya.' });
     }
+    const pending = [...remaining].filter(([, qty]) => qty > 0);
+    if (!pending.length) { await t.rollback(); return res.status(400).json({ message: 'Semua barang retur pada SJ ini sudah dikirim kembali' }); }
 
     const isTest = penjualan.is_test === 1;
     const nomorSP = await generateNomorSPInt(tanggal, isTest);
@@ -705,7 +719,7 @@ router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
       created_by: req.user.id,
     }, { transaction: t });
 
-    for (const [penjualan_interior_item_id, qty] of Object.entries(itemMap)) {
+    for (const [penjualan_interior_item_id, qty] of pending) {
       const pjItem = await PenjualanInteriorItem.findByPk(penjualan_interior_item_id, { transaction: t });
       await SuratPengantarInteriorItem.create({
         surat_pengantar_interior_id: sp.id,
