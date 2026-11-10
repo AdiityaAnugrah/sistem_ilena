@@ -8,6 +8,7 @@ import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
+import { useFinanceRefresh } from '@/hooks/useFinanceRefresh';
 
 type Tab = 'rekap' | 'detail';
 type ViewPage = 'offline' | 'interior' | 'uangMuka';
@@ -228,6 +229,7 @@ function PiutangUsahaContent() {
   }, [viewPage, tab, fetchUangMuka, fetchRekap, fetchDetail, uangMukaPage, selectedUangMuka, rekapPage, detailPage, selectedCustomer]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useFinanceRefresh(() => { void fetchData(); });
 
   const resetPaging = () => {
     setRekapPage(1);

@@ -27,6 +27,14 @@ function init(server, allowedOrigins) {
   io.on('connection', (socket) => {
     const { id: userId, nama } = socket.user;
 
+    // Finance subscriptions must not replace the user's active presence room.
+    socket.on('room:subscribe', ({ room } = {}) => {
+      if (room === 'finance-updates') socket.join(room);
+    });
+    socket.on('room:unsubscribe', ({ room } = {}) => {
+      if (room === 'finance-updates') socket.leave(room);
+    });
+
     // User bergabung ke room (misal: "penjualan-offline:42")
     socket.on('room:join', ({ room }) => {
       if (!room) return;
@@ -75,6 +83,9 @@ function broadcastPresence(room) {
 function emitDataUpdated(room, payload = {}) {
   if (!io) return;
   io.to(room).emit('data:updated', { room, ...payload });
+  if (/^penjualan-(offline|interior|online)(:|-list$)/.test(room)) {
+    io.to('finance-updates').emit('data:updated', { room: 'finance-updates' });
+  }
 }
 
 function getIO() { return io; }

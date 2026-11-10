@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, FileDown, Info, ReceiptText, Search } from 'lucide-react';
 import api from '@/lib/api';
 import DateInput from '@/components/ui/DateInput';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
+import { useFinanceRefresh } from '@/hooks/useFinanceRefresh';
 
 type DisplayRow = {
   id: number;
@@ -71,44 +72,59 @@ export default function PiutangDisplayPage() {
   const [summary, setSummary] = useState<Summary>({ totalPiutang: 0, totalTerjualDisplay: 0, totalDisplayBelumLunas: 0 });
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const requestId = useRef(0);
 
   const params = useMemo(() => {
     const p: Record<string, string | number> = { tab: 'display', page, limit };
     if (from) p.from = from;
     if (to) p.to = to;
+    if (search.trim()) p.search = search.trim();
     return p;
-  }, [from, to, page]);
+  }, [from, to, page, search]);
 
   const fetchData = useCallback(async () => {
+    const current = ++requestId.current;
     setLoading(true);
+    setLoadError('');
     try {
       const res = await api.get('/keuangan/offline', { params });
+      if (current !== requestId.current) return;
       const list = (res.data.list || []) as DisplayRow[];
       setRows(list);
       setSummary(res.data.summary || { totalPiutang: 0, totalTerjualDisplay: 0, totalDisplayBelumLunas: 0 });
       setTotalPages(res.data.totalPages || 1);
+    } catch {
+      if (current === requestId.current) setLoadError('Gagal memuat outstanding display. Silakan coba lagi.');
     } finally {
-      setLoading(false);
+      if (current === requestId.current) setLoading(false);
     }
   }, [params]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useFinanceRefresh(() => { void fetchData(); });
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(row => [
-      row.nama_penerima,
-      row.nomor_sp,
-      row.status,
-    ].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [rows, search]);
+  const filteredRows = rows;
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      const exportRows: DisplayRow[] = [];
+      let nextPage = 1;
+      let lastPage = 1;
+      do {
+        const res = await api.get('/keuangan/offline', { params: { ...params, page: nextPage, limit: 100 } });
+        exportRows.push(...(res.data.list || []));
+        lastPage = res.data.totalPages || 1;
+        nextPage++;
+      } while (nextPage <= lastPage);
     const data = [
       ['No', 'Nomor SP', 'Tanggal SP', 'Customer', 'Status', 'Sisa Display Beredar', 'Sudah Terjual', 'Tagihan Display Belum Lunas', 'Total Nilai'],
-      ...filteredRows.map((row, idx) => [
-        idx + 1 + (page - 1) * limit,
+      ...exportRows.map((row, idx) => [
+        idx + 1,
         row.nomor_sp || '',
         row.tanggal_sp || '',
         row.nama_penerima,
@@ -127,6 +143,11 @@ export default function PiutangDisplayPage() {
     a.download = `outstanding-display-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Gagal mengekspor outstanding display. Silakan coba lagi.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const resetDate = () => {
@@ -148,12 +169,13 @@ export default function PiutangDisplayPage() {
             Halaman ini memisahkan <strong>Sisa Display</strong> dan <strong>Tagihan Display Belum Lunas</strong> supaya tidak tercampur.
           </p>
         </div>
-        <button onClick={exportCsv} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
+        <button onClick={exportCsv} disabled={exporting} className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold" style={{ background: '#fff', color: '#475569', border: '1px solid #e2e8f0' }}>
           <FileDown className="h-4 w-4" /> Export CSV
         </button>
       </div>
 
       <FinanceSectionNav active="display" />
+      {(loadError || exportError) && <div role="alert" className="text-sm text-red-700">{loadError || exportError} <button className="font-bold underline" onClick={() => { if (loadError) void fetchData(); else void exportCsv(); }}>Coba lagi</button></div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <MetricCard label="Sisa Display Beredar" value={summary.totalPiutang} sub="Nilai barang display yang masih berada di luar" tone="orange" />
@@ -179,7 +201,7 @@ export default function PiutangDisplayPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#94a3b8' }} />
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Cari customer atau nomor SP..."
               className="w-full min-h-[44px] pl-9 pr-3 py-2 rounded-xl text-sm outline-none"
               style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }}
@@ -206,6 +228,8 @@ export default function PiutangDisplayPage() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Memuat outstanding display...</td></tr>
+              ) : loadError ? (
+                <tr><td colSpan={8} className="py-10 text-center text-sm text-red-700">Data belum berhasil dimuat.</td></tr>
               ) : filteredRows.length === 0 ? (
                 <tr><td colSpan={8} className="py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Tidak ada outstanding display pada filter ini</td></tr>
               ) : filteredRows.map((row, idx) => (

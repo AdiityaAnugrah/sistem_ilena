@@ -5,7 +5,7 @@ import api from '@/lib/api';
 import { formatDate, formatRupiah } from '@/lib/utils';
 import { CircularProgress, Pagination } from '@mui/material';
 import { ArrowRight, CheckCircle, Clock, RefreshCw, Info, ChevronDown, Download } from 'lucide-react';
-import { getSocket } from '@/lib/socket';
+import { useFinanceRefresh } from '@/hooks/useFinanceRefresh';
 import FinanceSectionNav from '@/components/keuangan/FinanceSectionNav';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -126,7 +126,10 @@ export default function KeuanganPage() {
   // Filter — default semua data
   const [from, setFrom] = useState(firstOfYear);
   const [to, setTo] = useState(today);
-  const [exportLoading, setExportLoading] = useState<'offline' | 'interior' | 'gabungan' | null>(null);
+  const [exportLoading, setExportLoading] = useState<'offline' | 'interior' | 'online' | 'gabungan' | null>(null);
+
+  const financeRequests = useRef({ offline: 0, interior: 0, online: 0 });
+  const [loadErrors, setLoadErrors] = useState<Record<string, string>>({});
 
   // Offline state
   const [offlineData, setOfflineData] = useState<any>(null);
@@ -146,61 +149,51 @@ export default function KeuanganPage() {
   useEffect(() => { stateRef.current = { offlinePage, offlineSubTab, interiorPage, onlinePage, from, to }; });
 
   const fetchOffline = useCallback(async (page: number, tab: string, f: string, t: string) => {
+    const request = ++financeRequests.current.offline;
     setOfflineLoading(true);
+    setLoadErrors(errors => ({ ...errors, offline: '' }));
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20', tab, ...(f ? { from: f } : {}), ...(t ? { to: t } : {}) });
       const res = await api.get(`/keuangan/offline?${params}`);
-      setOfflineData(res.data);
-    } catch { setOfflineData(null); }
-    finally { setOfflineLoading(false); }
+      if (request === financeRequests.current.offline) setOfflineData(res.data);
+    } catch { if (request === financeRequests.current.offline) setLoadErrors(errors => ({ ...errors, offline: 'Gagal memuat keuangan Offline. Coba lagi.' })); }
+    finally { if (request === financeRequests.current.offline) setOfflineLoading(false); }
   }, []);
 
   const fetchInterior = useCallback(async (page: number, f: string, t: string) => {
+    const request = ++financeRequests.current.interior;
     setInteriorLoading(true);
+    setLoadErrors(errors => ({ ...errors, interior: '' }));
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20', ...(f ? { from: f } : {}), ...(t ? { to: t } : {}) });
       const res = await api.get(`/keuangan/interior?${params}`);
-      setInteriorData(res.data);
-    } catch { setInteriorData(null); }
-    finally { setInteriorLoading(false); }
+      if (request === financeRequests.current.interior) setInteriorData(res.data);
+    } catch { if (request === financeRequests.current.interior) setLoadErrors(errors => ({ ...errors, interior: 'Gagal memuat keuangan Interior. Coba lagi.' })); }
+    finally { if (request === financeRequests.current.interior) setInteriorLoading(false); }
   }, []);
 
   const fetchOnline = useCallback(async (page: number, f: string, t: string) => {
+    const request = ++financeRequests.current.online;
     setOnlineLoading(true);
+    setLoadErrors(errors => ({ ...errors, online: '' }));
     try {
       const params = new URLSearchParams({ page: String(page), limit: '20', ...(f ? { from: f } : {}), ...(t ? { to: t } : {}) });
       const res = await api.get(`/keuangan/online?${params}`);
-      setOnlineData(res.data);
-    } catch { setOnlineData(null); }
-    finally { setOnlineLoading(false); }
+      if (request === financeRequests.current.online) setOnlineData(res.data);
+    } catch { if (request === financeRequests.current.online) setLoadErrors(errors => ({ ...errors, online: 'Gagal memuat keuangan Online. Coba lagi.' })); }
+    finally { if (request === financeRequests.current.online) setOnlineLoading(false); }
   }, []);
 
   useEffect(() => { fetchOffline(offlinePage, offlineSubTab, from, to); }, [offlinePage, offlineSubTab, fetchOffline]);
   useEffect(() => { fetchInterior(interiorPage, from, to); }, [interiorPage, fetchInterior]);
   useEffect(() => { fetchOnline(onlinePage, from, to); }, [onlinePage, fetchOnline]);
 
-  // Realtime — listen ke room penjualan offline & interior
-  useEffect(() => {
-    const socket = getSocket();
-    socket.emit('room:join', { room: 'penjualan-offline-list' });
-    socket.emit('room:join', { room: 'penjualan-interior-list' });
-    socket.emit('room:join', { room: 'penjualan-online-list' });
-
-    const refresh = () => {
-      const s = stateRef.current;
-      fetchOffline(s.offlinePage, s.offlineSubTab, s.from, s.to);
-      fetchInterior(s.interiorPage, s.from, s.to);
-      fetchOnline(s.onlinePage, s.from, s.to);
-    };
-
-    socket.on('data:updated', refresh);
-    return () => {
-      socket.emit('room:leave', { room: 'penjualan-offline-list' });
-      socket.emit('room:leave', { room: 'penjualan-interior-list' });
-      socket.emit('room:leave', { room: 'penjualan-online-list' });
-      socket.off('data:updated', refresh);
-    };
-  }, [fetchOffline, fetchInterior, fetchOnline]);
+  useFinanceRefresh(() => {
+    const state = stateRef.current;
+    void fetchOffline(state.offlinePage, state.offlineSubTab, state.from, state.to);
+    void fetchInterior(state.interiorPage, state.from, state.to);
+    void fetchOnline(state.onlinePage, state.from, state.to);
+  });
 
   const handleFilter = () => {
     setOfflinePage(1);
@@ -228,7 +221,7 @@ export default function KeuanganPage() {
     fetchOnline(1, '', '');
   };
 
-  const fetchAllKeuangan = async (kind: 'offline' | 'interior', tab?: 'penjualan' | 'display') => {
+  const fetchAllKeuangan = async (kind: 'offline' | 'interior' | 'online', tab?: 'penjualan' | 'display') => {
     const limit = 100;
     let page = 1;
     let totalPages = 1;
@@ -341,13 +334,15 @@ export default function KeuanganPage() {
     `);
   };
 
-  const handleExport = async (mode: 'offline' | 'interior' | 'gabungan') => {
+  const handleExport = async (mode: 'offline' | 'interior' | 'online' | 'gabungan') => {
     setExportLoading(mode);
+    setLoadErrors(errors => ({ ...errors, export: '' }));
     try {
       const worksheets: string[] = [];
       let offlinePenjualan: any = null;
       let offlineDisplay: any = null;
       let interior: any = null;
+      let online: any = null;
 
       if (mode === 'offline' || mode === 'gabungan') {
         [offlinePenjualan, offlineDisplay] = await Promise.all([
@@ -359,6 +354,8 @@ export default function KeuanganPage() {
         interior = await fetchAllKeuangan('interior');
       }
 
+      if (mode === 'online' || mode === 'gabungan') online = await fetchAllKeuangan('online');
+
       if (mode === 'gabungan') {
         worksheets.push(buildSummarySheet('Ringkasan Gabungan', 'Ringkasan Keuangan Gabungan', [
           ['Omzet Offline', offlinePenjualan?.summary?.totalOmzet || 0],
@@ -368,6 +365,8 @@ export default function KeuanganPage() {
           ['Nilai Proyek Interior', interior?.summary?.totalNilaiProyek || 0],
           ['Terbayar Interior', interior?.summary?.totalTerbayar || 0],
           ['Outstanding Interior', interior?.summary?.totalOutstanding || 0],
+          ['Nilai Online Setelah Retur', online?.summary?.totalNilai || 0],
+          ['Pendapatan Bersih Online', online?.summary?.totalPendapatanBersih || 0],
         ]));
       } else if (mode === 'offline') {
         worksheets.push(buildSummarySheet('Ringkasan Offline', 'Ringkasan Keuangan Offline', [
@@ -377,7 +376,7 @@ export default function KeuanganPage() {
           ['Sudah Terjual dari Display', offlinePenjualan?.summary?.totalTerjualDisplay || 0],
           ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
         ]));
-      } else {
+      } else if (mode === 'interior') {
         worksheets.push(buildSummarySheet('Ringkasan Interior', 'Ringkasan Keuangan Interior', [
           ['Total Nilai Proyek', interior?.summary?.totalNilaiProyek || 0],
           ['Total Terbayar', interior?.summary?.totalTerbayar || 0],
@@ -388,8 +387,17 @@ export default function KeuanganPage() {
       if (offlinePenjualan) worksheets.push(buildOfflinePenjualanSheet(offlinePenjualan.rows));
       if (offlineDisplay) worksheets.push(buildOfflineDisplaySheet(offlineDisplay.rows));
       if (interior) worksheets.push(buildInteriorSheet(interior.rows));
+      if (online) worksheets.push(worksheetXml('Online', [150, 100, 200, 100, 100, 140, 140, 140, 140, 140], [
+        '<Row>' + excelCell('Keuangan Online', 'String', 'Title') + '</Row>',
+        '<Row>' + excelCell('Periode: ' + filterLabel, 'String', 'Meta') + '</Row>',
+        '<Row>' + excelCell('Total transaksi: ' + online.rows.length, 'String', 'Summary') + '</Row>',
+        '<Row>' + ['ID Pesanan', 'Tanggal', 'Customer', 'Channel', 'Status', 'Nilai Awal', 'Retur Dana', 'Setelah Retur', 'Pendapatan Bersih', 'Selisih'].map(h => excelCell(h, 'String', 'Header')).join('') + '</Row>',
+        ...online.rows.map((row: OnlineFinanceRow) => '<Row>' + [excelCell(row.id_pesanan), excelCell(formatDate(row.tanggal)), excelCell(row.nama_pelanggan), excelCell(row.channel), excelCell(row.status), ...[row.total_awal, row.total_retur, row.total, row.pendapatan_bersih, row.selisih].map(value => value === null ? excelCell('Belum diisi') : excelCell(value, 'Number', 'Currency'))].join('') + '</Row>'),
+      ].join('')));
 
       downloadExcelXml(`keuangan-${mode}-${from || 'awal'}_${to || 'akhir'}.xls`, buildWorkbookXml(`Export Keuangan ${mode}`, worksheets));
+    } catch {
+      setLoadErrors(errors => ({ ...errors, export: 'Gagal mengekspor keuangan. Silakan coba lagi.' }));
     } finally {
       setExportLoading(null);
     }
@@ -465,6 +473,7 @@ export default function KeuanganPage() {
           {([
             ['offline', 'Export Offline'],
             ['interior', 'Export Interior'],
+            ['online', 'Export Online'],
             ['gabungan', 'Export Gabungan'],
           ] as const).map(([mode, label]) => (
             <button
@@ -481,6 +490,8 @@ export default function KeuanganPage() {
         </div>
       </div>
 
+      {loadErrors[activeTab] && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadErrors[activeTab]} <button className="font-bold underline" onClick={handleFilter}>Coba lagi</button></div>}
+      {loadErrors.export && <div role="alert" className="text-sm text-red-700">{loadErrors.export}</div>}
       {/* Tab utama */}
       <div className="flex gap-2">
         {(['offline', 'interior', 'online'] as const).map(t => (
@@ -498,7 +509,7 @@ export default function KeuanganPage() {
       </div>
 
       {/* ── TAB OFFLINE ── */}
-      {activeTab === 'offline' && (
+      {activeTab === 'offline' && !loadErrors.offline && (
         <div className="space-y-5">
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -757,7 +768,7 @@ export default function KeuanganPage() {
       )}
 
       {/* ── TAB INTERIOR ── */}
-      {activeTab === 'interior' && (
+      {activeTab === 'interior' && !loadErrors.interior && (
         <div className="space-y-5">
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -841,7 +852,7 @@ export default function KeuanganPage() {
         </div>
       )}
 
-      {activeTab === 'online' && (
+      {activeTab === 'online' && !loadErrors.online && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <SummaryCard label="Total Nilai Awal" value={onlineSummary ? formatRupiah(onlineSummary.totalNilaiAwal) : '-'} color="#0f172a" />

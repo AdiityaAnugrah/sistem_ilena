@@ -22,6 +22,11 @@ function interiorNetItems(items = [], returQtyMap = {}) {
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
+function offlineRemaining(sale, returns) {
+  const base = money(sumItemsNetAfterRetur(sale.items || [], returns));
+  const latest = [...(sale.invoices || [])].sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id)).at(-1);
+  return Math.max(0, base + money(base * Number(latest?.ppn_persen || 0) / 100) - sumPayments(sale.pembayarans || []));
+}
 const itemNetSubtotal = (item, returQty = 0) => {
   const qty = Number(item.qty || 0);
   const subtotal = Number(item.subtotal || 0);
@@ -95,7 +100,7 @@ const getOfflineProgress = (penjualan) => {
 router.get('/offline', authenticate, async (req, res) => {
   try {
     const isTest = req.user.role === 'TEST' ? 1 : 0;
-    const { from, to, page = 1, limit = 20, tab = 'penjualan' } = req.query;
+    const { from, to, page = 1, limit = 20, tab = 'penjualan', search = '' } = req.query;
     const pageInt = Math.max(1, parseInt(page));
     const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
     const offset = (pageInt - 1) * limitInt;
@@ -161,14 +166,16 @@ router.get('/offline', authenticate, async (req, res) => {
       ...(from || to ? { tanggal: dateWhere } : {}),
     });
 
-    // Total display yang sudah laku tetapi belum selesai/lunas — NET setelah retur
-    const totalDisplayBelumLunas = await sumOfflineItemsNetByPenjualanWhere({
-      tipe: 'PENJUALAN',
-      status: { [Op.ne]: 'COMPLETED' },
-      is_test: isTest,
-      display_source_id: { [Op.not]: null },
-      ...(from || to ? { tanggal: dateWhere } : {}),
+    const displaySales = await PenjualanOffline.findAll({
+      where: { tipe: 'PENJUALAN', is_test: isTest, display_source_id: { [Op.not]: null }, ...(from || to ? { tanggal: dateWhere } : {}) },
+      include: [
+        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
+        { model: PembayaranOffline, as: 'pembayarans', attributes: ['jumlah'] },
+        { model: Invoice, as: 'invoices', attributes: ['id', 'tanggal', 'ppn_persen'] },
+      ],
     });
+    const displaySalesReturs = await getReturQtyMap(displaySales.flatMap(p => (p.items || []).map(i => i.id)));
+    const totalDisplayBelumLunas = money(displaySales.reduce((sum, p) => sum + offlineRemaining(p, displaySalesReturs), 0));
 
     const summary = { totalOmzet, totalBelumLunas, totalPiutang, totalTerjualDisplay, totalDisplayBelumLunas };
 
@@ -216,6 +223,14 @@ router.get('/offline', authenticate, async (req, res) => {
 
     // tab === 'display'
     const whereDisplay = { tipe: 'DISPLAY', is_test: isTest };
+    if (String(search).trim()) {
+      const like = '%' + String(search).trim() + '%';
+      const matchingSps = await SuratPengantar.findAll({ where: { nomor_sp: { [Op.like]: like } }, attributes: ['penjualan_offline_id'], raw: true });
+      whereDisplay[Op.or] = [
+        { nama_penerima: { [Op.like]: like } },
+        { id: { [Op.in]: matchingSps.map(sp => sp.penjualan_offline_id) } },
+      ];
+    }
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where: whereDisplay,
       include: [
@@ -241,6 +256,7 @@ router.get('/offline', authenticate, async (req, res) => {
       include: [
         { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal', 'barang_id'] },
         { model: PembayaranOffline, as: 'pembayarans', attributes: ['jumlah'] },
+        { model: Invoice, as: 'invoices', attributes: ['id', 'tanggal', 'ppn_persen'] },
       ],
       attributes: ['id', 'display_source_id', 'status'],
     });
@@ -254,8 +270,7 @@ router.get('/offline', authenticate, async (req, res) => {
     for (const p of terjualPerDisplay) {
       const srcId = p.display_source_id;
       const totalPenjualan = money(sumItemsNetAfterRetur(p.items || [], returQtyMap));
-      const totalTerbayar = sumPayments(p.pembayarans || []);
-      const sisaTagihan = Math.max(0, totalPenjualan - totalTerbayar);
+      const sisaTagihan = offlineRemaining(p, returQtyMap);
       terjualMap[srcId] = (terjualMap[srcId] || 0) + totalPenjualan;
       terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + sisaTagihan;
     }
@@ -330,15 +345,18 @@ router.get('/interior', authenticate, async (req, res) => {
     const interiorReturQtyMap = await getInteriorReturQtyMap(
       allProyek.flatMap(p => (p.items || []).map(item => item.id))
     );
-    let totalNilaiProyek = 0, totalTerbayar = 0;
+    let totalNilaiProyek = 0, totalTerbayar = 0, totalOutstanding = 0;
     for (const p of allProyek) {
       const subtotal = sumItemsNetAfterRetur(p.items, interiorReturQtyMap);
-      totalNilaiProyek += interiorTotal(p, subtotal, interiorNetItems(p.items, interiorReturQtyMap)).total;
-      totalTerbayar += p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0);
+      const projectTotal = interiorTotal(p, subtotal, interiorNetItems(p.items, interiorReturQtyMap)).total;
+      const paid = sumPayments(p.pembayarans || []);
+      totalNilaiProyek += projectTotal;
+      totalTerbayar += paid;
+      totalOutstanding += Math.max(0, projectTotal - paid);
     }
     totalNilaiProyek = money(totalNilaiProyek);
     totalTerbayar = money(totalTerbayar);
-    const totalOutstanding = money(Math.max(0, totalNilaiProyek - totalTerbayar));
+    totalOutstanding = money(totalOutstanding);
 
     // ── List ──────────────────────────────────────────────────────────────────
 

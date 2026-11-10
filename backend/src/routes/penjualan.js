@@ -75,7 +75,8 @@ router.get('/semua', authenticate, async (req, res) => {
       interiorWhere.push('faktur = ?');
       interiorReplacements.push(faktur);
 
-      if (faktur !== 'NON_FAKTUR') onlineWhere.push('1 = 0');
+      onlineWhere.push('faktur = ?');
+      onlineReplacements.push(faktur);
     }
 
     if (tanggal_dari) {

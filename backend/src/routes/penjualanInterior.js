@@ -1,3 +1,4 @@
+const { validateInteriorTerms } = require('../utils/interiorTerm');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -246,6 +247,7 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
     const subtotal = penjualan.items.reduce((s, i) => s + parseFloat(i.subtotal), 0);
     const total = interiorTotal(penjualan, subtotal).total;
 
+    if (req.body.terms !== undefined) validateInteriorTerms(penjualan, req.body.terms);
     const nomor_proforma = await generateNomorProforma(tanggal, penjualan.is_test === 1);
     const terms = req.body.terms && req.body.terms.length > 0
       ? JSON.stringify(req.body.terms)
@@ -262,10 +264,11 @@ router.post('/:id/proforma', authenticate, async (req, res) => {
 
     await logAction(req.user.id, 'BUAT_PROFORMA', `Nomor: ${nomor_proforma}`, req.ip);
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: proforma.id, nomor_proforma, total, message: 'Proforma berhasil dibuat' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 
@@ -274,9 +277,11 @@ router.patch('/:id/proforma/:proformaId', authenticate, async (req, res) => {
   try {
     const proforma = await ProformaInvoice.findOne({
       where: { id: req.params.proformaId, penjualan_interior_id: req.params.id },
+      include: [{ model: PenjualanInterior, as: 'penjualan', include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
     });
     if (!proforma) return res.status(404).json({ message: 'Proforma tidak ditemukan' });
 
+    if (req.body.terms !== undefined) validateInteriorTerms(proforma.penjualan, req.body.terms);
     const terms = req.body.terms && req.body.terms.length > 0
       ? JSON.stringify(req.body.terms)
       : proforma.terms;
@@ -289,7 +294,7 @@ router.patch('/:id/proforma/:proformaId', authenticate, async (req, res) => {
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.json({ message: 'Proforma berhasil diupdate' });
   } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return res.status(err.status || 500).json({ message: err.status === 400 ? err.message : 'Server error', error: err.message });
   }
 });
 
@@ -445,6 +450,7 @@ router.post('/:id/pembayaran', authenticate, uploadBukti.single('bukti_bayar'), 
 
     await logAction(req.user.id, 'BUAT_PEMBAYARAN', `Tipe: ${tipe}, Jumlah: ${jumlah}`, req.ip);
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: pembayaran.id, message: 'Pembayaran berhasil ditambahkan' });
   } catch (err) {
@@ -512,6 +518,7 @@ router.post('/:id/surat-jalan', authenticate, async (req, res) => {
 
     await logAction(req.user.id, 'BUAT_SJ_INTERIOR', `Nomor: ${nomor_surat}`, req.ip);
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: sj.id, nomor_surat, message: 'Surat Jalan interior berhasil dibuat' });
   } catch (err) {
@@ -569,6 +576,7 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
 
     await logAction(req.user.id, 'BUAT_INVOICE_INTERIOR', `Nomor: ${nomor_invoice}`, req.ip);
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     emitDataUpdated(`penjualan-interior:${req.params.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice interior berhasil dibuat' });
   } catch (err) {
@@ -585,6 +593,11 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
 
     const { surat_jalan_interior_id, tanggal, catatan, items } = req.body;
 
+    if (!tanggal) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Tanggal retur wajib diisi' });
+    }
+
     if (!items || items.length === 0) {
       await t.rollback();
       return res.status(400).json({ message: 'Minimal 1 item retur wajib diisi' });
@@ -594,13 +607,17 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
     const sj = await SuratJalanInterior.findOne({
       where: { id: surat_jalan_interior_id, penjualan_interior_id: req.params.id },
       transaction: t,
+      lock: t.LOCK.UPDATE,
     });
     if (!sj) { await t.rollback(); return res.status(400).json({ message: 'Surat Jalan tidak ditemukan atau bukan milik penjualan ini' }); }
 
+    const previous = await ReturSJInterior.findAll({ where: { surat_jalan_interior_id }, transaction: t });
+    const returned = new Map();
+    for (const row of previous) returned.set(Number(row.penjualan_interior_item_id), (returned.get(Number(row.penjualan_interior_item_id)) || 0) + Number(row.qty_retur || 0));
     for (const item of items) {
       const { penjualan_interior_item_id, qty_retur } = item;
 
-      if (!qty_retur || qty_retur <= 0) {
+      if (!Number.isInteger(Number(qty_retur)) || Number(qty_retur) <= 0) {
         await t.rollback();
         return res.status(400).json({ message: 'Qty retur harus lebih dari 0' });
       }
@@ -613,11 +630,12 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
         await t.rollback();
         return res.status(400).json({ message: 'Item tidak ditemukan pada Surat Jalan ini' });
       }
-      if (qty_retur > sjItem.qty_kirim) {
+      if (Number(qty_retur) + (returned.get(Number(penjualan_interior_item_id)) || 0) > Number(sjItem.qty_kirim)) {
         await t.rollback();
         return res.status(400).json({ message: 'Qty retur melebihi qty kirim pada SJ ini' });
       }
 
+      returned.set(Number(penjualan_interior_item_id), (returned.get(Number(penjualan_interior_item_id)) || 0) + Number(qty_retur));
       await ReturSJInterior.create({
         surat_jalan_interior_id,
         penjualan_interior_item_id,
@@ -636,6 +654,7 @@ router.post('/:id/retur-sj', authenticate, async (req, res) => {
 
     await t.commit();
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
 
     await logAction(req.user.id, 'CATAT_RETUR_SJ_INTERIOR',
       `Retur SJ #${surat_jalan_interior_id} untuk Penjualan Interior #${req.params.id}`, req.ip);
@@ -706,6 +725,7 @@ router.post('/:id/sp-from-retur', authenticate, async (req, res) => {
 
     await t.commit();
     await recalculateStatusInterior(req.params.id);
+    emitDataUpdated('penjualan-interior-list', { updatedBy: req.user.id });
     await logAction(req.user.id, 'BUAT_SP_INTERIOR_RETUR',
       `SP/INT ${nomorSP} dari retur SJ #${surat_jalan_interior_id}`, req.ip);
     res.status(201).json({ message: 'Surat Pengantar Interior berhasil dibuat', nomor_sp: nomorSP });

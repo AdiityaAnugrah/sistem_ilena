@@ -1,3 +1,4 @@
+const { interiorTerm } = require('./interiorTerm');
 const { interiorItemAmounts, interiorGoodsAmounts, interiorTermAmounts } = require('./interiorVat');
 const { interiorCosts } = require('./interiorCosts');
 const dayjs = require('dayjs');
@@ -1925,14 +1926,14 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   let itemRows = '';
 
   terms.forEach(term => {
-    const persen = term.persen ? parseFloat(term.persen) : null;
-    if (!persen || persen <= 0) return;
+    const allocation = term && interiorTerm(penjualan, term);
+    if (!allocation) return;
+    const persen = allocation.percent;
     const tipeLabel = TIPE_LABEL[term.tipe || 'DP'] || (term.tipe || 'DP');
     const persenLabel = `${tipeLabel} ${persen}%`;
 
-    items.forEach(item => {
-      const itemSubtotal = Number(item.subtotal) || (item.qty * (item.harga_satuan || 0));
-      const amount = Math.round(itemSubtotal * persen / 100);
+    items.forEach((item, index) => {
+      const amount = allocation.items[index].subtotal;
       grandTotalSub += amount;
       rowNo++;
       itemRows += `
@@ -1948,14 +1949,13 @@ const generateHTMLSubInvoice = (inv, sjNomors = []) => {
   });
 
   const ppnPersen = penjualan.pakai_ppn && penjualan.ppn_persen ? parseInt(penjualan.ppn_persen) : 0;
-  const ppnAmount = terms.reduce((sum, term) => {
-    const percent = Number(term.persen || 0);
-    return percent > 0 ? sum + interiorTermAmounts(items, penjualan, percent).ppn : sum;
-  }, 0);
-  const costs = terms.reduce((sum, term) => {
-    const part = interiorCosts(penjualan, Number(term.persen || 0) / 100);
-    return { biaya_assembly: sum.biaya_assembly + part.biaya_assembly, biaya_kirim: sum.biaya_kirim + part.biaya_kirim, total: sum.total + part.total };
-  }, { biaya_assembly: 0, biaya_kirim: 0, total: 0 });
+  const allocations = terms.map(term => term && interiorTerm(penjualan, term)).filter(Boolean);
+  const ppnAmount = allocations.reduce((sum, amount) => sum + amount.ppn, 0);
+  const costs = allocations.reduce((sum, amount) => ({
+    biaya_assembly: sum.biaya_assembly + amount.costs.biaya_assembly,
+    biaya_kirim: sum.biaya_kirim + amount.costs.biaya_kirim,
+    total: sum.total + amount.costs.total,
+  }), { biaya_assembly: 0, biaya_kirim: 0, total: 0 });
   const grandTotalWithPPN = grandTotalSub + ppnAmount + costs.total;
 
   const summaryRow = isFaktur ? `

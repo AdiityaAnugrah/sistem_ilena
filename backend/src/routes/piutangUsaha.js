@@ -10,8 +10,7 @@ const { authenticate } = require('../middleware/auth');
 
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
 
-const { invoiceCosts } = require('../utils/interiorCosts');
-const { interiorItemAmounts, interiorGoodsAmounts } = require('../utils/interiorVat');
+const { interiorItemAmounts } = require('../utils/interiorVat');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -46,151 +45,8 @@ const offlineReturTotal = (retur) => {
   return money(base + ppn);
 };
 
-async function invoiceInteriorAmount(inv) {
-  if (inv._ledgerAmount) return inv._ledgerAmount;
-  let ids = [];
-  if (inv.surat_jalan_ids) {
-    try { ids = JSON.parse(inv.surat_jalan_ids).map(Number).filter(Boolean); } catch { ids = []; }
-  } else if (inv.surat_jalan_interior_id) {
-    ids = [Number(inv.surat_jalan_interior_id)];
-  }
-
-  let subtotal = 0;
-  let invoiceGross = 0;
-  if (ids.length > 0) {
-    const sjs = await SuratJalanInterior.findAll({
-      where: { id: { [Op.in]: ids } },
-      include: [{ model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] }],
-    });
-    for (const sj of sjs) {
-      for (const sjItem of (sj.items || [])) {
-        const amount = interiorItemAmounts(sjItem.item, inv.penjualan, sjItem.qty_kirim);
-        subtotal += amount.subtotal;
-        invoiceGross += amount.total;
-      }
-    }
-  } else {
-    const goods = interiorGoodsAmounts(inv.penjualan?.items || [], inv.penjualan);
-    subtotal = goods.subtotal;
-    invoiceGross = goods.total;
-  }
-
-  subtotal = money(subtotal);
-  const ppn = money(invoiceGross) - money(subtotal);
-  const costs = invoiceCosts(inv.penjualan, subtotal);
-  return { subtotal: subtotal + costs.total, ppn, total: money(subtotal + ppn + costs.total) };
-}
-
-
-async function buildInteriorAdvanceState(interiorInvoices, interiorPayments) {
-  const byPenjualan = new Map();
-  const ensure = (id, penjualan) => {
-    if (!byPenjualan.has(id)) byPenjualan.set(id, { penjualan, invoices: [], payments: [] });
-    const row = byPenjualan.get(id);
-    if (!row.penjualan && penjualan) row.penjualan = penjualan;
-    return row;
-  };
-
-  for (const inv of interiorInvoices || []) {
-    const id = Number(inv.penjualan_interior_id || inv.penjualan?.id);
-    if (!id) continue;
-    const amount = await invoiceInteriorAmount(inv);
-    ensure(id, inv.penjualan).invoices.push({ inv, amount });
-  }
-
-  for (const p of interiorPayments || []) {
-    const id = Number(p.penjualan_interior_id || p.penjualan?.id);
-    if (!id) continue;
-    ensure(id, p.penjualan).payments.push(p);
-  }
-
-  const normalPaymentAmounts = new Map();
-  const usageByInvoice = new Map();
-  const history = [];
-  const rekapMap = new Map();
-
-  for (const [penjualanId, row] of byPenjualan.entries()) {
-    row.invoices.sort((a, b) => String(a.inv.tanggal).localeCompare(String(b.inv.tanggal)) || Number(a.inv.id) - Number(b.inv.id));
-    row.payments.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id));
-
-    const penjualan = row.penjualan || row.payments[0]?.penjualan || row.invoices[0]?.inv?.penjualan;
-    const customer = penjualan?.nama_customer || 'Tanpa Nama';
-    const key = `INTERIOR-UM-${penjualanId}`;
-    const rekap = {
-      key,
-      penjualan_interior_id: penjualanId,
-      customer_key: customerKey(customer),
-      nama_customer: customer,
-      no_po: penjualan?.no_po || '',
-      faktur: penjualan?.faktur || 'NON_FAKTUR',
-      uang_muka_masuk: 0,
-      uang_muka_terpakai: 0,
-      sisa_uang_muka: 0,
-      jumlah_transaksi: 0,
-      detail_url: `/dashboard/penjualan/interior/${penjualanId}`,
-    };
-
-    let remaining = 0;
-    let outstanding = 0;
-    const events = [
-      ...row.invoices.map(value => ({ type: 'INVOICE', date: value.inv.tanggal, id: Number(value.inv.id), value })),
-      ...row.payments.map(value => ({ type: 'PAYMENT', date: value.tanggal, id: Number(value.id), value })),
-    ].sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.type === b.type ? a.id - b.id : a.type === 'INVOICE' ? -1 : 1));
-
-    for (const event of events) {
-      if (event.type === 'INVOICE') {
-        const { inv, amount } = event.value;
-        const invoiceTotal = money(amount.total);
-        const used = Math.min(remaining, invoiceTotal);
-        remaining = money(remaining - used);
-        outstanding = money(outstanding + invoiceTotal - used);
-        if (used <= 0) continue;
-        usageByInvoice.set(inv.ledgerKey ?? Number(inv.id), used);
-        rekap.uang_muka_terpakai += used;
-        rekap.jumlah_transaksi += 1;
-        history.push({
-          id: `UM-TERPAKAI-${inv.ledgerKey ?? inv.id}`, key, penjualan_interior_id: penjualanId,
-          tanggal: inv.tanggal, jenis: 'UANG_MUKA_TERPAKAI', referensi: inv.nomor_invoice,
-          nama_customer: customer, no_po: rekap.no_po, faktur: rekap.faktur,
-          keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
-          masuk: 0, terpakai: used, sisa: remaining, bukti_endpoint: null, detail_url: rekap.detail_url,
-        });
-      } else {
-        const pay = event.value;
-        const amount = money(pay.jumlah);
-        if (amount <= 0) continue;
-        const normalAmount = Math.min(outstanding, amount);
-        normalPaymentAmounts.set(Number(pay.id), normalAmount);
-        outstanding = money(outstanding - normalAmount);
-        const advanceAmount = money(amount - normalAmount);
-        if (advanceAmount <= 0) continue;
-        remaining = money(remaining + advanceAmount);
-        rekap.uang_muka_masuk += advanceAmount;
-        rekap.jumlah_transaksi += 1;
-        history.push({
-          id: `UM-MASUK-${pay.id}`, key, penjualan_interior_id: penjualanId,
-          tanggal: pay.tanggal, jenis: 'UANG_MUKA_MASUK', referensi: pay.tipe,
-          nama_customer: customer, no_po: rekap.no_po, faktur: rekap.faktur,
-          keterangan: `Uang muka Interior ${pay.tipe}${pay.catatan ? ` - ${pay.catatan}` : ''}`,
-          masuk: advanceAmount, terpakai: 0, sisa: remaining,
-          bukti_endpoint: pay.bukti_bayar ? `/penjualan-interior/${penjualanId}/pembayaran/${pay.id}/bukti` : null,
-          detail_url: rekap.detail_url,
-        });
-      }
-    }
-
-    if (rekap.uang_muka_masuk <= 0 && rekap.uang_muka_terpakai <= 0) continue;
-
-    rekap.uang_muka_masuk = money(rekap.uang_muka_masuk);
-    rekap.uang_muka_terpakai = money(rekap.uang_muka_terpakai);
-    rekap.sisa_uang_muka = money(rekap.uang_muka_masuk - rekap.uang_muka_terpakai);
-    rekap.status = rekap.sisa_uang_muka <= 0 ? 'HABIS_TERPAKAI' : rekap.uang_muka_terpakai > 0 ? 'TERPAKAI_SEBAGIAN' : 'BELUM_TERPAKAI';
-    rekapMap.set(key, rekap);
-  }
-
-  history.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.id).localeCompare(String(b.id)));
-  return { normalPaymentAmounts, usageByInvoice, history, rekapRows: [...rekapMap.values()] };
-}
+const { createInteriorFinance } = require('../utils/interiorFinance');
+const { invoiceInteriorAmount, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
 
 const interiorReturTotal = (retur) => money(interiorItemAmounts(retur.item, retur.item?.penjualan, retur.qty_retur).total);
 
@@ -226,35 +82,9 @@ function filterLedgerBySearch(entries, search) {
   return entries.filter(entry => matchedKeys.has(entry.piutang_key));
 }
 
-function selectLatestOfflineInvoices(invoices) {
-  const bySale = new Map();
-  for (const inv of invoices || []) {
-    const saleId = Number(inv.penjualan_offline_id || inv.penjualan?.id);
-    if (!saleId) continue;
-    const current = bySale.get(saleId);
-    if (!current
-      || String(inv.tanggal).localeCompare(String(current.tanggal)) > 0
-      || (String(inv.tanggal) === String(current.tanggal) && Number(inv.id) > Number(current.id))) {
-      bySale.set(saleId, inv);
-    }
-  }
-  return [...bySale.values()];
-}
-
-function selectLatestDisplaySps(sps) {
-  const bySale = new Map();
-  for (const sp of sps || []) {
-    const saleId = Number(sp.penjualan_offline_id || sp.penjualan?.id);
-    if (!saleId) continue;
-    const current = bySale.get(saleId);
-    if (!current
-      || String(sp.tanggal).localeCompare(String(current.tanggal)) > 0
-      || (String(sp.tanggal) === String(current.tanggal) && Number(sp.id) > Number(current.id))) {
-      bySale.set(saleId, sp);
-    }
-  }
-  return [...bySale.values()];
-}
+const { selectLatestBySale } = require('../utils/financialDocuments');
+const selectLatestOfflineInvoices = (rows, to) => selectLatestBySale(rows, 'penjualan_offline_id', to);
+const selectLatestDisplaySps = (rows, to) => selectLatestBySale(rows, 'penjualan_offline_id', to);
 
 function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationItemsOut = []) {
   const sisaDisplay = (displayPenjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0);
@@ -265,7 +95,7 @@ function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationIt
   return money(sisaDisplay + sudahDiprosesJual + sudahMutasiKeluar);
 }
 
-async function buildPiutangEntries(isTest, source = '') {
+async function buildPiutangEntries(isTest, source = '', to = '') {
   // Query only the selected ledger; unrelated modules must not block this report.
   const includeOffline = source !== 'INTERIOR';
   const includeInterior = source !== 'OFFLINE';
@@ -347,7 +177,7 @@ async function buildPiutangEntries(isTest, source = '') {
   }
   const displayById = new Map();
 
-  for (const sp of selectLatestDisplaySps(offlineDisplaySps)) {
+  for (const sp of selectLatestDisplaySps(offlineDisplaySps, to)) {
     const display = sp.penjualan;
     const displayId = Number(sp.penjualan_offline_id || display?.id);
     if (!displayId) continue;
@@ -389,7 +219,7 @@ async function buildPiutangEntries(isTest, source = '') {
     });
   }
 
-  for (const inv of selectLatestOfflineInvoices(offlineInvoices)) {
+  for (const inv of selectLatestOfflineInvoices(offlineInvoices, to)) {
     const amount = offlineInvoiceTotal(inv.penjualan, inv);
     if (amount.total <= 0) continue;
     push({
@@ -559,7 +389,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     const { from, to, search, sumber, faktur, page = 1, limit = 25, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter))
+    let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to))
       .filter(entry => entryMatches(entry, { sumber: sourceFilter, faktur: fakturFilter }));
     entries = filterLedgerBySearch(entries, search);
 
@@ -646,7 +476,7 @@ router.get('/detail', authenticate, async (req, res) => {
     const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100, all } = req.query;
     const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
-    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter))
+    let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to))
       .filter(entry => entryMatches(entry, { customer_key, sumber: sourceFilter, faktur: fakturFilter }));
     if (!customer_key) allEntries = filterLedgerBySearch(allEntries, search);
 

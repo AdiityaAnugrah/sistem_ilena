@@ -2,14 +2,19 @@ const express = require('express');
 const { Op } = require('sequelize');
 const {
   ChartOfAccount,
+  PenjualanOnline, PenjualanOnlineItem, InvoiceOnline, PembayaranOnline, ReturOnline,
   PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
-  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior,
+  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior, ProformaInvoice,
   SuratJalanInterior, SuratJalanInteriorItem, ReturSJInterior,
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
 
-const { invoiceCosts } = require('../utils/interiorCosts');
-const { interiorItemAmounts, interiorGoodsAmounts } = require('../utils/interiorVat');
+const { buildOnlineJournal } = require('../utils/onlineJournal');
+const { createInteriorFinance } = require('../utils/interiorFinance');
+const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
+const { selectLatestBySale } = require('../utils/financialDocuments');
+const { invoiceInteriorAmount, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
+const { interiorItemAmounts } = require('../utils/interiorVat');
 
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
@@ -21,10 +26,14 @@ const DEFAULT_COA = [
   { code: '1104', name: 'EDC / Kartu', type: 'ASET', normal_balance: 'DEBIT', description: 'Penerimaan melalui mesin EDC' },
   { code: '1105', name: 'Marketplace', type: 'ASET', normal_balance: 'DEBIT', description: 'Penerimaan melalui marketplace' },
   { code: '1109', name: 'Kas/Bank Lainnya', type: 'ASET', normal_balance: 'DEBIT', description: 'Penerimaan metode lainnya' },
+  { code: '1106', name: 'Dana Marketplace / Gateway', type: 'ASET', normal_balance: 'DEBIT', description: 'Pembayaran customer online, belum dianggap pencairan bank' },
   { code: '1201', name: 'Piutang Usaha', type: 'ASET', normal_balance: 'DEBIT', description: 'Tagihan penjualan kepada customer' },
+  { code: '2102', name: 'Uang Muka Customer', type: 'KEWAJIBAN', normal_balance: 'KREDIT', description: 'Pembayaran customer yang belum dipakai untuk tagihan' },
   { code: '2101', name: 'PPN Keluaran', type: 'KEWAJIBAN', normal_balance: 'KREDIT', description: 'PPN yang dipungut dari customer' },
   { code: '4101', name: 'Penjualan Offline', type: 'PENDAPATAN', normal_balance: 'KREDIT', description: 'Pendapatan penjualan offline/toko' },
   { code: '4102', name: 'Penjualan Interior', type: 'PENDAPATAN', normal_balance: 'KREDIT', description: 'Pendapatan proyek interior' },
+  { code: '4103', name: 'Penjualan Online', type: 'PENDAPATAN', normal_balance: 'KREDIT', description: 'Nilai invoice penjualan online' },
+  { code: '4203', name: 'Retur Penjualan Online', type: 'PENDAPATAN', normal_balance: 'DEBIT', description: 'Pengembalian dana penjualan online' },
   { code: '4201', name: 'Retur Penjualan Offline', type: 'PENDAPATAN', normal_balance: 'DEBIT', description: 'Pengurang pendapatan/piutang offline' },
   { code: '4202', name: 'Retur Penjualan Interior', type: 'PENDAPATAN', normal_balance: 'DEBIT', description: 'Pengurang pendapatan/piutang interior' },
 ];
@@ -71,38 +80,6 @@ const offlineReturAmount = (retur) => {
   return { subtotal, ppn, total: money(subtotal + ppn) };
 };
 
-async function invoiceInteriorAmount(inv) {
-  let ids = [];
-  if (inv.surat_jalan_ids) {
-    try { ids = JSON.parse(inv.surat_jalan_ids).map(Number).filter(Boolean); } catch { ids = []; }
-  } else if (inv.surat_jalan_interior_id) {
-    ids = [Number(inv.surat_jalan_interior_id)];
-  }
-
-  let subtotal = 0;
-  let invoiceGross = 0;
-  if (ids.length > 0) {
-    const sjs = await SuratJalanInterior.findAll({
-      where: { id: { [Op.in]: ids } },
-      include: [{ model: SuratJalanInteriorItem, as: 'items', include: [{ model: PenjualanInteriorItem, as: 'item' }] }],
-    });
-    for (const sj of sjs) {
-      for (const sjItem of (sj.items || [])) {
-        const amount = interiorItemAmounts(sjItem.item, inv.penjualan, sjItem.qty_kirim);
-        subtotal += amount.subtotal;
-        invoiceGross += amount.total;
-      }
-    }
-  } else {
-    const goods = interiorGoodsAmounts(inv.penjualan?.items || [], inv.penjualan);
-    subtotal = goods.subtotal;
-    invoiceGross = goods.total;
-  }
-  const ppn = money(invoiceGross) - money(subtotal);
-  const costs = invoiceCosts(inv.penjualan, subtotal);
-  return { subtotal: money(subtotal) + costs.total, ppn, total: money(invoiceGross) + costs.total };
-}
-
 const matches = (trx, { sumber, jenis, search }) => {
   if (sumber && trx.sumber !== sumber) return false;
   if (jenis && trx.jenis !== jenis) return false;
@@ -127,7 +104,6 @@ router.get('/', authenticate, async (req, res) => {
     const { from, to, sumber, jenis, search, page = 1, limit = 25 } = req.query;
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const dateWhere = {};
-    if (from) dateWhere[Op.gte] = from;
     if (to) dateWhere[Op.lte] = to;
 
     const rows = [];
@@ -138,38 +114,55 @@ router.get('/', authenticate, async (req, res) => {
       ...trx,
     });
 
+    const find = (source, model, options) => !sumber || sumber === source ? model.findAll(options) : Promise.resolve([]);
     const invoiceWhere = Object.keys(dateWhere).length ? { tanggal: dateWhere } : {};
-    const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorReturs] = await Promise.all([
-      Invoice.findAll({
+    const [offlineInvoices, offlinePayments, offlineReturs, interiorInvoices, interiorPayments, interiorReturs, interiorSubInvoices, onlineInvoices, onlinePayments, onlineReturs] = await Promise.all([
+      find('OFFLINE', Invoice, {
         where: invoiceWhere,
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [
           { model: PenjualanOfflineItem, as: 'items' },
           { model: ReturOffline, as: 'returs' },
         ] }],
       }),
-      PembayaranOffline.findAll({
+      find('OFFLINE', PembayaranOffline, {
         where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }],
       }),
-      ReturOffline.findAll({
+      find('OFFLINE', ReturOffline, {
         where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] }, { model: PenjualanOfflineItem, as: 'item' }],
       }),
-      InvoiceInterior.findAll({
+      find('INTERIOR', InvoiceInterior, {
         where: invoiceWhere,
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
       }),
-      PembayaranInterior.findAll({
+      find('INTERIOR', PembayaranInterior, {
         where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }],
       }),
-      ReturSJInterior.findAll({
+      find('INTERIOR', ReturSJInterior, {
         where: Object.keys(dateWhere).length ? { tanggal: dateWhere } : {},
         include: [{ model: PenjualanInteriorItem, as: 'item', include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest } }] }],
       }),
+      find('INTERIOR', ProformaInvoice, {
+        where: { ...invoiceWhere, nomor_sub_invoice: { [Op.ne]: null } },
+        include: [{ model: PenjualanInterior, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
+      }),
+      find('ONLINE', InvoiceOnline, {
+        where: invoiceWhere,
+        include: [{ model: PenjualanOnline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOnlineItem, as: 'items' }] }],
+      }),
+      find('ONLINE', PembayaranOnline, {
+        where: invoiceWhere,
+        include: [{ model: PenjualanOnline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOnlineItem, as: 'items' }] }],
+      }),
+      find('ONLINE', ReturOnline, {
+        where: { ...invoiceWhere, tipe: 'PENGEMBALIAN_DANA' },
+        include: [{ model: PenjualanOnline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOnlineItem, as: 'items' }] }],
+      }),
     ]);
 
-    for (const inv of offlineInvoices) {
+    for (const inv of selectLatestBySale(offlineInvoices, 'penjualan_offline_id', to)) {
       const subtotal = money((inv.penjualan?.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0));
       const ppn = money(subtotal * Number(inv.ppn_persen || 0) / 100);
       const total = money(subtotal + ppn);
@@ -225,11 +218,13 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    for (const inv of interiorInvoices) {
+    const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, invoiceInteriorAmount);
+    const advanceState = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
+    for (const inv of effectiveInteriorInvoices) {
       const amount = await invoiceInteriorAmount(inv);
       if (amount.total <= 0) continue;
       push({
-        id: `INTERIOR-INVOICE-${inv.id}`,
+        id: `INTERIOR-INVOICE-${inv.ledgerKey ?? inv.id}`,
         tanggal: inv.tanggal,
         sumber: 'INTERIOR',
         jenis: 'INVOICE',
@@ -245,19 +240,23 @@ router.get('/', authenticate, async (req, res) => {
 
     for (const p of interiorPayments) {
       const amount = money(p.jumlah);
+      const normal = advanceState.normalPaymentAmounts.get(Number(p.id)) || 0;
+      const advance = amount - normal;
       push({
-        id: `INTERIOR-PEMBAYARAN-${p.id}`,
-        tanggal: p.tanggal,
-        sumber: 'INTERIOR',
-        jenis: 'PEMBAYARAN',
-        referensi: p.tipe,
-        customer: p.penjualan?.nama_customer,
-        no_po: p.penjualan?.no_po,
-        nilai: amount,
+        id: `INTERIOR-PEMBAYARAN-${p.id}`, tanggal: p.tanggal, sumber: 'INTERIOR', jenis: 'PEMBAYARAN', referensi: p.tipe,
+        customer: p.penjualan?.nama_customer, no_po: p.penjualan?.no_po, nilai: amount,
         keterangan: p.catatan || 'Pembayaran interior',
         bukti_endpoint: p.bukti_bayar ? `/penjualan-interior/${p.penjualan_interior_id}/pembayaran/${p.id}/bukti` : null,
         detail_url: `/dashboard/penjualan/interior/${p.penjualan_interior_id}`,
-        lines: [line('1102', amount, 0), line('1201', 0, amount)],
+        lines: [line('1102', amount, 0), ...(normal > 0 ? [line('1201', 0, normal)] : []), ...(advance > 0 ? [line('2102', 0, advance)] : [])],
+      });
+    }
+    for (const event of advanceState.history.filter(e => e.terpakai > 0)) {
+      push({
+        id: event.id, tanggal: event.tanggal, sumber: 'INTERIOR', jenis: 'UANG_MUKA_TERPAKAI', referensi: event.referensi,
+        customer: event.nama_customer, no_po: event.no_po, nilai: event.terpakai,
+        keterangan: event.keterangan, detail_url: event.detail_url,
+        lines: [line('2102', event.terpakai, 0), line('1201', 0, event.terpakai)],
       });
     }
 
@@ -284,7 +283,9 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const filtered = rows.filter(trx => matches(trx, { sumber, jenis, search }))
+    for (const entry of buildOnlineJournal(onlineInvoices, onlinePayments, onlineReturs, line)) push(entry);
+
+    const filtered = rows.filter(trx => (!from || trx.tanggal >= from) && (!to || trx.tanggal <= to) && matches(trx, { sumber, jenis, search }))
       .sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal) || String(b.id).localeCompare(String(a.id)));
 
     const summary = filtered.reduce((acc, trx) => {
@@ -295,6 +296,7 @@ router.get('/', authenticate, async (req, res) => {
       if (trx.jenis === 'RETUR') acc.totalRetur += trx.nilai;
       return acc;
     }, { totalDebit: 0, totalKredit: 0, totalInvoice: 0, totalPembayaran: 0, totalRetur: 0 });
+    summary.totalUangMukaTerpakai = filtered.filter(trx => trx.jenis === 'UANG_MUKA_TERPAKAI').reduce((sum, trx) => sum + trx.nilai, 0);
     summary.selisihInvoicePembayaran = Math.max(0, summary.totalInvoice - summary.totalPembayaran - summary.totalRetur);
 
     const pageInt = Math.max(1, parseInt(page));

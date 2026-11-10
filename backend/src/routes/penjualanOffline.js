@@ -185,7 +185,8 @@ function applyOfflineReturSummary(penjualan) {
 
 function applyOfflinePaymentSummary(penjualan) {
   const data = applyOfflineReturSummary(penjualan);
-  const ppnPersen = Number(data.invoices?.[data.invoices.length - 1]?.ppn_persen || 0);
+  const latestInvoice = [...(data.invoices || [])].sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id)).at(-1);
+  const ppnPersen = Number(latestInvoice?.ppn_persen || 0);
   const ppn = money(Number(data.total_net || 0) * ppnPersen / 100);
   const totalTagihan = money(Number(data.total_net || 0) + ppn);
   const totalBayar = money((data.pembayarans || []).reduce((s, p) => s + Number(p.jumlah || 0), 0));
@@ -580,6 +581,8 @@ router.post('/:id/invoice', authenticate, async (req, res) => {
       created_by: req.user.id,
     });
 
+    await recalculateStatusOffline(penjualan.id);
+    emitDataUpdated('penjualan-offline-list', { updatedBy: req.user.id });
     await logAction(req.user.id, 'BUAT_INVOICE', `Nomor: ${nomor_invoice}`, req.ip);
     emitDataUpdated(`penjualan-offline:${penjualan.id}`, { updatedBy: req.user.id });
     return res.status(201).json({ id: inv.id, nomor_invoice, message: 'Invoice berhasil dibuat' });

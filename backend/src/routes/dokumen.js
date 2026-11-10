@@ -463,6 +463,7 @@ async function fetchSubInvoice(id) {
     const faktur = proforma.penjualan?.faktur || 'NON_FAKTUR';
     const nomor = await generateNomorInvoice(faktur, proforma.tanggal, proforma.penjualan?.is_test === 1);
     await proforma.update({ nomor_sub_invoice: nomor, jatuh_tempo: proforma.jatuh_tempo || defaultJatuhTempo });
+    emitDataUpdated('penjualan-interior-list', {});
   } else if (!proforma.jatuh_tempo) {
     await proforma.update({ jatuh_tempo: defaultJatuhTempo });
   }

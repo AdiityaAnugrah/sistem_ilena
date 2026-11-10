@@ -1,5 +1,4 @@
-const { interiorTermAmounts } = require('./interiorVat');
-const { interiorCosts } = require('./interiorCosts');
+const { interiorTerm } = require('./interiorTerm');
 const money = value => Math.round(Number(value || 0));
 const plain = row => typeof row.toJSON === 'function' ? row.toJSON() : row;
 
@@ -11,11 +10,9 @@ function subInvoiceTerms(doc) {
   if (!Array.isArray(terms)) return [];
   const sale = doc.penjualan || {};
   return terms.flatMap(term => {
-    const percent = parseFloat(term.persen);
-    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return [];
-    const { subtotal, ppn } = interiorTermAmounts(sale.items || [], sale, percent);
-    const costs = interiorCosts(sale, percent / 100);
-    return [{ type: term.tipe || 'DP', subtotal: subtotal + costs.total, ppn, total: subtotal + ppn + costs.total }];
+    const amount = term && interiorTerm(sale, term);
+    if (!amount) return [];
+    return [{ type: term.tipe || 'DP', subtotal: amount.subtotal + amount.costs.total, ppn: amount.ppn, total: amount.total }];
   });
 }
 
@@ -48,7 +45,9 @@ async function buildEffectiveInteriorInvoices(invoices = [], proformas = [], get
     const state = states.get(saleId);
     let amount = event.amount;
     if (event.terms) {
-      for (const term of event.terms) state.terms.set(term.type, Math.max(state.terms.get(term.type) || 0, term.total));
+      const documentTerms = new Map();
+      for (const term of event.terms) documentTerms.set(term.type, (documentTerms.get(term.type) || 0) + term.total);
+      for (const [type, total] of documentTerms) state.terms.set(type, Math.max(state.terms.get(type) || 0, total));
       amount = event.terms.reduce((sum, term) => ({ subtotal: sum.subtotal + term.subtotal, ppn: sum.ppn + term.ppn, total: sum.total + term.total }), { subtotal: 0, ppn: 0, total: 0 });
     } else {
       state.shipments = money(state.shipments + amount.total);
