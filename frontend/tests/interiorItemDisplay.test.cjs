@@ -10,8 +10,9 @@ test('actual Detail table shows the same inclusive unit and amount as Invoice', 
   const html = table.render(data);
   assert.deepEqual(cells(html), ['CONTOH', 'Contoh Barang', '1/3', 'Rp 11.106', 'Rp 33.318']);
   assert.match(html, /Harga Satuan/);
-  assert.match(html, /Subtotal \(termasuk PPN\)/);
-  assert.match(html, /PPN 11% \(sudah termasuk\)/);
+  assert.match(html, />Subtotal<\/td>/);
+  assert.match(html, />PPN 11%<\/td>/);
+  assert.doesNotMatch(html, /termasuk PPN|sudah termasuk/);
   assert.match(html, />Rp 3\.303</);
   assert.match(html, />Total<\/td><td[^>]*>Rp 33\.318<\/td>/);
 });

@@ -1119,12 +1119,12 @@ export default function PenjualanInteriorDetail() {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3 text-sm font-bold text-right whitespace-nowrap" style={{ color: '#475569' }}>Subtotal{data.pakai_ppn ? ' (termasuk PPN)' : ''}</td>
+                    <td colSpan={4} className="px-5 py-3 text-sm font-bold text-right whitespace-nowrap" style={{ color: '#475569' }}>Subtotal</td>
                     <td className="px-5 py-3 text-right font-bold whitespace-nowrap" style={{ color: '#1e293b' }}>{formatRupiah(goodsTotal)}</td>
                   </tr>
                   {!!data.pakai_ppn && (
                     <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={4} className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>PPN {data.ppn_persen}% (sudah termasuk)</td>
+                      <td colSpan={4} className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>PPN {data.ppn_persen}%</td>
                       <td className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{formatRupiah(ppn)}</td>
                     </tr>
                   )}
