@@ -67,6 +67,7 @@ describe('Interior payment and reports stay consistent', () => {
     fixture.models.sequelize.col = name => name;
     fixture.models.PenjualanInterior.findAll = async () => [sale];
     fixture.models.PenjualanInterior.findAndCountAll = async () => ({ count: 1, rows: [sale] });
+    fixture.models.InvoiceInterior.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-10-30', nomor_invoice: 'INV', penjualan: sale }];
     const result = await fixture.call('get', '/interior');
     expect(result.status).toBe(200);
     expect(result.body.summary.totalNilaiProyek).toBe(1300000);

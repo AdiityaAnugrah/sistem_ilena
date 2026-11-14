@@ -316,7 +316,7 @@ export default function KeuanganPage() {
       <Row ss:Height="26">${excelCell('Penjualan Interior', 'String', 'Title')}</Row>
       <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
       <Row>${excelCell(`Total proyek: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(totalNilai)}`, 'String', 'Summary')}${excelCell(`Terbayar: ${formatRupiah(totalBayar)}`, 'String', 'Summary')}${excelCell(`Outstanding: ${formatRupiah(totalSisa)}`, 'String', 'Summary')}</Row>
-      <Row>${['ID', 'Tanggal', 'Customer', 'No. PO', 'Faktur', 'Status', 'Pelunasan', 'Grand Total', 'Terbayar', 'Sisa', 'Progress'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
+      <Row>${['ID', 'Tanggal', 'Customer', 'No. PO', 'Faktur', 'Status', 'Pelunasan', 'Nilai sebelum PPN', 'Terbayar', 'Sisa', 'Progress'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
       ${rows.map(row => `
         <Row>
           ${excelCell(row.id, 'Number', 'Number')}
@@ -359,10 +359,10 @@ export default function KeuanganPage() {
       if (mode === 'gabungan') {
         worksheets.push(buildSummarySheet('Ringkasan Gabungan', 'Ringkasan Keuangan Gabungan', [
           ['Omzet Offline', offlinePenjualan?.summary?.totalOmzet || 0],
-          ['Penjualan Offline Belum Lunas', offlinePenjualan?.summary?.totalBelumLunas || 0],
-          ['Piutang Display', offlinePenjualan?.summary?.totalPiutang || 0],
+          ['Sisa Piutang Invoice Offline', offlinePenjualan?.summary?.totalBelumLunas || 0],
+          ['Barang Display Beredar', offlinePenjualan?.summary?.totalPiutang || 0],
           ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
-          ['Nilai Proyek Interior', interior?.summary?.totalNilaiProyek || 0],
+          ['Penjualan Interior sebelum PPN', interior?.summary?.totalNilaiProyek || 0],
           ['Terbayar Interior', interior?.summary?.totalTerbayar || 0],
           ['Outstanding Interior', interior?.summary?.totalOutstanding || 0],
           ['Nilai Online Setelah Retur', online?.summary?.totalNilai || 0],
@@ -371,14 +371,14 @@ export default function KeuanganPage() {
       } else if (mode === 'offline') {
         worksheets.push(buildSummarySheet('Ringkasan Offline', 'Ringkasan Keuangan Offline', [
           ['Total Omzet Penjualan', offlinePenjualan?.summary?.totalOmzet || 0],
-          ['Penjualan Belum Lunas', offlinePenjualan?.summary?.totalBelumLunas || 0],
-          ['Piutang Display', offlinePenjualan?.summary?.totalPiutang || 0],
+          ['Sisa Piutang Invoice', offlinePenjualan?.summary?.totalBelumLunas || 0],
+          ['Barang Display Beredar', offlinePenjualan?.summary?.totalPiutang || 0],
           ['Sudah Terjual dari Display', offlinePenjualan?.summary?.totalTerjualDisplay || 0],
           ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
         ]));
       } else if (mode === 'interior') {
         worksheets.push(buildSummarySheet('Ringkasan Interior', 'Ringkasan Keuangan Interior', [
-          ['Total Nilai Proyek', interior?.summary?.totalNilaiProyek || 0],
+          ['Penjualan sebelum PPN', interior?.summary?.totalNilaiProyek || 0],
           ['Total Terbayar', interior?.summary?.totalTerbayar || 0],
           ['Total Outstanding', interior?.summary?.totalOutstanding || 0],
         ]));
@@ -515,12 +515,12 @@ export default function KeuanganPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <SummaryCard label="Total Omzet Penjualan" value={summary ? formatRupiah(summary.totalOmzet) : '-'} color="#0f172a" />
             <SummaryCard
-              label="Penjualan Belum Lunas"
+              label="Sisa Piutang Invoice"
               value={summary ? formatRupiah(summary.totalBelumLunas) : '-'}
               sub={summary ? `Dari display: ${formatRupiah(summary.totalDisplayBelumLunas)}` : undefined}
               color="#dc2626"
             />
-            <SummaryCard label="Piutang Display" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Dari Surat Pengantar display, net retur" color="#f97316" />
+            <SummaryCard label="Barang Display Beredar" value={summary ? formatRupiah(summary.totalPiutang) : '-'} sub="Dari Surat Pengantar display, net retur" color="#f97316" />
             <SummaryCard label="Sudah Terjual dari Display" value={summary ? formatRupiah(summary.totalTerjualDisplay) : '-'} color="#16a34a" />
           </div>
 
@@ -560,7 +560,7 @@ export default function KeuanganPage() {
                   <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#fff', border: '1px solid #fed7aa' }}>
                     <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: '#f97316' }}>2</div>
                     <div>
-                      <p className="text-xs font-bold" style={{ color: '#7c2d12' }}>Masuk Piutang Display</p>
+                      <p className="text-xs font-bold" style={{ color: '#7c2d12' }}>Masuk Barang Display Beredar</p>
                       <p className="text-xs" style={{ color: '#64748b' }}>Saat Surat Pengantar dibuat</p>
                     </div>
                   </div>
@@ -586,17 +586,17 @@ export default function KeuanganPage() {
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
                     <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Total Omzet Penjualan</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
-                      Total nilai penjualan langsung <em>dan</em> penjualan item display yang sudah terbeli pelanggan.
+                      Nilai invoice penjualan langsung <em>dan</em> penjualan item display sebelum PPN, setelah diskon dan retur. Pesanan tanpa invoice belum masuk omzet.
                     </p>
                   </div>
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Penjualan Belum Lunas</p>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Sisa Piutang Invoice</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
-                      Nilai transaksi penjualan offline yang statusnya belum Selesai, termasuk barang display yang sudah laku.
+                      Sisa tagihan invoice termasuk PPN jika digunakan, setelah pembayaran dan uang muka yang dialokasikan. Termasuk barang display yang sudah terjual dan memiliki invoice.
                     </p>
                   </div>
                   <div className="p-3 rounded-xl" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Piutang Display</p>
+                    <p className="text-xs font-bold mb-1" style={{ color: '#0f172a' }}>Barang Display Beredar</p>
                     <p className="text-xs" style={{ color: '#64748b' }}>
                       Nilai barang display yang sudah memiliki Surat Pengantar, belum selesai, dan masih ada sisa net setelah retur. Ini belum dihitung sebagai omzet.
                     </p>
@@ -772,7 +772,7 @@ export default function KeuanganPage() {
         <div className="space-y-5">
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <SummaryCard label="Total Nilai Proyek" value={intSummary ? formatRupiah(intSummary.totalNilaiProyek) : '-'} color="#0f172a" />
+            <SummaryCard label="Penjualan sebelum PPN" value={intSummary ? formatRupiah(intSummary.totalNilaiProyek) : '-'} color="#0f172a" />
             <SummaryCard label="Total Terbayar" value={intSummary ? formatRupiah(intSummary.totalTerbayar) : '-'} color="#16a34a" />
             <SummaryCard label="Total Outstanding" value={intSummary ? formatRupiah(intSummary.totalOutstanding) : '-'} sub="Sisa belum dibayar" color="#f97316" />
           </div>
@@ -823,7 +823,7 @@ export default function KeuanganPage() {
                         style={{ width: `${row.persen}%`, background: row.lunas ? '#16a34a' : 'linear-gradient(90deg, #FA2F2F, #f97316)' }} />
                     </div>
                     <div className="flex justify-between text-xs mt-1">
-                      <span style={{ color: '#94a3b8' }}>Total: {formatRupiah(row.grandTotal)}</span>
+                      <span style={{ color: '#94a3b8' }}>Sebelum PPN: {formatRupiah(row.grandTotal)}</span>
                       {!row.lunas && <span style={{ color: '#c2410c', fontWeight: 600 }}>Sisa: {formatRupiah(row.sisa)}</span>}
                     </div>
                   </div>

@@ -12,21 +12,17 @@ const {
 } = require('../models');
 const { authenticate } = require('../middleware/auth');
 
-const { interiorTotal } = require('../utils/interiorCosts');
+const { createInvoiceBasis, invoiceProjects } = require('../utils/invoiceBasis');
+const invoiceBasis = createInvoiceBasis(require('../models'));
 
 const router = express.Router();
 const money = (value) => Math.round(Number(value || 0));
 
-function onlineTotal(row) {
-  const data = row.toJSON ? row.toJSON() : row;
-  const subtotal = (data.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-  const refund = (data.returs || []).reduce((sum, retur) => sum + Number(retur.jumlah_refund || 0), 0);
-  return Math.max(0, money(subtotal + Number(data.ongkir || 0) + Number(data.biaya_lain || 0) - Number(data.diskon_order || 0) - refund));
-}
-
 router.get('/sales-followup', authenticate, async (req, res) => {
   try {
     const isTest = req.user.role === 'TEST' ? 1 : 0;
+    const financials = invoiceProjects(await invoiceBasis.load({ isTest }));
+    const net = (source, id) => financials.find(row => row.sumber === source && row.id === Number(id))?.net || 0;
     const baseWhere = { is_test: isTest };
     const onlineWhere = { ...baseWhere, channel: 'WEBSITE' };
     const onlineActiveWhere = {
@@ -83,7 +79,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
     ]);
 
     const offline = offlineRows.map((row) => {
-      const total = (row.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const total = net('OFFLINE', row.id);
       return {
         id: row.id,
         title: row.nama_penerima,
@@ -96,7 +92,6 @@ router.get('/sales-followup', authenticate, async (req, res) => {
     });
 
     const interior = interiorRows.map((row) => {
-      const subtotal = (row.items || []).reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
 
       return {
         id: row.id,
@@ -104,7 +99,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
         ref: row.no_po || `INT-${row.id}`,
         tanggal: row.tanggal,
         status: row.status,
-        total: interiorTotal(row, subtotal).total,
+        total: net('INTERIOR', row.id),
         href: `/dashboard/penjualan/interior/${row.id}`,
       };
     });
@@ -115,7 +110,7 @@ router.get('/sales-followup', authenticate, async (req, res) => {
       ref: row.id_pesanan,
       tanggal: row.tanggal,
       status: row.catatan?.includes('MENUNGGU_PEMBAYARAN') ? 'MENUNGGU_PEMBAYARAN' : row.status,
-      total: onlineTotal(row),
+      total: net('ONLINE', row.id),
       href: `/dashboard/penjualan/online/${row.id}`,
     });
 

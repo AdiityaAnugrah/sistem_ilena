@@ -7,6 +7,8 @@ test('Interior outstanding sums positive balances instead of offsetting other pr
   const rows = [{ ...sale(), pembayarans: [{ jumlah: 200000, tipe: 'DP' }] }, { ...sale(), id: 2 }];
   m.PenjualanInterior.findAll = async () => rows;
   m.PenjualanInterior.findAndCountAll = async () => ({ count: 2, rows });
+  m.InvoiceInterior.findAll = async () => rows.map(p => ({ id: p.id, penjualan_interior_id: p.id, tanggal: '2026-01-10', nomor_invoice: `INV-${p.id}`, penjualan: p }));
+  m.PembayaranInterior.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-01-10', jumlah: 200000, penjualan: rows[0] }];
   const res = await invoke(route('keuangan', m), '/interior');
   expect(res.summary.totalOutstanding).toBe(100000);
   expect(res.summary.totalOutstanding).toBe(res.list.reduce((n, r) => n + r.sisa, 0));
@@ -19,6 +21,8 @@ test('Display unpaid card and row both subtract payments and include invoice VAT
   m.PenjualanOfflineItem.findAll = async () => p.items;
   m.PenjualanOffline.findAll = async opts => opts.where.tipe === 'DISPLAY' ? [] : [p];
   m.PenjualanOffline.findAndCountAll = async () => ({ count: 1, rows: [display] });
+  m.Invoice.findAll = async () => [{ id: 1, penjualan_offline_id: 1, tanggal: '2026-01-10', nomor_invoice: 'INV', ppn_persen: 11, penjualan: p }];
+  m.PembayaranOffline.findAll = async () => [{ id: 1, penjualan_offline_id: 1, tanggal: '2026-01-10', jumlah: 40000, penjualan: p }];
   const res = await invoke(route('keuangan', m), '/offline', { tab: 'display' });
   expect(res.summary.totalDisplayBelumLunas).toBe(71000);
   expect(res.list[0].nilaiTerjualBelumLunas).toBe(71000);

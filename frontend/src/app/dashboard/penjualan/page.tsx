@@ -145,7 +145,7 @@ export default function SemuaPenjualanPage() {
             <ShoppingBag size={28} style={{ color: '#FA2F2F', flexShrink: 0 }} />
             <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', fontSize: { xs: 26, md: 34 }, lineHeight: 1.15 }}>Semua Penjualan</Typography>
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 15, md: 14 } }}>Total {total} transaksi tercatat dalam sistem</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: 15, md: 14 } }}>Total {total} transaksi yang sudah memiliki invoice</Typography>
         </Box>
         <Chip label="Data Terpusat" color="primary" variant="outlined" sx={{ fontWeight: 700, borderRadius: '8px', display: { xs: 'none', md: 'inline-flex' } }} />
       </Box>
@@ -336,7 +336,7 @@ export default function SemuaPenjualanPage() {
         <Box sx={{ p: { xs: 2, md: 2 }, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, bgcolor: 'rgba(248, 250, 252, 0.5)' }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} Transaksi</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total harga keseluruhan: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total invoice sebelum PPN: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>
           </Box>
           <Pagination 
             count={totalPages} 

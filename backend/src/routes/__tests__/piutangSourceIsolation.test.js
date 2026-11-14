@@ -1,5 +1,5 @@
 jest.mock('../../models', () => {
-  const names = ['Invoice', 'PembayaranOffline', 'ReturOffline', 'SuratPengantar', 'PenjualanOffline', 'MutasiDisplay', 'ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior', 'ReturSJInterior', 'SuratJalanInterior'];
+  const names = ['Invoice', 'PembayaranOffline', 'ReturOffline', 'SuratPengantar', 'PenjualanOffline', 'MutasiDisplay', 'ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior', 'ReturSJInterior', 'SuratJalanInterior', 'InvoiceOnline', 'PembayaranOnline', 'ReturOnline'];
   return Object.fromEntries(names.map(name => [name, { findAll: jest.fn() }]));
 });
 jest.mock('../../middleware/auth', () => ({
@@ -41,7 +41,8 @@ describe('isolasi sumber laporan piutang', () => {
   test('tanpa filter sumber tetap membaca kedua sumber', async () => {
     const res = await request(app).get('/piutang-usaha/rekap');
     expect(res.status).toBe(200);
-    [...offline, ...interior].forEach(name => expect(models[name].findAll).toHaveBeenCalledTimes(1));
+    ['Invoice', 'PembayaranOffline', 'ReturOffline', ...interior, 'InvoiceOnline', 'PembayaranOnline', 'ReturOnline'].forEach(name => expect(models[name].findAll).toHaveBeenCalledTimes(1));
+    ['SuratPengantar', 'PenjualanOffline', 'MutasiDisplay'].forEach(name => expect(models[name].findAll).not.toHaveBeenCalled());
     expect(models.ReturSJInterior.findAll).not.toHaveBeenCalled();
   });
   test.each([['ADMIN', 0], ['TEST', 1]])('pemisahan data role %s tetap dipertahankan', async (role, isTest) => {

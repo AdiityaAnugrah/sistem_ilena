@@ -36,6 +36,7 @@ test.each([false, true])('logistics return never creates customer credit (billed
 test('logistics return does not discount project summary or row', async () => {
   const m = models();
   const p = { ...sale, pembayarans: [{ jumlah: 100000 }] };
+  m.InvoiceInterior.findAll = async () => [invoice({ penjualan: p })];
   m.PenjualanInterior.findAll = async () => [p];
   m.PenjualanInterior.findAndCountAll = async () => ({ count: 1, rows: [p] });
   m.ReturSJInterior.findAll = async () => [{ penjualan_interior_item_id: 1, total_retur: 5 }];

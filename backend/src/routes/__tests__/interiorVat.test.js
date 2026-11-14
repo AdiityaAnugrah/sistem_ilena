@@ -54,9 +54,11 @@ test('physical SJ return leaves the rounded project value unchanged', async () =
   fixture.models.sequelize.col = name => name;
   fixture.models.PenjualanInterior.findAll = async () => [sale];
   fixture.models.PenjualanInterior.findAndCountAll = async () => ({ count: 1, rows: [sale] });
+  fixture.models.InvoiceInterior.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-05', nomor_invoice: 'INV', penjualan: sale }];
   fixture.models.ReturSJInterior.findAll = async () => [{ penjualan_interior_item_id: 1, total_retur: 1 }];
   const result = await fixture.call('get', '/interior');
   expect(result.status).toBe(200);
-  expect(result.body.summary.totalNilaiProyek).toBe(33318);
-  expect(result.body.list[0].grandTotal).toBe(33318);
+  expect(result.body.summary.totalNilaiProyek).toBe(30015);
+  expect(result.body.list[0].grandTotal).toBe(30015);
+  expect(result.body.list[0].total_tagihan).toBe(33318);
 });

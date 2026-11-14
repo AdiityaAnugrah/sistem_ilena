@@ -3,6 +3,9 @@ const { sequelize } = require('../models');
 const { authenticate } = require('../middleware/auth');
 const { QueryTypes } = require('sequelize');
 
+const { createInvoiceBasis, invoiceProjects } = require('../utils/invoiceBasis');
+const invoiceBasis = createInvoiceBasis(require('../models'));
+const { financeDateRangeError } = require('../utils/financeDateRange');
 const router = express.Router();
 const TXT_COLLATION = 'utf8mb4_unicode_ci';
 const txt = (expr) => `CONVERT(${expr} USING utf8mb4) COLLATE ${TXT_COLLATION}`;
@@ -15,6 +18,8 @@ router.get('/semua', authenticate, async (req, res) => {
       page = '1', limit = '20',
     } = req.query;
 
+    const dateError = financeDateRangeError({ from: tanggal_dari, to: tanggal_sampai });
+    if (dateError) return res.status(400).json({ message: dateError });
     if (sumber && !['OFFLINE', 'ONLINE', 'INTERIOR'].includes(String(sumber))) {
       return res.status(400).json({ message: 'Parameter sumber tidak valid. Gunakan OFFLINE, ONLINE, atau INTERIOR.' });
     }
@@ -27,8 +32,8 @@ router.get('/semua', authenticate, async (req, res) => {
     const isTest = req.user.role === 'TEST' ? 1 : 0;
 
     // Build WHERE clauses for each branch
-    const offlineWhere = ['tipe = ?', 'is_test = ?'];
-    const offlineReplacements = ['PENJUALAN', isTest];
+    const offlineWhere = ['is_test = ?'];
+    const offlineReplacements = [isTest];
 
     const interiorWhere = ['is_test = ?'];
     const interiorReplacements = [isTest];
@@ -79,26 +84,22 @@ router.get('/semua', authenticate, async (req, res) => {
       onlineReplacements.push(faktur);
     }
 
-    if (tanggal_dari) {
-      offlineWhere.push('tanggal >= ?');
-      offlineReplacements.push(tanggal_dari);
+    const invoiceData = await invoiceBasis.load({ source: sumber || '', isTest, to: tanggal_sampai, scope: { faktur } });
+    const invoiceRows = invoiceProjects(invoiceData, { from: tanggal_dari, to: tanggal_sampai }).filter(row => {
+      const sale = row.sale || {};
+      if (status && (row.sumber === 'ONLINE' ? (status === 'COMPLETED' ? sale.status !== 'SELESAI' : status === 'ACTIVE' ? !['DIPROSES', 'DIKIRIM', 'RETUR'].includes(sale.status) : true) : sale.status !== status)) return false;
+      if (search && ![sale.nama_customer, sale.nama_penerima, sale.nama_pelanggan, sale.no_po, sale.id_pesanan, sale.no_hp].filter(Boolean).join(' ').toLowerCase().includes(String(search).toLowerCase())) return false;
+      return true;
+    });
+    const totalInvoiceNet = invoiceRows.reduce((sum, row) => sum + row.net, 0);
 
-      interiorWhere.push('tanggal >= ?');
-      interiorReplacements.push(tanggal_dari);
-
-      onlineWhere.push('tanggal >= ?');
-      onlineReplacements.push(tanggal_dari);
-    }
-
-    if (tanggal_sampai) {
-      offlineWhere.push('tanggal <= ?');
-      offlineReplacements.push(tanggal_sampai);
-
-      interiorWhere.push('tanggal <= ?');
-      interiorReplacements.push(tanggal_sampai);
-
-      onlineWhere.push('tanggal <= ?');
-      onlineReplacements.push(tanggal_sampai);
+    // Restrict the registry to projects represented by invoice/credit events in
+    // the selected invoice period; an unbilled draft remains in its source module.
+    for (const [source, clauses, replacements] of [
+      ['OFFLINE', offlineWhere, offlineReplacements], ['INTERIOR', interiorWhere, interiorReplacements], ['ONLINE', onlineWhere, onlineReplacements],
+    ]) {
+      const ids = invoiceRows.filter(row => row.sumber === source).map(row => row.id);
+      clauses.push('id IN (?)'); replacements.push(ids.length ? ids : [0]);
     }
 
     const offlineWhereClause = offlineWhere.length > 0 ? `WHERE ${offlineWhere.join(' AND ')}` : '';
@@ -200,71 +201,21 @@ router.get('/semua', authenticate, async (req, res) => {
     const countUnionSQL = countParts.join(' UNION ALL ');
     const countSQL = `SELECT COUNT(*) AS total FROM (${countUnionSQL}) AS combined`;
 
-    const summaryParts = [];
-    const summaryReplacements = [];
-
-    if (includeOffline) {
-      summaryParts.push(`
-        SELECT COALESCE(SUM((
-          SELECT COALESCE(SUM(subtotal), 0)
-          FROM penjualan_offline_items
-          WHERE penjualan_offline_id = po.id
-        )), 0) AS totalNilai
-        FROM penjualan_offline po
-        ${offlineWhereClause}
-      `);
-      summaryReplacements.push(...offlineReplacements);
-    }
-
-    if (includeInterior) {
-      summaryParts.push(`
-        SELECT COALESCE(SUM((
-          SELECT COALESCE(SUM(CASE
-            WHEN pi.pakai_ppn = 1 AND pi.ppn_persen IS NOT NULL
-            THEN ROUND(harga_satuan * (1 + CAST(CAST(pi.ppn_persen AS CHAR) AS DECIMAL(5,2)) / 100), 0) * qty
-            ELSE subtotal END), 0)
-          FROM penjualan_interior_items
-          WHERE penjualan_interior_id = pi.id
-        ) + COALESCE(pi.biaya_assembly, 0) + COALESCE(pi.biaya_kirim, 0)), 0) AS totalNilai
-        FROM penjualan_interior pi
-        ${interiorWhereClause}
-      `);
-      summaryReplacements.push(...interiorReplacements);
-    }
-
-    if (includeOnline) {
-      summaryParts.push(`
-        SELECT COALESCE(SUM((
-          SELECT COALESCE(SUM(subtotal), 0)
-          FROM penjualan_online_items
-          WHERE penjualan_online_id = po2.id
-        ) + COALESCE(po2.ongkir, 0) + COALESCE(po2.biaya_lain, 0) - COALESCE(po2.diskon_order, 0)), 0) AS totalNilai
-        FROM penjualan_online po2
-        ${onlineWhereClause}
-      `);
-      summaryReplacements.push(...onlineReplacements);
-    }
-
-    const summaryUnionSQL = summaryParts.join(' UNION ALL ');
-    const summarySQL = `SELECT COALESCE(SUM(totalNilai), 0) AS totalNilai FROM (${summaryUnionSQL}) AS summary_combined`;
-
-    // Execute both queries
-    const [rows, countResult, summaryResult] = await Promise.all([
+    const [rows, countResult] = await Promise.all([
       sequelize.query(mainSQL, { replacements: mainReplacements, type: QueryTypes.SELECT }),
       sequelize.query(countSQL, { replacements: countReplacements, type: QueryTypes.SELECT }),
-      sequelize.query(summarySQL, { replacements: summaryReplacements, type: QueryTypes.SELECT }),
     ]);
 
     const total = parseInt(countResult[0].total, 10);
     const totalPages = Math.ceil(total / limitNum);
 
     return res.json({
-      data: rows,
+      data: rows.map(row => ({ ...row, tanggal: invoiceRows.find(invoice => invoice.sumber === row.sumber && invoice.id === row.id)?.tanggal || row.tanggal })),
       total,
       page: pageNum,
       totalPages,
       summary: {
-        totalNilai: Math.round(Number(summaryResult[0]?.totalNilai || 0)),
+        totalNilai: Math.round(totalInvoiceNet),
       },
     });
 

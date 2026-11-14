@@ -1,8 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const {
-  PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, ReturOffline,
-  SuratPengantar, MutasiDisplay, MutasiDisplayItem,
   PenjualanInterior, PenjualanInteriorItem, PembayaranInterior, InvoiceInterior, ProformaInvoice,
   SuratJalanInterior, SuratJalanInteriorItem,
 } = require('../models');
@@ -10,44 +8,18 @@ const { financeDateRangeError } = require('../utils/financeDateRange');
 const { authenticate } = require('../middleware/auth');
 
 const { buildEffectiveInteriorInvoices } = require('../utils/interiorReceivables');
-const { searchInteriorProjects } = require('../utils/interiorLedgerScope');
 
 
+const { createInvoiceBasis } = require('../utils/invoiceBasis');
+const invoiceBasis = createInvoiceBasis(require('../models'));
 const router = express.Router();
 const money = (v) => Math.round(Number(v || 0));
 
 const customerKey = (name) => String(name || 'Tanpa Nama').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const itemSubtotal = (item) => money(Number(item?.subtotal || 0));
-const itemUnitValue = (item) => {
-  const qty = Number(item?.qty || 0);
-  if (qty <= 0) return 0;
-  return Number(item?.subtotal || 0) / qty;
-};
-
-const offlineInvoiceTotal = (penjualan, invoice) => {
-  const subtotal = money((penjualan.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
-  const ppn = money(subtotal * Number(invoice.ppn_persen || 0) / 100);
-  return { subtotal, ppn, total: money(subtotal + ppn) };
-};
-
-const offlineInvoicePpn = (penjualan) => {
-  const invoices = [...(penjualan?.invoices || [])].sort((a, b) =>
-    String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id)
-  );
-  if (!invoices.length) return 0;
-  return Number(invoices[invoices.length - 1]?.ppn_persen || 0);
-};
-
-const offlineReturTotal = (retur) => {
-  const base = money(itemUnitValue(retur.item) * Number(retur.qty_retur || 0));
-  const ppnPersen = offlineInvoicePpn(retur.penjualan);
-  const ppn = money(base * ppnPersen / 100);
-  return money(base + ppn);
-};
-
 const { createInteriorFinance } = require('../utils/interiorFinance');
-const { invoiceInteriorAmount, prepareInvoiceAmounts, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
+const { prepareInvoiceAmounts, buildInteriorAdvanceState } = createInteriorFinance({ SuratJalanInterior, SuratJalanInteriorItem, PenjualanInteriorItem });
 
 function inPeriod(date, from, to) {
   if (from && date < from) return false;
@@ -95,290 +67,14 @@ function offlineDisplaySpTotal(displayPenjualan, soldPenjualans = [], mutationIt
 }
 
 async function buildPiutangEntries(isTest, source = '', to = '', scope = {}) {
-  // Query only the selected ledger; unrelated modules must not block this report.
-  const documentWhere = to ? { tanggal: { [Op.lte]: to } } : {};
-  const includeOffline = source !== 'INTERIOR';
-  const includeInterior = source !== 'OFFLINE';
-  const interiorWhere = { is_test: isTest, ...(scope.faktur ? { faktur: scope.faktur } : {}) };
-  if (includeInterior && scope.customer_key) {
-    const projects = await PenjualanInterior.findAll({ where: interiorWhere, attributes: ['id', 'nama_customer', 'faktur'] });
-    interiorWhere.id = { [Op.in]: projects.filter(project => {
-      const key = customerKey(project.nama_customer);
-      return scope.customer_key === key || scope.customer_key === `INTERIOR:${project.faktur || 'NON_FAKTUR'}:${key}`;
-    }).map(project => Number(project.id)) };
-  } else if (includeInterior && scope.search) {
-    const ids = await searchInteriorProjects({ PenjualanInterior, InvoiceInterior, PembayaranInterior, ProformaInvoice }, interiorWhere, documentWhere, scope.search);
-    interiorWhere.id = { [Op.in]: ids };
-  }
-  const entries = [];
-  const push = (entry) => {
-    const customer = entry.customer || 'Tanpa Nama';
-    entries.push({
-      ...entry,
-      customer,
-      customer_key: customerKey(customer),
-      faktur: entry.faktur || 'NON_FAKTUR',
-      piutang_key: `${entry.sumber}:${entry.faktur || 'NON_FAKTUR'}:${customerKey(customer)}`,
-      debit: money(entry.debit),
-      kredit: money(entry.kredit),
-      nilai: money(Number(entry.debit || 0) - Number(entry.kredit || 0)),
-    });
-  };
-
-  const [offlineInvoices, offlinePayments, offlineReturs, offlineDisplaySps, offlineDisplaySales, displayMutations, interiorInvoices, interiorPayments, interiorSubInvoices] = await Promise.all([
-    includeOffline ? Invoice.findAll({
-      where: documentWhere,
-      include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: PenjualanOfflineItem, as: 'items' }] }],
-    }) : [],
-    includeOffline ? PembayaranOffline.findAll({
-      where: documentWhere,
-      include: [{ model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest } }],
-    }) : [],
-    includeOffline ? ReturOffline.findAll({
-      where: documentWhere,
-      include: [
-        { model: PenjualanOffline, as: 'penjualan', where: { is_test: isTest }, include: [{ model: Invoice, as: 'invoices' }] },
-        { model: PenjualanOfflineItem, as: 'item' },
-      ],
-    }) : [],
-    includeOffline ? SuratPengantar.findAll({
-      where: documentWhere,
-      include: [{
-        model: PenjualanOffline,
-        as: 'penjualan',
-        where: { is_test: isTest, tipe: 'DISPLAY' },
-        include: [{ model: PenjualanOfflineItem, as: 'items' }],
-      }],
-    }) : [],
-    includeOffline ? PenjualanOffline.findAll({
-      where: { is_test: isTest, tipe: 'PENJUALAN', display_source_id: { [Op.not]: null } },
-      include: [{ model: PenjualanOfflineItem, as: 'items' }],
-    }) : [],
-    includeOffline ? MutasiDisplay.findAll({
-      include: [
-        { model: MutasiDisplayItem, as: 'items' },
-        { model: PenjualanOffline, as: 'displayAsal', where: { is_test: isTest }, required: true },
-        { model: PenjualanOffline, as: 'displayTujuan', where: { is_test: isTest }, required: true },
-      ],
-    }) : [],
-    includeInterior ? InvoiceInterior.findAll({
-      where: documentWhere,
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
-    }) : [],
-    includeInterior ? PembayaranInterior.findAll({
-      where: documentWhere,
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere }],
-    }) : [],
-    includeInterior ? ProformaInvoice.findAll({
-      where: { ...documentWhere, nomor_sub_invoice: { [Op.ne]: null } },
-      include: [{ model: PenjualanInterior, as: 'penjualan', where: interiorWhere, include: [{ model: PenjualanInteriorItem, as: 'items' }] }],
-    }) : [],
-  ]);
-
-  const displaySalesBySource = new Map();
-  for (const sale of offlineDisplaySales || []) {
-    const sourceId = Number(sale.display_source_id);
-    if (!sourceId) continue;
-    if (!displaySalesBySource.has(sourceId)) displaySalesBySource.set(sourceId, []);
-    displaySalesBySource.get(sourceId).push(sale);
-  }
-  const mutationItemsBySource = new Map();
-  for (const mutation of displayMutations || []) {
-    const sourceId = Number(mutation.display_asal_id);
-    if (!sourceId) continue;
-    if (!mutationItemsBySource.has(sourceId)) mutationItemsBySource.set(sourceId, []);
-    mutationItemsBySource.get(sourceId).push(...(mutation.items || []));
-  }
-  const displayById = new Map();
-
-  for (const sp of selectLatestDisplaySps(offlineDisplaySps, to)) {
-    const display = sp.penjualan;
-    const displayId = Number(sp.penjualan_offline_id || display?.id);
-    if (!displayId) continue;
-    displayById.set(displayId, display);
-    const amount = offlineDisplaySpTotal(display, displaySalesBySource.get(displayId) || [], mutationItemsBySource.get(displayId) || []);
-    if (amount <= 0) continue;
-    push({
-      id: `OFFLINE-DISPLAY-SP-${sp.id}`,
-      tanggal: sp.tanggal,
-      sumber: 'OFFLINE',
-      jenis: 'SURAT_PENGANTAR_DISPLAY',
-      referensi: sp.nomor_sp,
-      customer: display?.nama_penerima,
-      faktur: display?.faktur,
-      no_po: display?.no_po,
-      keterangan: `Surat Pengantar Display ${sp.nomor_sp}`,
-      debit: amount,
-      kredit: 0,
-      detail_url: `/dashboard/penjualan/offline/${displayId}`,
-    });
-  }
-
-  for (const mutation of displayMutations || []) {
-    const amount = money((mutation.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
-    if (amount <= 0) continue;
-    push({
-      id: `OFFLINE-DISPLAY-MUTASI-KELUAR-${mutation.id}`,
-      tanggal: mutation.tanggal,
-      sumber: 'OFFLINE',
-      jenis: 'MUTASI_DISPLAY_KELUAR',
-      referensi: mutation.nomor_mutasi,
-      customer: mutation.displayAsal?.nama_penerima,
-      faktur: mutation.displayAsal?.faktur,
-      no_po: mutation.displayAsal?.no_po,
-      keterangan: `Mutasi Display keluar ke ${mutation.displayTujuan?.nama_penerima || 'tujuan'} (${mutation.nomor_mutasi})`,
-      debit: 0,
-      kredit: amount,
-      detail_url: `/dashboard/penjualan/offline/${mutation.display_asal_id}`,
-    });
-  }
-
-  for (const inv of selectLatestOfflineInvoices(offlineInvoices, to)) {
-    const amount = offlineInvoiceTotal(inv.penjualan, inv);
-    if (amount.total <= 0) continue;
-    push({
-      id: `OFFLINE-INVOICE-${inv.id}`,
-      tanggal: inv.tanggal,
-      sumber: 'OFFLINE',
-      jenis: 'INVOICE',
-      referensi: inv.nomor_invoice,
-      customer: inv.penjualan?.nama_penerima,
-      faktur: inv.penjualan?.faktur,
-      no_po: inv.penjualan?.no_po,
-      keterangan: `Invoice Offline ${inv.nomor_invoice}`,
-      debit: amount.total,
-      kredit: 0,
-      detail_url: `/dashboard/penjualan/offline/${inv.penjualan_offline_id}`,
-    });
-
-    const displaySourceId = Number(inv.penjualan?.display_source_id || 0);
-    if (displaySourceId) {
-      const display = displayById.get(displaySourceId);
-      const transferAmount = money((inv.penjualan?.items || []).reduce((sum, item) => sum + itemSubtotal(item), 0));
-      if (transferAmount > 0) {
-        push({
-          id: `OFFLINE-DISPLAY-SP-TRANSFER-INVOICE-${inv.id}`,
-          tanggal: inv.tanggal,
-          sumber: 'OFFLINE',
-          jenis: 'DISPLAY_DIPINDAH_INVOICE',
-          referensi: inv.nomor_invoice,
-          customer: display?.nama_penerima || inv.penjualan?.nama_penerima,
-          faktur: display?.faktur || inv.penjualan?.faktur,
-          no_po: display?.no_po || inv.penjualan?.no_po,
-          keterangan: `Nilai display dipindah ke Invoice Offline ${inv.nomor_invoice}`,
-          debit: 0,
-          kredit: transferAmount,
-          detail_url: `/dashboard/penjualan/offline/${displaySourceId}`,
-        });
-      }
-    }
-  }
-
-  for (const p of offlinePayments) {
-    const amount = money(p.jumlah);
-    if (amount <= 0) continue;
-    push({
-      id: `OFFLINE-PEMBAYARAN-${p.id}`,
-      tanggal: p.tanggal,
-      sumber: 'OFFLINE',
-      jenis: 'PEMBAYARAN',
-      referensi: p.metode,
-      customer: p.penjualan?.nama_penerima,
-      faktur: p.penjualan?.faktur,
-      no_po: p.penjualan?.no_po,
-      keterangan: `Pembayaran Offline ${p.metode}${p.catatan ? ` - ${p.catatan}` : ''}`,
-      debit: 0,
-      kredit: amount,
-      bukti_endpoint: p.bukti_bayar ? `/penjualan-offline/${p.penjualan_offline_id}/pembayaran/${p.id}/bukti` : null,
-      detail_url: `/dashboard/penjualan/offline/${p.penjualan_offline_id}`,
-    });
-  }
-
-  for (const r of offlineReturs) {
-    const amount = offlineReturTotal(r);
-    if (amount <= 0) continue;
-    push({
-      id: `OFFLINE-RETUR-${r.id}`,
-      tanggal: r.tanggal,
-      sumber: 'OFFLINE',
-      jenis: 'RETUR',
-      referensi: `Retur #${r.id}`,
-      customer: r.penjualan?.nama_penerima,
-      faktur: r.penjualan?.faktur,
-      no_po: r.penjualan?.no_po,
-      keterangan: `Retur Offline${r.catatan ? ` - ${r.catatan}` : ''}`,
-      debit: 0,
-      kredit: amount,
-      detail_url: `/dashboard/penjualan/offline/${r.penjualan_offline_id}`,
-    });
-  }
-
-  const getInvoiceAmount = await prepareInvoiceAmounts(interiorInvoices);
-  const effectiveInteriorInvoices = await buildEffectiveInteriorInvoices(interiorInvoices, interiorSubInvoices, getInvoiceAmount);
-  const interiorAdvanceState = await buildInteriorAdvanceState(effectiveInteriorInvoices, interiorPayments);
-
-  for (const inv of effectiveInteriorInvoices) {
-    const amount = await invoiceInteriorAmount(inv);
-    if (amount.total <= 0) continue;
-    push({
-      id: `INTERIOR-INVOICE-${inv.ledgerKey ?? inv.id}`,
-      tanggal: inv.tanggal,
-      sumber: 'INTERIOR',
-      jenis: 'INVOICE',
-      referensi: inv.nomor_invoice,
-      customer: inv.penjualan?.nama_customer,
-      faktur: inv.penjualan?.faktur,
-      no_po: inv.penjualan?.no_po,
-      keterangan: `${inv.documentType === 'SUB_INVOICE' ? 'Sub-Invoice' : 'Invoice'} Interior ${inv.nomor_invoice}`,
-      debit: amount.total,
-      kredit: 0,
-      detail_url: `/dashboard/penjualan/interior/${inv.penjualan_interior_id}`,
-    });
-
-    const uangMukaTerpakai = interiorAdvanceState.usageByInvoice.get(inv.ledgerKey ?? Number(inv.id)) || 0;
-    if (uangMukaTerpakai > 0) {
-      push({
-        id: `INTERIOR-UANG-MUKA-TERPAKAI-${inv.ledgerKey ?? inv.id}`,
-        tanggal: inv.tanggal,
-        sumber: 'INTERIOR',
-        jenis: 'UANG_MUKA_TERPAKAI',
-        referensi: inv.nomor_invoice,
-        customer: inv.penjualan?.nama_customer,
-        faktur: inv.penjualan?.faktur,
-        no_po: inv.penjualan?.no_po,
-        keterangan: `Uang muka dipakai untuk Invoice Interior ${inv.nomor_invoice}`,
-        debit: 0,
-        kredit: uangMukaTerpakai,
-        detail_url: `/dashboard/penjualan/interior/${inv.penjualan_interior_id}`,
-      });
-    }
-  }
-
-  for (const p of interiorPayments) {
-    const amount = interiorAdvanceState.normalPaymentAmounts.has(Number(p.id))
-      ? interiorAdvanceState.normalPaymentAmounts.get(Number(p.id))
-      : money(p.jumlah);
-    if (amount <= 0) continue;
-    push({
-      id: `INTERIOR-PEMBAYARAN-${p.id}`,
-      tanggal: p.tanggal,
-      sumber: 'INTERIOR',
-      jenis: 'PEMBAYARAN',
-      referensi: p.tipe,
-      customer: p.penjualan?.nama_customer,
-      faktur: p.penjualan?.faktur,
-      no_po: p.penjualan?.no_po,
-      keterangan: `Pembayaran Interior ${p.tipe}${p.catatan ? ` - ${p.catatan}` : ''}`,
-      debit: 0,
-      kredit: amount,
-      bukti_endpoint: p.bukti_bayar ? `/penjualan-interior/${p.penjualan_interior_id}/pembayaran/${p.id}/bukti` : null,
-      detail_url: `/dashboard/penjualan/interior/${p.penjualan_interior_id}`,
-    });
-  }
-
-  // Retur SJ is a physical goods movement, not an approved financial credit.
-
-  return entries.sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || String(a.id).localeCompare(String(b.id)));
+  const data = await invoiceBasis.load({ source, isTest, to, scope });
+  return data.entries.map(entry => ({
+    ...entry, customer_key: customerKey(entry.customer),
+    piutang_key: `${entry.sumber}:${entry.faktur}:${customerKey(entry.customer)}`,
+    debit: money(entry.debit), kredit: money(entry.kredit), nilai: money(entry.debit - entry.kredit),
+    // Do not serialize ORM parents or internal allocation state in public reports.
+    sale: undefined, raw: undefined,
+  }));
 }
 
 router.get('/rekap', authenticate, async (req, res) => {
@@ -386,7 +82,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     const dateError = financeDateRangeError(req.query);
     if (dateError) return res.status(400).json({ message: dateError });
     const { from, to, search, sumber, faktur, page = 1, limit = 25, all } = req.query;
-    const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
+    const sourceFilter = ['OFFLINE', 'INTERIOR', 'ONLINE'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
     let entries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to, { faktur: fakturFilter, search }))
       .filter(entry => entryMatches(entry, { sumber: sourceFilter, faktur: fakturFilter }));
@@ -446,6 +142,7 @@ router.get('/rekap', authenticate, async (req, res) => {
     const breakdown = {
       OFFLINE: { total: emptySummary(), FAKTUR: emptySummary(), NON_FAKTUR: emptySummary() },
       INTERIOR: { total: emptySummary(), FAKTUR: emptySummary(), NON_FAKTUR: emptySummary() },
+      ONLINE: { total: emptySummary(), FAKTUR: emptySummary(), NON_FAKTUR: emptySummary() },
     };
     allRows.forEach(row => {
       if (breakdown[row.sumber]) {
@@ -475,7 +172,7 @@ router.get('/detail', authenticate, async (req, res) => {
     const dateError = financeDateRangeError(req.query);
     if (dateError) return res.status(400).json({ message: dateError });
     const { from, to, search, sumber, faktur, customer_key, page = 1, limit = 100, all } = req.query;
-    const sourceFilter = ['OFFLINE', 'INTERIOR'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
+    const sourceFilter = ['OFFLINE', 'INTERIOR', 'ONLINE'].includes(String(sumber || '').toUpperCase()) ? String(sumber).toUpperCase() : '';
     const fakturFilter = ['FAKTUR', 'NON_FAKTUR'].includes(String(faktur || '').toUpperCase()) ? String(faktur).toUpperCase() : '';
     let allEntries = (await buildPiutangEntries(req.user.role === 'TEST' ? 1 : 0, sourceFilter, to, { faktur: fakturFilter, customer_key, search }))
       .filter(entry => entryMatches(entry, { customer_key, sumber: sourceFilter, faktur: fakturFilter }));

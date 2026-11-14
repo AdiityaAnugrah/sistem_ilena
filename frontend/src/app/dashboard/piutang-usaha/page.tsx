@@ -26,7 +26,7 @@ type FakturFilter = 'ALL' | 'FAKTUR' | 'NON_FAKTUR';
 interface RekapRow {
   customer_key: string;
   nama_key?: string;
-  sumber: 'OFFLINE' | 'INTERIOR';
+  sumber: 'OFFLINE' | 'INTERIOR' | 'ONLINE';
   faktur: 'FAKTUR' | 'NON_FAKTUR';
   nama_customer: string;
   saldo_awal: number;
@@ -307,7 +307,7 @@ function PiutangUsahaContent() {
           ...exportRekapRows.map((r: RekapRow, i: number) => [i + 1, r.sumber, r.faktur, r.nama_customer, r.saldo_awal, r.debit, r.kredit, r.saldo_akhir]),
         ]
       : [
-          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Debit Invoice/SP', 'Kredit', 'Sisa Berjalan'],
+          ['No', 'Tanggal', 'Sumber', 'Faktur', 'Customer', 'Keterangan', 'Debit Invoice', 'Kredit', 'Sisa Berjalan'],
           ...exportDetailRows.map((r: DetailRow, i: number) => [i + 1, r.tanggal || '', r.sumber, r.faktur || '', r.customer, r.keterangan, r.debit, r.kredit, r.saldo]),
         ];
       const csv = '\uFEFF' + rows.map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -335,7 +335,7 @@ function PiutangUsahaContent() {
       ? 'Piutang Interior'
       : 'Uang Muka Interior';
   const pageDescription = viewPage === 'offline'
-    ? 'Tagihan customer dari Invoice Penjualan Offline dan SP Display. Gunakan tanggal Dari untuk melihat Saldo Awal.'
+    ? 'Sisa tagihan customer dari Invoice Penjualan Offline, termasuk PPN jika digunakan. Gunakan tanggal Dari untuk melihat Saldo Awal.'
     : viewPage === 'interior'
       ? 'Tagihan customer dari invoice Penjualan Interior. DP sebelum invoice sudah dipisah ke Uang Muka Interior.'
       : 'DP atau pembayaran Interior yang masuk sebelum invoice. Klik proyek untuk melihat riwayat masuk dan pemakaiannya.';

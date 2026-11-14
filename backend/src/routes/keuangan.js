@@ -1,25 +1,14 @@
 const express = require('express');
 const { Op } = require('sequelize');
-const {
-  PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, SuratJalan, Invoice, SuratPengantar,
-  PenjualanInterior, PenjualanInteriorItem, PembayaranInterior,
-  PenjualanOnline, PenjualanOnlineItem, ReturOnline,
-  ReturOffline,
-  sequelize,
-} = require('../models');
+const { PenjualanOffline, PenjualanOfflineItem, PembayaranOffline, Invoice, SuratPengantar, ReturOffline, sequelize } = require('../models');
 const { financeDateRangeError } = require('../utils/financeDateRange');
 const { authenticate } = require('../middleware/auth');
 
-const { interiorTotal } = require('../utils/interiorCosts');
-
+const { createInvoiceBasis, invoiceProjects } = require('../utils/invoiceBasis');
+const invoiceBasis = createInvoiceBasis(require('../models'));
 const router = express.Router();
 
 const money = (value) => Math.round(Number(value || 0));
-function offlineRemaining(sale, returns) {
-  const base = money(sumItemsNetAfterRetur(sale.items || [], returns));
-  const latest = [...(sale.invoices || [])].sort((a, b) => String(a.tanggal).localeCompare(String(b.tanggal)) || Number(a.id) - Number(b.id)).at(-1);
-  return Math.max(0, base + money(base * Number(latest?.ppn_persen || 0) / 100) - sumPayments(sale.pembayarans || []));
-}
 const itemNetSubtotal = (item, returQty = 0) => {
   const qty = Number(item.qty || 0);
   const subtotal = Number(item.subtotal || 0);
@@ -27,11 +16,6 @@ const itemNetSubtotal = (item, returQty = 0) => {
   const unitPrice = subtotal / qty;
   return Math.max(0, subtotal - (Number(returQty || 0) * unitPrice));
 };
-const sumItemsNetAfterRetur = (items = [], returQtyMap = {}) =>
-  items.reduce((sum, item) => sum + itemNetSubtotal(item, returQtyMap[item.id] || 0), 0);
-const sumPayments = (payments = []) => money(payments.reduce((sum, p) => sum + Number(p.jumlah || 0), 0));
-
-
 const getReturQtyMap = async (itemIds = []) => {
   const ids = [...new Set(itemIds.filter(Boolean).map(Number))];
   if (ids.length === 0) return {};
@@ -50,28 +34,6 @@ const getReturQtyMap = async (itemIds = []) => {
   }, {});
 };
 
-const sumOfflineItemsNetByPenjualanWhere = async (penjualanWhere) => {
-  const items = await PenjualanOfflineItem.findAll({
-    include: [{
-      model: PenjualanOffline, as: 'penjualan',
-      where: penjualanWhere,
-      attributes: [],
-      required: true,
-    }],
-    attributes: ['id', 'qty', 'subtotal'],
-  });
-  const returQtyMap = await getReturQtyMap(items.map(i => i.id));
-  return money(sumItemsNetAfterRetur(items, returQtyMap));
-};
-
-const getOfflineProgress = (penjualan) => {
-  if (penjualan.status === 'COMPLETED') return { label: 'Lunas / Selesai', level: 100 };
-  if (penjualan.invoices?.length > 0) return { label: 'Invoice Dibuat', level: 75 };
-  if (penjualan.suratJalans?.length > 0) return { label: 'Surat Jalan Dibuat', level: 50 };
-  if (penjualan.status === 'ACTIVE') return { label: 'Aktif / Belum Lunas', level: 25 };
-  return { label: 'Draft', level: 10 };
-};
-
 // GET /api/keuangan/offline
 router.get('/offline', authenticate, async (req, res) => {
   try {
@@ -87,24 +49,12 @@ router.get('/offline', authenticate, async (req, res) => {
     if (from) dateWhere[Op.gte] = from;
     if (to) dateWhere[Op.lte] = to;
 
-    // ── Summary cards (tidak terpengaruh pagination/tab) ─────────────────────
+    const invoiceData = await invoiceBasis.load({ source: 'OFFLINE', isTest, to });
+    const invoiced = invoiceProjects(invoiceData, { source: 'OFFLINE', from, to });
+    const totalOmzet = money(invoiced.reduce((sum, row) => sum + row.net, 0));
+    const totalBelumLunas = money(invoiced.filter(row => row.due > 0).reduce((sum, row) => sum + row.due, 0));
 
-    // Total omzet penjualan langsung — NET setelah retur
-    const totalOmzet = await sumOfflineItemsNetByPenjualanWhere({
-      tipe: 'PENJUALAN',
-      is_test: isTest,
-      ...(from || to ? { tanggal: dateWhere } : {}),
-    });
-
-    // Total penjualan offline yang belum ditandai selesai/lunas — NET setelah retur
-    const totalBelumLunas = await sumOfflineItemsNetByPenjualanWhere({
-      tipe: 'PENJUALAN',
-      status: { [Op.ne]: 'COMPLETED' },
-      is_test: isTest,
-      ...(from || to ? { tanggal: dateWhere } : {}),
-    });
-
-    // Piutang Display berasal dari DISPLAY yang sudah dibuat Surat Pengantar.
+    // Barang Display beredar tetap dilaporkan sebagai inventori, bukan piutang invoice.
     // Date filter untuk angka ini mengikuti tanggal Surat Pengantar, bukan tanggal input display.
     const displayBerSpAktif = await PenjualanOffline.findAll({
       where: {
@@ -136,67 +86,23 @@ router.get('/offline', authenticate, async (req, res) => {
     }
     totalPiutang = money(totalPiutang);
 
-    // Total sudah terjual dari display — NET setelah retur
-    const totalTerjualDisplay = await sumOfflineItemsNetByPenjualanWhere({
-      tipe: 'PENJUALAN',
-      is_test: isTest,
-      display_source_id: { [Op.not]: null },
-      ...(from || to ? { tanggal: dateWhere } : {}),
-    });
-
-    const displaySales = await PenjualanOffline.findAll({
-      where: { tipe: 'PENJUALAN', is_test: isTest, display_source_id: { [Op.not]: null }, ...(from || to ? { tanggal: dateWhere } : {}) },
-      include: [
-        { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
-        { model: PembayaranOffline, as: 'pembayarans', attributes: ['jumlah'] },
-        { model: Invoice, as: 'invoices', attributes: ['id', 'tanggal', 'ppn_persen'] },
-      ],
-    });
-    const displaySalesReturs = await getReturQtyMap(displaySales.flatMap(p => (p.items || []).map(i => i.id)));
-    const totalDisplayBelumLunas = money(displaySales.reduce((sum, p) => sum + offlineRemaining(p, displaySalesReturs), 0));
+    const displayInvoiced = invoiced.filter(row => row.sale?.display_source_id);
+    const totalTerjualDisplay = money(displayInvoiced.reduce((sum, row) => sum + row.net, 0));
+    const totalDisplayBelumLunas = money(displayInvoiced.reduce((sum, row) => sum + row.due, 0));
 
     const summary = { totalOmzet, totalBelumLunas, totalPiutang, totalTerjualDisplay, totalDisplayBelumLunas };
 
     // ── List data sesuai tab ──────────────────────────────────────────────────
 
     if (tab === 'penjualan') {
-      const where = { tipe: 'PENJUALAN', is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
-      const { count, rows } = await PenjualanOffline.findAndCountAll({
-        where,
-        include: [
-          { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'] },
-          { model: SuratJalan, as: 'suratJalans', attributes: ['id'] },
-          { model: Invoice, as: 'invoices', attributes: ['id'] },
-        ],
-        order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
-        limit: limitInt,
-        offset,
-        distinct: true,
-      });
-      const returQtyMap = await getReturQtyMap(rows.flatMap(p => (p.items || []).map(item => item.id)));
-      const list = rows.map(p => {
-        const progress = getOfflineProgress(p);
-        return {
-          id: p.id,
-          tanggal: p.tanggal,
-          nama_penerima: p.nama_penerima,
-          faktur: p.faktur,
-          status: p.status,
-          from_display: !!p.display_source_id,
-          belumLunas: p.status !== 'COMPLETED',
-          lunas: p.status === 'COMPLETED',
-          progressLabel: progress.label,
-          progressLevel: progress.level,
-          total: money(sumItemsNetAfterRetur(p.items, returQtyMap)),
-        };
-      });
-      return res.json({
-        summary,
-        list,
-        total: count,
-        totalPages: Math.ceil(count / limitInt),
-        page: pageInt,
-      });
+      const filtered = invoiced.filter(row => !search || [row.sale?.nama_penerima, row.sale?.no_po].join(' ').toLowerCase().includes(String(search).toLowerCase()));
+      const list = filtered.sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id).slice(offset, offset + limitInt).map(row => ({
+        id: row.id, tanggal: row.tanggal, nama_penerima: row.sale?.nama_penerima,
+        faktur: row.sale?.faktur, status: row.sale?.status, from_display: !!row.sale?.display_source_id,
+        belumLunas: row.due > 0, lunas: row.due === 0, progressLabel: row.due === 0 ? 'Lunas / Selesai' : 'Invoice Dibuat',
+        progressLevel: row.due === 0 ? 100 : 75, total: row.net, total_tagihan: row.gross, ppn: row.tax, sisa: row.due,
+      }));
+      return res.json({ summary, list, total: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / limitInt)), page: pageInt });
     }
 
     // tab === 'display'
@@ -245,10 +151,12 @@ router.get('/offline', authenticate, async (req, res) => {
     const returQtyMap = await getReturQtyMap(allDisplayListItemIds);
     const terjualMap = {};
     const terjualBelumLunasMap = {};
+    const displayInvoiceMap = new Map(invoiceProjects(invoiceData, { source: 'OFFLINE', to }).map(row => [row.id, row]));
     for (const p of terjualPerDisplay) {
       const srcId = p.display_source_id;
-      const totalPenjualan = money(sumItemsNetAfterRetur(p.items || [], returQtyMap));
-      const sisaTagihan = offlineRemaining(p, returQtyMap);
+      const recognized = displayInvoiceMap.get(p.id);
+      const totalPenjualan = recognized?.net || 0;
+      const sisaTagihan = recognized?.due || 0;
       terjualMap[srcId] = (terjualMap[srcId] || 0) + totalPenjualan;
       terjualBelumLunasMap[srcId] = (terjualBelumLunasMap[srcId] || 0) + sisaTagihan;
     }
@@ -300,89 +208,20 @@ router.get('/interior', authenticate, async (req, res) => {
   try {
     const dateError = financeDateRangeError(req.query);
     if (dateError) return res.status(400).json({ message: dateError });
-    const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20 } = req.query;
-    const pageInt = Math.max(1, parseInt(page));
-    const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
-    const offset = (pageInt - 1) * limitInt;
-
-    const dateWhere = {};
-    if (from) dateWhere[Op.gte] = from;
-    if (to) dateWhere[Op.lte] = to;
-    const where = { is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
-
-    // ── Summary cards ─────────────────────────────────────────────────────────
-
-    const allProyek = await PenjualanInterior.findAll({
-      where,
-      include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] },
-        { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah'] },
-      ],
-      attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
-    });
-
-    let totalNilaiProyek = 0, totalTerbayar = 0, totalOutstanding = 0;
-    for (const p of allProyek) {
-      const subtotal = sumItemsNetAfterRetur(p.items);
-      const projectTotal = interiorTotal(p, subtotal, p.items).total;
-      const paid = sumPayments(p.pembayarans || []);
-      totalNilaiProyek += projectTotal;
-      totalTerbayar += paid;
-      totalOutstanding += Math.max(0, projectTotal - paid);
-    }
-    totalNilaiProyek = money(totalNilaiProyek);
-    totalTerbayar = money(totalTerbayar);
-    totalOutstanding = money(totalOutstanding);
-
-    // ── List ──────────────────────────────────────────────────────────────────
-
-    const { count, rows } = await PenjualanInterior.findAndCountAll({
-      where,
-      include: [
-        { model: PenjualanInteriorItem, as: 'items', attributes: ['id', 'qty', 'harga_satuan', 'subtotal'] },
-        { model: PembayaranInterior, as: 'pembayarans', attributes: ['jumlah', 'tipe', 'tanggal'] },
-      ],
-      order: [['tanggal', 'DESC'], ['created_at', 'DESC']],
-      limit: limitInt,
-      offset,
-      distinct: true,
-    });
-
-    const list = rows.map(p => {
-      const subtotal = sumItemsNetAfterRetur(p.items);
-      const grandTotal = interiorTotal(p, subtotal, p.items).total;
-      const terbayar = money(p.pembayarans.reduce((s, pb) => s + Number(pb.jumlah || 0), 0));
-      const sisa = money(Math.max(0, grandTotal - terbayar));
-      const persen = grandTotal > 0 ? Math.min(100, Math.round((terbayar / grandTotal) * 100)) : 0;
-      return {
-        id: p.id,
-        no_po: p.no_po,
-        nama_customer: p.nama_customer,
-        tanggal: p.tanggal,
-        status: p.status,
-        faktur: p.faktur,
-        pakai_ppn: p.pakai_ppn,
-        ppn_persen: p.ppn_persen,
-        grandTotal,
-        terbayar,
-        sisa,
-        persen,
-        lunas: sisa === 0 && grandTotal > 0,
-        pembayarans: p.pembayarans.map(pb => ({ tipe: pb.tipe, jumlah: money(pb.jumlah), tanggal: pb.tanggal })),
-      };
-    });
-
-    return res.json({
-      summary: { totalNilaiProyek, totalTerbayar, totalOutstanding },
-      list,
-      total: count,
-      totalPages: Math.ceil(count / limitInt),
-      page: pageInt,
-    });
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
-  }
+    const pageInt = Math.max(1, parseInt(page, 10) || 1), limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const data = await invoiceBasis.load({ source: 'INTERIOR', isTest: req.user.role === 'TEST' ? 1 : 0, to });
+    const rows = invoiceProjects(data, { source: 'INTERIOR', from, to }).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id);
+    const summary = rows.reduce((sum, row) => ({ totalNilaiProyek: sum.totalNilaiProyek + row.net, totalTerbayar: sum.totalTerbayar + row.paid, totalOutstanding: sum.totalOutstanding + row.due }), { totalNilaiProyek: 0, totalTerbayar: 0, totalOutstanding: 0 });
+    const list = rows.slice((pageInt - 1) * limitInt, pageInt * limitInt).map(row => ({
+      id: row.id, tanggal: row.tanggal, no_po: row.sale?.no_po, nama_customer: row.sale?.nama_customer,
+      status: row.sale?.status, faktur: row.sale?.faktur, pakai_ppn: row.sale?.pakai_ppn, ppn_persen: row.sale?.ppn_persen,
+      grandTotal: row.net, total_tagihan: row.gross, ppn: row.tax, terbayar: row.paid, sisa: row.due,
+      persen: row.gross > 0 ? Math.min(100, Math.round(row.paid / row.gross * 100)) : 0,
+      lunas: row.due === 0 && row.gross > 0, pembayarans: row.pembayarans,
+    }));
+    return res.json({ summary, list, total: rows.length, totalPages: Math.max(1, Math.ceil(rows.length / limitInt)), page: pageInt });
+  } catch (err) { return res.status(500).json({ message: 'Server error', error: err.message }); }
 });
 
 // GET /api/keuangan/online
@@ -390,71 +229,26 @@ router.get('/online', authenticate, async (req, res) => {
   try {
     const dateError = financeDateRangeError(req.query);
     if (dateError) return res.status(400).json({ message: dateError });
-    const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20 } = req.query;
-    const pageInt = Math.max(1, parseInt(page, 10) || 1);
-    const limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
-    const dateWhere = {};
-    if (from) dateWhere[Op.gte] = from;
-    if (to) dateWhere[Op.lte] = to;
-    const where = { is_test: isTest, ...(from || to ? { tanggal: dateWhere } : {}) };
-
-    const attachFinancials = async (sales) => {
-      const ids = sales.map(sale => Number(sale.id));
-      if (ids.length === 0) return [];
-      const [items, returs] = await Promise.all([
-        PenjualanOnlineItem.findAll({ where: { penjualan_online_id: { [Op.in]: ids } }, attributes: ['id', 'penjualan_online_id', 'qty', 'subtotal'] }),
-        ReturOnline.findAll({ where: { penjualan_online_id: { [Op.in]: ids }, tipe: 'PENGEMBALIAN_DANA' }, attributes: ['penjualan_online_id', 'jumlah_refund'] }),
-      ]);
-      const returMap = returs.reduce((map, retur) => {
-        const saleId = Number(retur.penjualan_online_id);
-        map[saleId] = (map[saleId] || 0) + Number(retur.jumlah_refund || 0);
-        return map;
-      }, {});
-      const itemMap = items.reduce((map, item) => {
-        const key = Number(item.penjualan_online_id);
-        if (!map[key]) map[key] = [];
-        map[key].push(item);
-        return map;
-      }, {});
-      return sales.map(sale => {
-        const saleId = Number(sale.id);
-        const subtotal = sumItemsNetAfterRetur(itemMap[saleId] || [], {});
-        const totalAwal = money(Math.max(0, subtotal + Number(sale.ongkir || 0) + Number(sale.biaya_lain || 0) - Number(sale.diskon_order || 0)));
-        const totalRetur = money(returMap[saleId] || 0);
-        const total = money(Math.max(0, totalAwal - totalRetur));
-        const pendapatanBersih = sale.pendapatan_bersih === null ? null : money(sale.pendapatan_bersih);
-        return {
-          id: sale.id, id_pesanan: sale.id_pesanan, nama_pelanggan: sale.nama_pelanggan,
-          channel: sale.channel, tanggal: sale.tanggal, status: sale.status,
-          total_awal: totalAwal, total_retur: totalRetur, total, pendapatan_bersih: pendapatanBersih,
-          selisih: pendapatanBersih === null ? null : money(total - pendapatanBersih),
-        };
-      });
-    };
-
-    const [allSales, paged] = await Promise.all([
-      PenjualanOnline.findAll({ where, attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'channel', 'tanggal', 'status', 'ongkir', 'biaya_lain', 'diskon_order', 'pendapatan_bersih'] }),
-      PenjualanOnline.findAndCountAll({ where, attributes: ['id', 'id_pesanan', 'nama_pelanggan', 'channel', 'tanggal', 'status', 'ongkir', 'biaya_lain', 'diskon_order', 'pendapatan_bersih'], order: [['tanggal', 'DESC'], ['created_at', 'DESC']], limit: limitInt, offset: (pageInt - 1) * limitInt }),
-    ]);
-    const [allRows, list] = await Promise.all([attachFinancials(allSales), attachFinancials(paged.rows)]);
-    const summary = allRows.reduce((acc, row) => {
-      acc.totalNilaiAwal += row.total_awal;
-      acc.totalRetur += row.total_retur;
-      if (row.total_retur > 0) acc.jumlahTransaksiRetur += 1;
-      acc.totalNilai += row.total;
-      if (row.pendapatan_bersih !== null) {
-        acc.totalNilaiSelesai += row.total;
-        acc.totalPendapatanBersih += row.pendapatan_bersih;
-      }
-      if (row.status === 'SELESAI' && row.pendapatan_bersih === null) acc.menungguPendapatan += 1;
-      return acc;
-    }, { totalNilaiAwal: 0, totalRetur: 0, jumlahTransaksiRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, menungguPendapatan: 0 });
+    const pageInt = Math.max(1, parseInt(page, 10) || 1), limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const data = await invoiceBasis.load({ source: 'ONLINE', isTest: req.user.role === 'TEST' ? 1 : 0, to });
+    const rows = invoiceProjects(data, { source: 'ONLINE', from, to }).map(row => ({
+      id: row.id, tanggal: row.tanggal, id_pesanan: row.sale?.id_pesanan, nama_pelanggan: row.sale?.nama_pelanggan,
+      channel: row.sale?.channel, status: row.sale?.status, total_awal: row.net + row.returned,
+      total_retur: row.returned, total: row.net, sisa: row.due, terbayar: row.paid,
+      pendapatan_bersih: row.sale?.pendapatan_bersih == null ? null : money(row.sale.pendapatan_bersih),
+      selisih: row.sale?.pendapatan_bersih == null ? null : money(row.net - Number(row.sale.pendapatan_bersih)),
+    })).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id);
+    const summary = rows.reduce((sum, row) => {
+      sum.totalNilaiAwal += row.total_awal; sum.totalRetur += row.total_retur; sum.totalNilai += row.total;
+      if (row.total_retur > 0) sum.jumlahTransaksiRetur++;
+      if (row.pendapatan_bersih !== null) { sum.totalNilaiSelesai += row.total; sum.totalPendapatanBersih += row.pendapatan_bersih; }
+      if (row.status === 'SELESAI' && row.pendapatan_bersih === null) sum.menungguPendapatan++;
+      return sum;
+    }, { totalNilaiAwal: 0, totalRetur: 0, jumlahTransaksiRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, totalSelisih: 0, menungguPendapatan: 0 });
     summary.totalSelisih = money(summary.totalNilaiSelesai - summary.totalPendapatanBersih);
-    return res.json({ summary, list, total: paged.count, totalPages: Math.ceil(paged.count / limitInt), page: pageInt });
-  } catch (err) {
-    return res.status(500).json({ message: 'Server error', error: err.message });
-  }
+    return res.json({ summary, list: rows.slice((pageInt - 1) * limitInt, pageInt * limitInt), total: rows.length, totalPages: Math.max(1, Math.ceil(rows.length / limitInt)), page: pageInt });
+  } catch (err) { return res.status(500).json({ message: 'Server error', error: err.message }); }
 });
 
 module.exports = router;
