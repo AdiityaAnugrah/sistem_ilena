@@ -1117,26 +1117,38 @@ export default function PenjualanInteriorDetail() {
                     );
                   })}
                 </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3 text-sm font-bold text-right whitespace-nowrap" style={{ color: '#475569' }}>Subtotal</td>
-                    <td className="px-5 py-3 text-right font-bold whitespace-nowrap" style={{ color: '#1e293b' }}>{formatRupiah(goodsTotal)}</td>
-                  </tr>
-                  {!!data.pakai_ppn && (
-                    <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={4} className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>PPN {data.ppn_persen}%</td>
-                      <td className="px-5 py-2 text-right text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{formatRupiah(ppn)}</td>
-                    </tr>
-                  )}
-                  {biayaAssembly > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600 whitespace-nowrap">Biaya assembly</td><td className="px-5 py-2 text-right text-sm whitespace-nowrap">{formatRupiah(biayaAssembly)}</td></tr>}
-                  {biayaKirim > 0 && <tr style={{ background: '#f8fafc' }}><td colSpan={4} className="px-5 py-2 text-right text-sm text-slate-600 whitespace-nowrap">Biaya kirim</td><td className="px-5 py-2 text-right text-sm whitespace-nowrap">{formatRupiah(biayaKirim)}</td></tr>}
-                  <tr style={{ background: '#f8fafc' }}>
-                    <td colSpan={4} className="px-5 py-3 text-base font-black text-right whitespace-nowrap" style={{ color: '#0f172a' }}>Total</td>
-                    <td className="px-5 py-3 text-base font-black text-right whitespace-nowrap" style={{ color: '#FA2F2F' }}>{formatRupiah(grandTotal)}</td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
+            <div className="px-5 py-4" style={{ borderTop: '1px solid #e8edf5', background: '#f8fafc' }}>
+              <dl aria-label="Ringkasan tagihan" className="space-y-3 sm:ml-auto sm:max-w-sm">
+                <div className="flex items-baseline justify-between gap-4 text-sm">
+                  <dt className="font-medium" style={{ color: '#475569' }}>Total barang</dt>
+                  <dd className="text-right font-bold tabular-nums whitespace-nowrap" style={{ color: '#1e293b' }}>{formatRupiah(goodsTotal)}</dd>
+                </div>
+                {biayaAssembly > 0 && <div className="flex items-baseline justify-between gap-4 text-sm" style={{ color: '#475569' }}><dt>Biaya assembly</dt><dd className="text-right tabular-nums whitespace-nowrap">{formatRupiah(biayaAssembly)}</dd></div>}
+                {biayaKirim > 0 && <div className="flex items-baseline justify-between gap-4 text-sm" style={{ color: '#475569' }}><dt>Biaya kirim</dt><dd className="text-right tabular-nums whitespace-nowrap">{formatRupiah(biayaKirim)}</dd></div>}
+                <div className="flex items-baseline justify-between gap-4 pt-3 text-base font-black" style={{ borderTop: '1px solid #e2e8f0' }}>
+                  <dt style={{ color: '#0f172a' }}>Total tagihan</dt>
+                  <dd className="text-right tabular-nums whitespace-nowrap" style={{ color: '#b91c1c' }}>{formatRupiah(grandTotal)}</dd>
+                </div>
+              </dl>
+            </div>
+            {!!data.pakai_ppn && (
+              <details className="px-5 sm:ml-auto sm:max-w-[424px]">
+                <summary className="min-h-[44px] cursor-pointer py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b91c1c]" style={{ color: '#475569' }}>
+                  Lihat rincian PPN
+                </summary>
+                <div className="pb-4 sm:ml-auto sm:max-w-sm">
+                  <p className="mb-3 text-xs" style={{ color: '#64748b' }}>PPN sudah termasuk dalam total barang.</p>
+                  <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-2 text-sm" style={{ color: '#475569' }}>
+                    <dt>Nilai barang sebelum PPN</dt>
+                    <dd className="text-right font-medium tabular-nums whitespace-nowrap">{formatRupiah(goodsTotal - ppn)}</dd>
+                    <dt>PPN {data.ppn_persen}%</dt>
+                    <dd className="text-right font-medium tabular-nums whitespace-nowrap">{formatRupiah(ppn)}</dd>
+                  </dl>
+                </div>
+              </details>
+            )}
           </div>
         </div>
 
