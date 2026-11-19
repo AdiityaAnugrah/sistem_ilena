@@ -52,7 +52,7 @@ function allocate(documents, payments, credits) {
 
 function createInvoiceBasis(models) {
   const finance = createInteriorFinance(models);
-  async function load({ source = '', isTest = 0, to = '', scope = {} } = {}) {
+  async function load({ source = '', isTest = 0, to = '', scope = {}, withPayments = true } = {}) {
     const documents = [], payments = [], credits = [], onlineEntries = [], onlineJournal = [];
     const documentWhere = to ? { tanggal: { [Op.lte]: to } } : {};
     const sources = ['OFFLINE', 'INTERIOR', 'ONLINE'].filter(value => !source || value === source);
@@ -71,10 +71,11 @@ function createInvoiceBasis(models) {
           return [customerKey(name), `${sumber}:${row.faktur || 'NON_FAKTUR'}:${customerKey(name)}`].includes(scope.customer_key);
         }).map(row => row.id) };
       }
+      if (Array.isArray(scope.saleIds)) saleWhere[Op.and] = [{ id: { [Op.in]: scope.saleIds } }];
       const include = [{ model: parent, as: 'penjualan', where: saleWhere, include: [{ model: item, as: 'items' }] }];
       const [invoices, paid, subs, returned] = await Promise.all([
         invoiceModel.findAll({ where: documentWhere, include }),
-        paymentModel.findAll({ where: documentWhere, include: [{ model: parent, as: 'penjualan', where: saleWhere }] }),
+        withPayments ? paymentModel.findAll({ where: documentWhere, include: [{ model: parent, as: 'penjualan', where: saleWhere }] }) : [],
         sumber === 'INTERIOR' ? models.ProformaInvoice.findAll({ where: { ...documentWhere, nomor_sub_invoice: { [Op.ne]: null } }, include }) : [],
         sumber === 'OFFLINE' ? models.ReturOffline.findAll({ where: documentWhere, include: [{ model: parent, as: 'penjualan', where: saleWhere }, { model: item, as: 'item' }] })
           : sumber === 'ONLINE' ? models.ReturOnline.findAll({ where: { ...documentWhere, tipe: 'PENGEMBALIAN_DANA' }, include }) : [],

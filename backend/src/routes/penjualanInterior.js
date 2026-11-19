@@ -20,6 +20,9 @@ const { emitDataUpdated } = require('../socket');
 const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
 const { optionalCost, interiorTotal } = require('../utils/interiorCosts');
 const { returnedQuantities } = require('../utils/interiorLogistics');
+const { createInvoiceBasis } = require('../utils/invoiceBasis');
+const { financeDateRangeError } = require('../utils/financeDateRange');
+const invoiceBasis = createInvoiceBasis(require('../models'));
 
 const router = express.Router();
 
@@ -170,6 +173,8 @@ router.post('/', authenticate, async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { faktur, status, search, tanggal_dari, tanggal_sampai, page = 1, limit = 20 } = req.query;
+    const dateError = financeDateRangeError({ from: tanggal_dari, to: tanggal_sampai });
+    if (dateError) return res.status(400).json({ message: dateError });
     const where = { is_test: req.user.role === 'TEST' ? 1 : 0 };
     if (faktur) where.faktur = faktur;
     if (status) where.status = status;
@@ -189,14 +194,21 @@ router.get('/', authenticate, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const summaryRows = await PenjualanInterior.findAll({
       where,
-      attributes: ['id', 'pakai_ppn', 'ppn_persen', 'biaya_assembly', 'biaya_kirim'],
-      include: [{ model: PenjualanInteriorItem, as: 'items', attributes: ['qty', 'harga_satuan', 'subtotal'] }],
+      attributes: ['id'],
     });
-    const totalNilai = summaryRows.reduce((sum, penjualan) => {
-      const subtotal = (penjualan.items || []).reduce((s, item) => s + Number(item.subtotal || 0), 0);
-
-      return sum + interiorTotal(penjualan, subtotal).total;
-    }, 0);
+    const saleIds = summaryRows.map(row => Number(row.id));
+    let totalNilai = 0;
+    let totalPpn = 0;
+    let totalTagihan = 0;
+    if (saleIds.length) {
+      const billed = await invoiceBasis.load({
+        source: 'INTERIOR', isTest: where.is_test, to: tanggal_sampai,
+        scope: { saleIds }, withPayments: false,
+      });
+      totalNilai = billed.documents.reduce((sum, document) => sum + document.net, 0);
+      totalPpn = billed.documents.reduce((sum, document) => sum + document.tax, 0);
+      totalTagihan = billed.documents.reduce((sum, document) => sum + document.gross, 0);
+    }
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
       include: [{ model: PenjualanInteriorItem, as: 'items' }],
@@ -213,6 +225,8 @@ router.get('/', authenticate, async (req, res) => {
       totalPages: Math.ceil(count / parseInt(limit)),
       summary: {
         totalNilai: money(totalNilai),
+        totalPpn: money(totalPpn),
+        totalTagihan: money(totalTagihan),
       },
     });
   } catch (err) {
