@@ -200,6 +200,8 @@ router.get('/', authenticate, async (req, res) => {
     let totalNilai = 0;
     let totalPpn = 0;
     let totalTagihan = 0;
+    let penjualanPpn = 0;
+    let penjualanNonPpn = 0;
     if (saleIds.length) {
       const billed = await invoiceBasis.load({
         source: 'INTERIOR', isTest: where.is_test, to: tanggal_sampai,
@@ -208,6 +210,10 @@ router.get('/', authenticate, async (req, res) => {
       totalNilai = billed.documents.reduce((sum, document) => sum + document.net, 0);
       totalPpn = billed.documents.reduce((sum, document) => sum + document.tax, 0);
       totalTagihan = billed.documents.reduce((sum, document) => sum + document.gross, 0);
+      for (const document of billed.documents) {
+        if (Number(document.sale?.pakai_ppn) === 1 && Number(document.sale?.ppn_persen) > 0) penjualanPpn += document.net;
+        else penjualanNonPpn += document.net;
+      }
     }
     const { count, rows } = await PenjualanInterior.findAndCountAll({
       where,
@@ -227,6 +233,8 @@ router.get('/', authenticate, async (req, res) => {
         totalNilai: money(totalNilai),
         totalPpn: money(totalPpn),
         totalTagihan: money(totalTagihan),
+        penjualanPpn: money(penjualanPpn),
+        penjualanNonPpn: money(penjualanNonPpn),
       },
     });
   } catch (err) {

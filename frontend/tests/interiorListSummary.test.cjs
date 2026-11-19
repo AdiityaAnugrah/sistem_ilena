@@ -26,18 +26,19 @@ vm.runInNewContext(code, { module: output, exports: output.exports, require, Box
 const render = summary => renderToStaticMarkup(React.createElement(output.exports, { summary }));
 const amounts = html => [...html.matchAll(/<dd[^>]*>(.*?)<\/dd>/g)].map(match => match[1]);
 
-test('footer renders API DPP, PPN and gross in that order without taxing a second time', () => {
-  const html = render({ totalNilai: 1000000, totalPpn: 110000, totalTagihan: 1110000 });
-  assert.deepEqual(amounts(html), ['Rp 1.000.000', 'Rp 110.000', 'Rp 1.110.000']);
-  assert.match(html, /DPP \(sebelum PPN\)/);
-  assert.match(html, /Jumlah keseluruhan \(DPP \+ PPN\)/);
+test('footer shows taxed sales, non-taxed sales and their total, not the VAT amount', () => {
+  const html = render({ totalNilai: 3000000, penjualanPpn: 1000000, penjualanNonPpn: 2000000 });
+  assert.deepEqual(amounts(html), ['Rp 1.000.000', 'Rp 2.000.000', 'Rp 3.000.000']);
+  assert.match(html, /Penjualan PPN/);
+  assert.match(html, /Penjualan non-PPN/);
+  assert.doesNotMatch(html, /DPP|Jumlah keseluruhan/);
   assert.match(html, /<dl[^>]*aria-label="Rincian total invoice"/);
 });
 
-test('non-faktur footer shows zero PPN with gross equal to DPP', () => {
-  assert.deepEqual(amounts(render({ totalNilai: 250000, totalPpn: 0, totalTagihan: 250000 })), ['Rp 250.000', 'Rp 0', 'Rp 250.000']);
+test('only non-taxed sales leaves the taxed sales group zero', () => {
+  assert.deepEqual(amounts(render({ totalNilai: 250000, penjualanPpn: 0, penjualanNonPpn: 250000 })), ['Rp 0', 'Rp 250.000', 'Rp 250.000']);
 });
 
 test('empty filtered result renders three zeros', () => {
-  assert.deepEqual(amounts(render({ totalNilai: 0, totalPpn: 0, totalTagihan: 0 })), ['Rp 0', 'Rp 0', 'Rp 0']);
+  assert.deepEqual(amounts(render({ totalNilai: 0, penjualanPpn: 0, penjualanNonPpn: 0 })), ['Rp 0', 'Rp 0', 'Rp 0']);
 });

@@ -10,6 +10,23 @@ function fixture(projects) {
   return m;
 }
 
+test('taxed and untaxed invoice sales are separate net groups whose sum is the total across all pages', async () => {
+  const projects = [sale(1), { ...sale(2), pakai_ppn: 0, faktur: 'NON_FAKTUR' }, sale(3)], m = fixture(projects);
+  m.InvoiceInterior.findAll = async () => [invoice(projects[0]), invoice(projects[1])];
+  m.ProformaInvoice.findAll = async () => [{ id: 3, penjualan_interior_id: 3, tanggal: '2026-11-02', nomor_sub_invoice: null, total: 1110000, terms: '[{"tipe":"DP","persen":30}]', penjualan: projects[2] }];
+  m.PenjualanInterior.findAndCountAll = async () => ({ count: 3, rows: [projects[1]] });
+  const result = await invoke(route('penjualanInterior', m), '/', { page: 2, limit: 1 });
+  expect(result.summary).toMatchObject({ penjualanPpn: 1000000, penjualanNonPpn: 1000000, totalNilai: 2000000 });
+  expect(result.summary.penjualanPpn + result.summary.penjualanNonPpn).toBe(result.summary.totalNilai);
+});
+
+test('non-taxed Sub-Invoice contributes only its issued term to non-PPN sales', async () => {
+  const p = { ...sale(), pakai_ppn: 0, faktur: 'NON_FAKTUR' }, m = fixture([p]);
+  m.ProformaInvoice.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-02', nomor_sub_invoice: 'SUB', terms: '[{"tipe":"DP","jumlah":250000}]', penjualan: p }];
+  const result = await invoke(route('penjualanInterior', m), '/');
+  expect(result.summary).toMatchObject({ penjualanPpn: 0, penjualanNonPpn: 250000, totalNilai: 250000 });
+});
+
 test('list total excludes unbilled/ordinary-Proforma projects but keeps them in operational list', async () => {
   const projects = [sale(1), sale(2)], m = fixture(projects);
   m.InvoiceInterior.findAll = async () => [invoice(projects[0])];
@@ -17,7 +34,7 @@ test('list total excludes unbilled/ordinary-Proforma projects but keeps them in 
     total: 1110000, terms: '[{"tipe":"PELUNASAN_PENUH","persen":100}]', penjualan: projects[1] }];
   const result = await invoke(route('penjualanInterior', m), '/');
   expect(result.summary.totalNilai).toBe(1000000);
-  expect(result.summary).toEqual({ totalNilai: 1000000, totalPpn: 110000, totalTagihan: 1110000 });
+  expect(result.summary).toMatchObject({ totalNilai: 1000000, totalPpn: 110000, totalTagihan: 1110000 });
   expect(result.total).toBe(2); expect(result.data).toHaveLength(2);
 });
 
@@ -25,14 +42,14 @@ test('ordinary Proforma without Invoice or numbered Sub-Invoice contributes zero
   const p = sale(), m = fixture([p]);
   m.ProformaInvoice.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-01', nomor_sub_invoice: '', total: 1110000,
     terms: '[{"tipe":"DP","persen":30}]', penjualan: p }];
-  expect((await invoke(route('penjualanInterior', m), '/')).summary).toEqual({ totalNilai: 0, totalPpn: 0, totalTagihan: 0 });
+  expect((await invoke(route('penjualanInterior', m), '/')).summary).toMatchObject({ totalNilai: 0, totalPpn: 0, totalTagihan: 0 });
 });
 
 test('numbered Sub-Invoice counts only its installment before VAT, not Proforma whole-project total', async () => {
   const p = sale(), m = fixture([p]);
   m.ProformaInvoice.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-01', nomor_sub_invoice: 'SUB-1', total: 1110000,
     terms: '[{"tipe":"DP","persen":30}]', penjualan: p }];
-  expect((await invoke(route('penjualanInterior', m), '/')).summary).toEqual({ totalNilai: 300000, totalPpn: 33000, totalTagihan: 333000 });
+  expect((await invoke(route('penjualanInterior', m), '/')).summary).toMatchObject({ totalNilai: 300000, totalPpn: 33000, totalTagihan: 333000 });
 });
 
 test('Sub-Invoice followed by shipment invoice is not counted twice', async () => {
@@ -40,7 +57,7 @@ test('Sub-Invoice followed by shipment invoice is not counted twice', async () =
   m.ProformaInvoice.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-01', nomor_sub_invoice: 'SUB-1',
     terms: '[{"tipe":"DP","persen":30}]', penjualan: p }];
   m.InvoiceInterior.findAll = async () => [invoice(p)];
-  expect((await invoke(route('penjualanInterior', m), '/')).summary).toEqual({ totalNilai: 1000000, totalPpn: 110000, totalTagihan: 1110000 });
+  expect((await invoke(route('penjualanInterior', m), '/')).summary).toMatchObject({ totalNilai: 1000000, totalPpn: 110000, totalTagihan: 1110000 });
 });
 
 test('partial shipment includes only invoiced goods and proportional costs, before VAT', async () => {
@@ -78,7 +95,7 @@ test('existing project filters are preserved and matched IDs scope invoice query
 test('empty filtered list does not load unrelated invoice history', async () => {
   const m = fixture([]);
   m.InvoiceInterior.findAll = async () => { throw Error('Unrelated invoice query'); };
-  expect((await invoke(route('penjualanInterior', m), '/')).summary).toEqual({ totalNilai: 0, totalPpn: 0, totalTagihan: 0 });
+  expect((await invoke(route('penjualanInterior', m), '/')).summary).toMatchObject({ totalNilai: 0, totalPpn: 0, totalTagihan: 0 });
 });
 
 test('invalid date range is rejected before querying projects', async () => {
@@ -90,7 +107,7 @@ test('non-taxed nominal Sub-Invoice uses its issued amount, not whole project or
   const p = { ...sale(), pakai_ppn: 0, ppn_persen: null }, m = fixture([p]);
   m.ProformaInvoice.findAll = async () => [{ id: 1, penjualan_interior_id: 1, tanggal: '2026-11-01', nomor_sub_invoice: 'SUB-1',
     total: 1000000, terms: '[{"tipe":"DP","persen":30,"jumlah":250000}]', penjualan: p }];
-  expect((await invoke(route('penjualanInterior', m), '/')).summary).toEqual({ totalNilai: 250000, totalPpn: 0, totalTagihan: 250000 });
+  expect((await invoke(route('penjualanInterior', m), '/')).summary).toMatchObject({ totalNilai: 250000, totalPpn: 0, totalTagihan: 250000 });
 });
 
 test('future invoice does not contribute before the selected cutoff', async () => {
