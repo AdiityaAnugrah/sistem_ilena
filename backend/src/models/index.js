@@ -34,6 +34,7 @@ const MutasiDisplayItem = require('./MutasiDisplayItem');
 const PenjualanOnline = require('./PenjualanOnline');
 const PenjualanOnlineItem = require('./PenjualanOnlineItem');
 const PembayaranOnline = require('./PembayaranOnline');
+const PencairanOnline = require('./PencairanOnline');
 const ReturOnline = require('./ReturOnline');
 const SuratJalanOnline = require('./SuratJalanOnline');
 const InvoiceOnline = require('./InvoiceOnline');
@@ -162,6 +163,8 @@ PenjualanOnlineItem.belongsTo(Barang, { foreignKey: 'barang_id', as: 'barang', c
 
 PenjualanOnline.hasMany(PembayaranOnline, { foreignKey: 'penjualan_online_id', as: 'pembayarans' });
 PembayaranOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
+PenjualanOnline.hasMany(PencairanOnline, { foreignKey: 'penjualan_online_id', as: 'pencairans' });
+PencairanOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
 
 PenjualanOnline.hasMany(SuratJalanOnline, { foreignKey: 'penjualan_online_id', as: 'suratJalans' });
 SuratJalanOnline.belongsTo(PenjualanOnline, { foreignKey: 'penjualan_online_id', as: 'penjualan' });
@@ -211,6 +214,7 @@ module.exports = {
   PenjualanOnline,
   PenjualanOnlineItem,
   PembayaranOnline,
+  PencairanOnline,
   ReturOnline,
   SuratJalanOnline,
   InvoiceOnline,

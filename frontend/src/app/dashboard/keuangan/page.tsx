@@ -316,7 +316,7 @@ export default function KeuanganPage() {
       <Row ss:Height="26">${excelCell('Penjualan Interior', 'String', 'Title')}</Row>
       <Row>${excelCell(`Periode: ${filterLabel}`, 'String', 'Meta')}</Row>
       <Row>${excelCell(`Total proyek: ${rows.length}`, 'String', 'Summary')}${excelCell('')}${excelCell(`Total nilai: ${formatRupiah(totalNilai)}`, 'String', 'Summary')}${excelCell(`Terbayar: ${formatRupiah(totalBayar)}`, 'String', 'Summary')}${excelCell(`Outstanding: ${formatRupiah(totalSisa)}`, 'String', 'Summary')}</Row>
-      <Row>${['ID', 'Tanggal', 'Customer', 'No. PO', 'Faktur', 'Status', 'Pelunasan', 'Nilai sebelum PPN', 'Terbayar', 'Sisa', 'Progress'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
+      <Row>${['ID', 'Tanggal Invoice Terakhir', 'Customer', 'No. PO', 'Faktur', 'Status', 'Pelunasan', 'Nilai sebelum PPN (periode)', 'Terbayar Kumulatif', 'Sisa sampai Tanggal Akhir', 'Progress'].map(h => excelCell(h, 'String', 'Header')).join('')}</Row>
       ${rows.map(row => `
         <Row>
           ${excelCell(row.id, 'Number', 'Number')}
@@ -363,10 +363,10 @@ export default function KeuanganPage() {
           ['Barang Display Beredar', offlinePenjualan?.summary?.totalPiutang || 0],
           ['Display Laku Belum Lunas', offlinePenjualan?.summary?.totalDisplayBelumLunas || 0],
           ['Penjualan Interior sebelum PPN', interior?.summary?.totalNilaiProyek || 0],
-          ['Terbayar Interior', interior?.summary?.totalTerbayar || 0],
+          ['Terbayar Interior Kumulatif', interior?.summary?.totalTerbayar || 0],
           ['Outstanding Interior', interior?.summary?.totalOutstanding || 0],
           ['Nilai Online Setelah Retur', online?.summary?.totalNilai || 0],
-          ['Pendapatan Bersih Online', online?.summary?.totalPendapatanBersih || 0],
+          ['Masuk Bank Online (Periode)', online?.summary?.totalPendapatanBersih || 0],
         ]));
       } else if (mode === 'offline') {
         worksheets.push(buildSummarySheet('Ringkasan Offline', 'Ringkasan Keuangan Offline', [
@@ -379,7 +379,7 @@ export default function KeuanganPage() {
       } else if (mode === 'interior') {
         worksheets.push(buildSummarySheet('Ringkasan Interior', 'Ringkasan Keuangan Interior', [
           ['Penjualan sebelum PPN', interior?.summary?.totalNilaiProyek || 0],
-          ['Total Terbayar', interior?.summary?.totalTerbayar || 0],
+          ['Terbayar Kumulatif sampai Tanggal Akhir', interior?.summary?.totalTerbayar || 0],
           ['Total Outstanding', interior?.summary?.totalOutstanding || 0],
         ]));
       }
@@ -391,8 +391,8 @@ export default function KeuanganPage() {
         '<Row>' + excelCell('Keuangan Online', 'String', 'Title') + '</Row>',
         '<Row>' + excelCell('Periode: ' + filterLabel, 'String', 'Meta') + '</Row>',
         '<Row>' + excelCell('Total transaksi: ' + online.rows.length, 'String', 'Summary') + '</Row>',
-        '<Row>' + ['ID Pesanan', 'Tanggal', 'Customer', 'Channel', 'Status', 'Nilai Awal', 'Retur Dana', 'Setelah Retur', 'Pendapatan Bersih', 'Selisih'].map(h => excelCell(h, 'String', 'Header')).join('') + '</Row>',
-        ...online.rows.map((row: OnlineFinanceRow) => '<Row>' + [excelCell(row.id_pesanan), excelCell(formatDate(row.tanggal)), excelCell(row.nama_pelanggan), excelCell(row.channel), excelCell(row.status), ...[row.total_awal, row.total_retur, row.total, row.pendapatan_bersih, row.selisih].map(value => value === null ? excelCell('Belum diisi') : excelCell(value, 'Number', 'Currency'))].join('') + '</Row>'),
+        '<Row>' + ['ID Pesanan', 'Tanggal', 'Customer', 'Channel', 'Status', 'Nilai Awal', 'Retur Dana', 'Setelah Retur', 'Masuk Bank (Periode)', 'Biaya Pencairan (Periode)'].map(h => excelCell(h, 'String', 'Header')).join('') + '</Row>',
+        ...online.rows.map((row: OnlineFinanceRow) => '<Row>' + [excelCell(row.id_pesanan), excelCell(formatDate(row.tanggal)), excelCell(row.nama_pelanggan), excelCell(row.channel), excelCell(row.status), ...[row.total_awal, row.total_retur, row.total, row.pendapatan_bersih, row.selisih].map(value => value === null ? excelCell('Belum ada pencairan') : excelCell(value, 'Number', 'Currency'))].join('') + '</Row>'),
       ].join('')));
 
       downloadExcelXml(`keuangan-${mode}-${from || 'awal'}_${to || 'akhir'}.xls`, buildWorkbookXml(`Export Keuangan ${mode}`, worksheets));
@@ -511,6 +511,7 @@ export default function KeuanganPage() {
       {/* ── TAB OFFLINE ── */}
       {activeTab === 'offline' && !loadErrors.offline && (
         <div className="space-y-5">
+          <p className="text-xs text-slate-600">Penjualan mengikuti periode invoice/retur. Tagihan, terbayar, dan outstanding membawa seluruh riwayat sampai tanggal akhir; invoice lama tetap tampil.</p>
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <SummaryCard label="Total Omzet Penjualan" value={summary ? formatRupiah(summary.totalOmzet) : '-'} color="#0f172a" />
@@ -773,8 +774,8 @@ export default function KeuanganPage() {
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <SummaryCard label="Penjualan sebelum PPN" value={intSummary ? formatRupiah(intSummary.totalNilaiProyek) : '-'} color="#0f172a" />
-            <SummaryCard label="Total Terbayar" value={intSummary ? formatRupiah(intSummary.totalTerbayar) : '-'} color="#16a34a" />
-            <SummaryCard label="Total Outstanding" value={intSummary ? formatRupiah(intSummary.totalOutstanding) : '-'} sub="Sisa belum dibayar" color="#f97316" />
+            <SummaryCard label="Terbayar (kumulatif)" value={intSummary ? formatRupiah(intSummary.totalTerbayar) : '-'} color="#16a34a" />
+            <SummaryCard label="Outstanding sampai tanggal akhir" value={intSummary ? formatRupiah(intSummary.totalOutstanding) : '-'} sub="Saldo seluruh invoice sampai tanggal akhir" color="#f97316" />
           </div>
 
           {/* List */}
@@ -854,14 +855,15 @@ export default function KeuanganPage() {
 
       {activeTab === 'online' && !loadErrors.online && (
         <div className="space-y-5">
+          <p className="text-xs text-slate-600">Nilai penjualan dan pencairan memakai tanggal transaksi masing-masing. Data pendapatan bersih lama tidak dimasukkan ke penerimaan bank tanpa tanggal pencairan.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <SummaryCard label="Total Nilai Awal" value={onlineSummary ? formatRupiah(onlineSummary.totalNilaiAwal) : '-'} color="#0f172a" />
             <SummaryCard label="Retur Pengembalian Dana" value={onlineSummary ? formatRupiah(onlineSummary.totalRetur) : '-'} sub={onlineSummary ? `${onlineSummary.jumlahTransaksiRetur} transaksi mengalami retur dana` : 'Dana yang dikembalikan ke pelanggan'} color="#dc2626" />
             <SummaryCard label="Total Setelah Retur" value={onlineSummary ? formatRupiah(onlineSummary.totalNilai) : '-'} color="#2563eb" />
-            <SummaryCard label="Pendapatan Bersih" value={onlineSummary ? formatRupiah(onlineSummary.totalPendapatanBersih) : '-'} sub="Nominal bersih pesanan selesai" color="#16a34a" />
-            <SummaryCard label="Selisih Marketplace/Biaya" value={onlineSummary ? formatRupiah(onlineSummary.totalSelisih) : '-'} sub="Nilai transaksi dikurangi pendapatan bersih" color="#f97316" />
+            <SummaryCard label="Masuk bank (periode)" value={onlineSummary ? formatRupiah(onlineSummary.totalPendapatanBersih) : '-'} sub="Dari transaksi pencairan bertanggal" color="#16a34a" />
+            <SummaryCard label="Biaya pencairan (periode)" value={onlineSummary ? formatRupiah(onlineSummary.totalSelisih) : '-'} sub="Potongan pada pencairan periode ini" color="#f97316" />
           </div>
-          {onlineLoading ? <div className="flex justify-center py-16"><CircularProgress size={28} sx={{ color: '#FA2F2F' }} /></div> : !onlineData?.list?.length ? <div className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>Tidak ada data online</div> : <div className="space-y-3">{onlineData.list.map((row: OnlineFinanceRow) => <div key={row.id} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800">{row.nama_pelanggan}</span><StatusBadge status={row.status}/><span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{row.channel}</span></div><p className="text-xs mt-1 text-slate-400">ID Pesanan: {row.id_pesanan} · {formatDate(row.tanggal)}</p></div><button onClick={() => router.push(`/dashboard/penjualan/online/${row.id}`)} className="p-1.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}><ArrowRight className="h-3.5 w-3.5 text-slate-400"/></button></div><div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 pt-3 border-t"><div><p className="text-xs text-slate-400">Nilai awal</p><p className="text-sm font-bold">{formatRupiah(row.total_awal)}</p></div><div><p className="text-xs text-slate-400">Retur dana</p><p className={`text-sm font-bold ${row.total_retur > 0 ? 'text-red-600' : 'text-slate-500'}`}>{row.total_retur > 0 ? `- ${formatRupiah(row.total_retur)}` : '-'}</p></div><div><p className="text-xs text-slate-400">Setelah retur</p><p className="text-sm font-bold text-blue-600">{formatRupiah(row.total)}</p></div><div><p className="text-xs text-slate-400">Pendapatan bersih</p><p className="text-sm font-bold text-green-600">{row.pendapatan_bersih === null ? 'Belum diisi' : formatRupiah(row.pendapatan_bersih)}</p></div><div><p className="text-xs text-slate-400">Selisih</p><p className="text-sm font-bold text-orange-600">{row.selisih === null ? '-' : formatRupiah(row.selisih)}</p></div></div></div>)}</div>}
+          {onlineLoading ? <div className="flex justify-center py-16"><CircularProgress size={28} sx={{ color: '#FA2F2F' }} /></div> : !onlineData?.list?.length ? <div className="text-center py-16 text-sm" style={{ color: '#94a3b8' }}>Tidak ada data online</div> : <div className="space-y-3">{onlineData.list.map((row: OnlineFinanceRow) => <div key={row.id} className="rounded-2xl p-4" style={{ background: '#fff', border: '1px solid #e8edf5' }}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-slate-800">{row.nama_pelanggan}</span><StatusBadge status={row.status}/><span className="text-xs rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{row.channel}</span></div><p className="text-xs mt-1 text-slate-400">ID Pesanan: {row.id_pesanan} · {formatDate(row.tanggal)}</p></div><button onClick={() => router.push(`/dashboard/penjualan/online/${row.id}`)} className="p-1.5 rounded-lg" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}><ArrowRight className="h-3.5 w-3.5 text-slate-400"/></button></div><div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 pt-3 border-t"><div><p className="text-xs text-slate-400">Nilai awal</p><p className="text-sm font-bold">{formatRupiah(row.total_awal)}</p></div><div><p className="text-xs text-slate-400">Retur dana</p><p className={`text-sm font-bold ${row.total_retur > 0 ? 'text-red-600' : 'text-slate-500'}`}>{row.total_retur > 0 ? `- ${formatRupiah(row.total_retur)}` : '-'}</p></div><div><p className="text-xs text-slate-400">Setelah retur</p><p className="text-sm font-bold text-blue-600">{formatRupiah(row.total)}</p></div><div><p className="text-xs text-slate-400">Masuk bank (periode)</p><p className="text-sm font-bold text-green-600">{row.pendapatan_bersih === null ? 'Belum ada pencairan' : formatRupiah(row.pendapatan_bersih)}</p></div><div><p className="text-xs text-slate-400">Biaya pencairan</p><p className="text-sm font-bold text-orange-600">{row.selisih === null ? '-' : formatRupiah(row.selisih)}</p></div></div></div>)}</div>}
           {(onlineData?.totalPages ?? 0) > 1 && <div className="flex justify-center"><Pagination count={onlineData?.totalPages ?? 1} page={onlinePage} onChange={(_, v) => setOnlinePage(v)} color="primary" size="small"/></div>}
         </div>
       )}

@@ -41,8 +41,8 @@ router.get('/offline', authenticate, async (req, res) => {
     if (dateError) return res.status(400).json({ message: dateError });
     const isTest = req.user.role === 'TEST' ? 1 : 0;
     const { from, to, page = 1, limit = 20, tab = 'penjualan', search = '' } = req.query;
-    const pageInt = Math.max(1, parseInt(page));
-    const limitInt = Math.min(100, Math.max(1, parseInt(limit)));
+    const pageInt = Math.max(1, parseInt(page, 10) || 1);
+    const limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const offset = (pageInt - 1) * limitInt;
 
     const dateWhere = {};
@@ -50,7 +50,8 @@ router.get('/offline', authenticate, async (req, res) => {
     if (to) dateWhere[Op.lte] = to;
 
     const invoiceData = await invoiceBasis.load({ source: 'OFFLINE', isTest, to });
-    const invoiced = invoiceProjects(invoiceData, { source: 'OFFLINE', from, to });
+    const invoiced = invoiceProjects(invoiceData, { source: 'OFFLINE', from, to, includeBalances: true })
+      .filter(row => tab !== 'penjualan' || !String(search).trim() || [row.sale?.nama_penerima, row.sale?.no_po].join(' ').toLowerCase().includes(String(search).trim().toLowerCase()));
     const totalOmzet = money(invoiced.reduce((sum, row) => sum + row.net, 0));
     const totalBelumLunas = money(invoiced.filter(row => row.due > 0).reduce((sum, row) => sum + row.due, 0));
 
@@ -211,7 +212,7 @@ router.get('/interior', authenticate, async (req, res) => {
     const { from, to, page = 1, limit = 20 } = req.query;
     const pageInt = Math.max(1, parseInt(page, 10) || 1), limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const data = await invoiceBasis.load({ source: 'INTERIOR', isTest: req.user.role === 'TEST' ? 1 : 0, to });
-    const rows = invoiceProjects(data, { source: 'INTERIOR', from, to }).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id);
+    const rows = invoiceProjects(data, { source: 'INTERIOR', from, to, includeBalances: true }).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id);
     const summary = rows.reduce((sum, row) => ({ totalNilaiProyek: sum.totalNilaiProyek + row.net, totalTerbayar: sum.totalTerbayar + row.paid, totalOutstanding: sum.totalOutstanding + row.due }), { totalNilaiProyek: 0, totalTerbayar: 0, totalOutstanding: 0 });
     const list = rows.slice((pageInt - 1) * limitInt, pageInt * limitInt).map(row => ({
       id: row.id, tanggal: row.tanggal, no_po: row.sale?.no_po, nama_customer: row.sale?.nama_customer,
@@ -232,17 +233,26 @@ router.get('/online', authenticate, async (req, res) => {
     const { from, to, page = 1, limit = 20 } = req.query;
     const pageInt = Math.max(1, parseInt(page, 10) || 1), limitInt = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const data = await invoiceBasis.load({ source: 'ONLINE', isTest: req.user.role === 'TEST' ? 1 : 0, to });
-    const rows = invoiceProjects(data, { source: 'ONLINE', from, to }).map(row => ({
+    const payouts = new Map();
+    for (const event of data.journal) if (event.jenis === 'PENCAIRAN' && (!from || event.tanggal >= from) && (!to || event.tanggal <= to)) {
+      const amount = payouts.get(event.saleId) || { bruto: 0, bersih: 0, biaya: 0 };
+      amount.bruto += event.nilai;
+      amount.bersih += event.lines.filter(line => line.account_code === '1102').reduce((sum, line) => sum + line.debit, 0);
+      amount.biaya += event.lines.filter(line => line.account_code === '6101').reduce((sum, line) => sum + line.debit, 0);
+      payouts.set(event.saleId, amount);
+    }
+    const rows = invoiceProjects(data, { source: 'ONLINE', from, to, includeBalances: true }).map(row => ({
       id: row.id, tanggal: row.tanggal, id_pesanan: row.sale?.id_pesanan, nama_pelanggan: row.sale?.nama_pelanggan,
       channel: row.sale?.channel, status: row.sale?.status, total_awal: row.net + row.returned,
       total_retur: row.returned, total: row.net, sisa: row.due, terbayar: row.paid,
-      pendapatan_bersih: row.sale?.pendapatan_bersih == null ? null : money(row.sale.pendapatan_bersih),
-      selisih: row.sale?.pendapatan_bersih == null ? null : money(row.net - Number(row.sale.pendapatan_bersih)),
+      pendapatan_bersih: payouts.has(row.id) ? money(payouts.get(row.id).bersih) : null,
+      bruto_dicairkan: payouts.get(row.id)?.bruto || 0,
+      selisih: payouts.has(row.id) ? money(payouts.get(row.id).biaya) : null,
     })).sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)) || b.id - a.id);
     const summary = rows.reduce((sum, row) => {
       sum.totalNilaiAwal += row.total_awal; sum.totalRetur += row.total_retur; sum.totalNilai += row.total;
       if (row.total_retur > 0) sum.jumlahTransaksiRetur++;
-      if (row.pendapatan_bersih !== null) { sum.totalNilaiSelesai += row.total; sum.totalPendapatanBersih += row.pendapatan_bersih; }
+      if (row.pendapatan_bersih !== null) { sum.totalNilaiSelesai += row.bruto_dicairkan; sum.totalPendapatanBersih += row.pendapatan_bersih; }
       if (row.status === 'SELESAI' && row.pendapatan_bersih === null) sum.menungguPendapatan++;
       return sum;
     }, { totalNilaiAwal: 0, totalRetur: 0, jumlahTransaksiRetur: 0, totalNilai: 0, totalNilaiSelesai: 0, totalPendapatanBersih: 0, totalSelisih: 0, menungguPendapatan: 0 });

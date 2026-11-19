@@ -41,23 +41,30 @@ async function buildEffectiveInteriorInvoices(invoices = [], proformas = [], get
   for (const event of events) {
     const saleId = Number(event.doc.penjualan_interior_id || event.doc.penjualan?.id);
     if (!saleId) continue;
-    if (!states.has(saleId)) states.set(saleId, { shipments: 0, terms: new Map(), recognized: 0 });
+    if (!states.has(saleId)) states.set(saleId, { shipments: { subtotal: 0, total: 0 }, terms: new Map(), recognized: 0, recognizedNet: 0 });
     const state = states.get(saleId);
     let amount = event.amount;
     if (event.terms) {
       const documentTerms = new Map();
-      for (const term of event.terms) documentTerms.set(term.type, (documentTerms.get(term.type) || 0) + term.total);
-      for (const [type, total] of documentTerms) state.terms.set(type, Math.max(state.terms.get(type) || 0, total));
+      for (const term of event.terms) {
+        const before = documentTerms.get(term.type) || { subtotal: 0, total: 0 };
+        documentTerms.set(term.type, { subtotal: before.subtotal + term.subtotal, total: before.total + term.total });
+      }
+      for (const [type, value] of documentTerms) if (value.total >= (state.terms.get(type)?.total || 0)) state.terms.set(type, value);
       amount = event.terms.reduce((sum, term) => ({ subtotal: sum.subtotal + term.subtotal, ppn: sum.ppn + term.ppn, total: sum.total + term.total }), { subtotal: 0, ppn: 0, total: 0 });
     } else {
-      state.shipments = money(state.shipments + amount.total);
+      state.shipments.total = money(state.shipments.total + amount.total);
+      state.shipments.subtotal = money(state.shipments.subtotal + amount.subtotal);
     }
-    const ordinaryTerms = [...state.terms].reduce((sum, [type, total]) => sum + (type === 'PELUNASAN_PENUH' ? 0 : total), 0);
-    const billed = money(Math.max(state.shipments, ordinaryTerms, state.terms.get('PELUNASAN_PENUH') || 0));
+    const ordinaryTerms = [...state.terms].reduce((sum, [type, value]) => type === 'PELUNASAN_PENUH' ? sum : ({ subtotal: sum.subtotal + value.subtotal, total: sum.total + value.total }), { subtotal: 0, total: 0 });
+    const target = [ordinaryTerms, state.terms.get('PELUNASAN_PENUH') || { subtotal: 0, total: 0 }, state.shipments]
+      .reduce((best, value) => value.total >= best.total ? value : best);
+    const billed = money(target.total);
     const increase = money(billed - state.recognized);
+    const subtotal = money(target.subtotal - state.recognizedNet);
     state.recognized = billed;
-    if (increase <= 0) continue;
-    const subtotal = amount.total > 0 ? money(amount.subtotal * increase / amount.total) : 0;
+    state.recognizedNet = money(target.subtotal);
+    if (increase === 0 && subtotal === 0) continue;
     result.push({ ...event.doc, _ledgerAmount: { subtotal, ppn: increase - subtotal, total: increase } });
   }
   return result;

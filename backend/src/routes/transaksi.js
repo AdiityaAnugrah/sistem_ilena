@@ -16,6 +16,7 @@ const DEFAULT_COA = [
   { code: '1105', name: 'Marketplace', type: 'ASET', normal_balance: 'DEBIT', description: 'Penerimaan melalui marketplace' },
   { code: '1109', name: 'Kas/Bank Lainnya', type: 'ASET', normal_balance: 'DEBIT', description: 'Penerimaan metode lainnya' },
   { code: '1106', name: 'Dana Marketplace / Gateway', type: 'ASET', normal_balance: 'DEBIT', description: 'Pembayaran customer online, belum dianggap pencairan bank' },
+  { code: '6101', name: 'Biaya Marketplace / Gateway', type: 'BEBAN', normal_balance: 'DEBIT', description: 'Potongan biaya saat pencairan marketplace/gateway' },
   { code: '1201', name: 'Piutang Usaha', type: 'ASET', normal_balance: 'DEBIT', description: 'Tagihan penjualan kepada customer' },
   { code: '2102', name: 'Uang Muka Customer', type: 'KEWAJIBAN', normal_balance: 'KREDIT', description: 'Pembayaran customer yang belum dipakai untuk tagihan' },
   { code: '2101', name: 'PPN Keluaran', type: 'KEWAJIBAN', normal_balance: 'KREDIT', description: 'PPN yang dipungut dari customer' },

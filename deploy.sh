@@ -17,6 +17,7 @@ npm install --omit=dev
 
 echo "[3/6] Migrate optional Interior costs..."
 node scripts/migrate-interior-costs.js --apply --deployment
+node scripts/migrate-online-settlements.js --apply --deployment
 
 echo "[4/6] Reload backend (graceful)..."
 pm2 reload ilena-backend --update-env

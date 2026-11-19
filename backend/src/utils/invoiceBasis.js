@@ -11,7 +11,7 @@ const inPeriod = (date, from, to) => (!from || date >= from) && (!to || date <= 
 
 function allocate(documents, payments, credits) {
   const entries = [], journal = [], balances = new Map();
-  const line = (account_code, debit = 0, kredit = 0) => ({ account_code, debit, kredit });
+  const line = (account_code, debit = 0, kredit = 0) => ({ account_code, debit: Math.max(0, debit) + Math.max(0, -kredit), kredit: Math.max(0, kredit) + Math.max(0, -debit) });
   const events = [...documents.map(row => ({ ...row, event: 'INVOICE' })),
     ...payments.map(row => ({ ...row, event: 'PAYMENT' })), ...credits.map(row => ({ ...row, event: 'RETUR' }))];
   const priority = { INVOICE: 0, RETUR: 1, PAYMENT: 2 };
@@ -25,13 +25,13 @@ function allocate(documents, payments, credits) {
       entries.push({ ...row, id, jenis, debit, kredit, keterangan });
     };
     const post = (id, jenis, nilai, lines, keterangan) => {
-      if (nilai > 0) journal.push({ ...row, id, jenis, nilai, lines, keterangan });
+      if (nilai > 0 || lines.some(line => line.debit || line.kredit)) journal.push({ ...row, id, jenis, nilai, lines, keterangan });
     };
     if (row.event === 'INVOICE') {
       const used = Math.min(state.advance, row.gross);
       state.due += row.gross - used; state.advance -= used; state.paid += used;
       ledger(row.id, 'INVOICE', row.gross, 0, row.keterangan);
-      post(row.id, 'INVOICE', row.gross, [line('1201', row.gross), line(row.sumber === 'OFFLINE' ? '4101' : '4102', 0, row.net), ...(row.tax ? [line('2101', 0, row.tax)] : [])], row.keterangan);
+      post(row.id, row.gross ? 'INVOICE' : 'PENYESUAIAN_PPN', row.gross, [line('1201', row.gross), line(row.sumber === 'OFFLINE' ? '4101' : '4102', 0, row.net), ...(row.tax ? [line('2101', 0, row.tax)] : [])], row.keterangan);
       ledger(`${row.id}-UM`, 'UANG_MUKA_TERPAKAI', 0, used, `Uang muka dipakai untuk Invoice ${row.sumber === 'INTERIOR' ? 'Interior' : 'Offline'} ${row.referensi}`);
       post(`${row.id}-UM`, 'UANG_MUKA_TERPAKAI', used, [line('2102', used), line('1201', 0, used)], 'Uang muka dipakai untuk invoice');
     } else if (row.event === 'PAYMENT') {
@@ -73,12 +73,13 @@ function createInvoiceBasis(models) {
       }
       if (Array.isArray(scope.saleIds)) saleWhere[Op.and] = [{ id: { [Op.in]: scope.saleIds } }];
       const include = [{ model: parent, as: 'penjualan', where: saleWhere, include: [{ model: item, as: 'items' }] }];
-      const [invoices, paid, subs, returned] = await Promise.all([
+      const [invoices, paid, subs, returned, settled] = await Promise.all([
         invoiceModel.findAll({ where: documentWhere, include }),
         withPayments ? paymentModel.findAll({ where: documentWhere, include: [{ model: parent, as: 'penjualan', where: saleWhere }] }) : [],
         sumber === 'INTERIOR' ? models.ProformaInvoice.findAll({ where: { ...documentWhere, nomor_sub_invoice: { [Op.ne]: null } }, include }) : [],
         sumber === 'OFFLINE' ? models.ReturOffline.findAll({ where: documentWhere, include: [{ model: parent, as: 'penjualan', where: saleWhere }, { model: item, as: 'item' }] })
           : sumber === 'ONLINE' ? models.ReturOnline.findAll({ where: { ...documentWhere, tipe: 'PENGEMBALIAN_DANA' }, include }) : [],
+        sumber === 'ONLINE' ? models.PencairanOnline.findAll({ where: documentWhere, include }) : [],
       ]);
       const normalize = (row, id, amount, keterangan) => {
         const sale = plain(row.penjualan), saleId = Number(row[`penjualan_${sumber.toLowerCase()}_id`] || sale?.id);
@@ -94,9 +95,9 @@ function createInvoiceBasis(models) {
       if (sumber === 'ONLINE') {
         const selected = selectLatestBySale(cutoffInvoices, 'penjualan_online_id').filter(row => row.penjualan?.status !== 'DIBATALKAN');
         const parents = new Map(selected.map(row => [Number(row.penjualan_online_id || row.penjualan?.id), row]));
-        const sales = new Map([...paid, ...returned, ...selected].map(row => [Number(row.penjualan_online_id || row.penjualan?.id), row.penjualan]));
+        const sales = new Map([...paid, ...returned, ...settled, ...selected].map(row => [Number(row.penjualan_online_id || row.penjualan?.id), row.penjualan]));
         const line = (account_code, debit = 0, kredit = 0) => ({ account_code, debit, kredit });
-        for (const event of buildOnlineJournal(cutoffInvoices, paid.filter(row => !to || row.tanggal <= to), returned.filter(row => !to || row.tanggal <= to), line)) {
+        for (const event of buildOnlineJournal(cutoffInvoices, paid.filter(row => !to || row.tanggal <= to), returned.filter(row => !to || row.tanggal <= to), line, settled.filter(row => !to || row.tanggal <= to))) {
           const saleId = Number(event.detail_url.split('/').at(-1));
           const invoice = parents.get(saleId), sale = sales.get(saleId);
           const common = { ...event, saleId, sale: plain(sale), no_po: sale?.id_pesanan || '', faktur: sale?.faktur || 'NON_FAKTUR' };
@@ -126,7 +127,7 @@ function createInvoiceBasis(models) {
         })();
         const label = sumber === 'INTERIOR' ? 'Interior' : 'Offline';
         const doc = normalize(invoice, `INVOICE-${invoice.ledgerKey ?? invoice.id}`, { net: amount.subtotal, tax: amount.ppn, gross: amount.total }, `${invoice.documentType === 'SUB_INVOICE' ? 'Sub-Invoice' : 'Invoice'} ${label} ${invoice.nomor_invoice}`);
-        if (doc.gross > 0) { sourceDocuments.push(doc); documents.push(doc); }
+        if (doc.gross > 0 || doc.net || doc.tax) { sourceDocuments.push(doc); documents.push(doc); }
       }
       for (const pay of paid.filter(row => !to || row.tanggal <= to)) {
         const amount = money(pay.jumlah);
@@ -158,7 +159,7 @@ function createInvoiceBasis(models) {
   return { load };
 }
 
-function invoiceProjects(data, { source = '', from = '', to = '' } = {}) {
+function invoiceProjects(data, { source = '', from = '', to = '', includeBalances = false } = {}) {
   const groups = new Map();
   const creditsByProject = new Map(), entriesByProject = new Map(), paymentsByProject = new Map(), billedByProject = new Map();
   for (const doc of data.documents) {
@@ -182,7 +183,7 @@ function invoiceProjects(data, { source = '', from = '', to = '' } = {}) {
     paymentsByProject.set(key, rows);
   }
   for (const doc of [...data.documents, ...data.credits]) {
-    if ((source && doc.sumber !== source) || !inPeriod(doc.tanggal, from, to)) continue;
+    if ((source && doc.sumber !== source) || !inPeriod(doc.tanggal, includeBalances ? '' : from, to)) continue;
     const key = `${doc.sumber}:${doc.saleId}`;
     if (!groups.has(key)) groups.set(key, { id: doc.saleId, sumber: doc.sumber, sale: doc.sale, tanggal: doc.tanggal, net: 0, tax: 0, gross: 0, returned: 0, paid: 0, due: 0, pembayarans: [] });
     const row = groups.get(key);
@@ -206,6 +207,7 @@ function invoiceProjects(data, { source = '', from = '', to = '' } = {}) {
     row.gross = money(Math.max(0, (billedByProject.get(key) || 0) - credits.gross));
     row.due = money(balance ? balance.due : entriesByProject.get(key)?.due);
     row.paid = money(balance ? balance.paid : entriesByProject.get(key)?.paid);
+    if (row.sumber === 'ONLINE') row.paid = money(Math.max(0, row.gross - row.due));
     row.pembayarans = paymentsByProject.get(key) || [];
   }
   return [...groups.values()];

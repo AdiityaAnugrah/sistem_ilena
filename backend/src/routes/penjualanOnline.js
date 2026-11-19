@@ -6,6 +6,7 @@ const {
   PenjualanOnline,
   PenjualanOnlineItem,
   PembayaranOnline,
+  PencairanOnline,
   ReturOnline,
   SuratJalanOnline,
   InvoiceOnline,
@@ -24,6 +25,7 @@ const { generateNomorSJOnline, generateNomorInvoiceOnline } = require('../utils/
 const { resolveInvoiceDates } = require('../utils/invoiceDueDate');
 
 const router = express.Router();
+require('../utils/onlineSettlements').registerOnlineSettlements(router, { models: require('../models'), authenticate, logAction, emitDataUpdated });
 const money = (value) => Math.round(Number(value || 0));
 
 const STATUS = ['DIPROSES', 'DIKIRIM', 'SELESAI', 'DIBATALKAN', 'RETUR'];
@@ -74,6 +76,7 @@ const includeAlamat = [
 const fullInclude = [
   { model: PenjualanOnlineItem, as: 'items' },
   { model: PembayaranOnline, as: 'pembayarans' },
+  { model: PencairanOnline, as: 'pencairans' },
   { model: SuratJalanOnline, as: 'suratJalans' },
   { model: InvoiceOnline, as: 'invoices' },
   { model: ReturOnline, as: 'returs', include: [{ model: PenjualanOnlineItem, as: 'item' }] },
@@ -182,6 +185,7 @@ function applyOnlineSummary(penjualan) {
     subtotal_net: money(subtotalNet),
     total_tagihan: Math.max(0, totalTagihan),
     total_bayar: totalBayar,
+    saldo_gateway: money(totalBayar - (data.pencairans || []).reduce((sum, row) => sum + Number(row.jumlah_bruto || 0), 0)),
     sisa_tagihan: Math.max(0, totalTagihan - totalBayar),
     qty_gross: qtyGross,
     qty_retur: qtyRetur,
@@ -567,6 +571,7 @@ router.post('/:id/retur', authenticate, async (req, res) => {
     const online = await PenjualanOnline.findByPk(req.params.id, {
       include: [{ model: PenjualanOnlineItem, as: 'items' }, { model: ReturOnline, as: 'returs' }],
       transaction: t,
+      lock: t.LOCK.UPDATE,
     });
     if (!online) {
       await t.rollback();

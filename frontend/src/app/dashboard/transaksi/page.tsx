@@ -26,7 +26,7 @@ interface TransactionRow {
   id: string;
   tanggal: string;
   sumber: 'OFFLINE' | 'INTERIOR' | 'ONLINE';
-  jenis: 'INVOICE' | 'PEMBAYARAN' | 'RETUR' | 'UANG_MUKA_TERPAKAI' | 'PENYESUAIAN_RETUR';
+  jenis: 'INVOICE' | 'PEMBAYARAN' | 'RETUR' | 'UANG_MUKA_TERPAKAI' | 'PENYESUAIAN_RETUR' | 'PENYESUAIAN_PPN' | 'PENCAIRAN';
   referensi: string;
   customer: string;
   no_po?: string;
@@ -157,7 +157,9 @@ export default function TransaksiPage() {
             <option value="INVOICE">Invoice</option>
             <option value="PEMBAYARAN">Pembayaran</option>
             <option value="RETUR">Retur</option>
-            <option value="UANG_MUKA_TERPAKAI">Pemakaian Uang Muka</option>
+            <option value="PENCAIRAN">Pencairan Bank Online</option>
+              <option value="PENYESUAIAN_PPN">Penyesuaian DPP / PPN</option>
+              <option value="UANG_MUKA_TERPAKAI">Pemakaian Uang Muka</option>
             <option value="PENYESUAIAN_RETUR">Penyesuaian Retur</option>
           </select>
           <DateInput value={from} onChange={e => { setFrom(e.target.value); setPage(1); }} className="px-3 py-2 rounded-xl text-sm outline-none" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }} />

@@ -1,5 +1,5 @@
 jest.mock('../../models', () => {
-  const names = ['Invoice', 'PembayaranOffline', 'ReturOffline', 'SuratPengantar', 'PenjualanOffline', 'MutasiDisplay', 'ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior', 'ReturSJInterior', 'SuratJalanInterior', 'InvoiceOnline', 'PembayaranOnline', 'ReturOnline'];
+  const names = ['Invoice', 'PembayaranOffline', 'ReturOffline', 'SuratPengantar', 'PenjualanOffline', 'MutasiDisplay', 'ProformaInvoice', 'InvoiceInterior', 'PembayaranInterior', 'ReturSJInterior', 'SuratJalanInterior', 'InvoiceOnline', 'PembayaranOnline', 'ReturOnline', 'PencairanOnline'];
   return Object.fromEntries(names.map(name => [name, { findAll: jest.fn() }]));
 });
 jest.mock('../../middleware/auth', () => ({

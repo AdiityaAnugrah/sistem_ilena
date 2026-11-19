@@ -1,7 +1,7 @@
 const { selectLatestBySale } = require('./financialDocuments');
 const money = value => Math.round(Number(value || 0));
 
-function buildOnlineJournal(invoices = [], payments = [], returs = [], line) {
+function buildOnlineJournal(invoices = [], payments = [], returs = [], line, settlements = []) {
   const groups = new Map();
   const add = (row, type) => {
     const sale = row.penjualan;
@@ -13,16 +13,17 @@ function buildOnlineJournal(invoices = [], payments = [], returs = [], line) {
   selectLatestBySale(invoices, 'penjualan_online_id').forEach(row => add(row, 'INVOICE'));
   payments.forEach(row => add(row, 'PAYMENT'));
   returs.filter(row => row.tipe === 'PENGEMBALIAN_DANA').forEach(row => add(row, 'REFUND'));
+  settlements.forEach(row => add(row, 'SETTLEMENT'));
   const result = [];
   for (const [saleId, { sale, events }] of groups) {
     let advance = 0, outstanding = 0, billed = false, deferredReturn = 0;
-    const priority = { INVOICE: 0, PAYMENT: 1, REFUND: 2 };
+    const priority = { INVOICE: 0, PAYMENT: 1, REFUND: 2, SETTLEMENT: 3 };
     events.sort((a, b) => String(a.row.tanggal).localeCompare(String(b.row.tanggal)) || priority[a.type] - priority[b.type] || Number(a.row.id) - Number(b.row.id));
     const entry = (row, jenis, amount, lines, keterangan, suffix = '') => {
       if (amount <= 0) return;
       result.push({
         id: `ONLINE-${jenis}-${row.id}${suffix}`, tanggal: row.tanggal, sumber: 'ONLINE', jenis,
-        referensi: row.nomor_invoice || sale.id_pesanan, customer: sale.nama_pelanggan,
+        referensi: row.referensi || row.nomor_invoice || sale.id_pesanan, customer: sale.nama_pelanggan, raw: row,
         nilai: amount, keterangan, detail_url: `/dashboard/penjualan/online/${saleId}`, lines,
       });
     };
@@ -48,6 +49,8 @@ function buildOnlineJournal(invoices = [], payments = [], returs = [], line) {
         outstanding -= normal;
         advance += incoming;
         entry(row, 'PEMBAYARAN', amount, [line('1106', amount), ...(normal > 0 ? [line('1201', 0, normal)] : []), ...(incoming > 0 ? [line('2102', 0, incoming)] : [])], 'Pembayaran customer ke marketplace/gateway; bukan pencairan bank');
+      } else if (type === 'SETTLEMENT') {
+        entry(row, 'PENCAIRAN', money(row.jumlah_bruto), [line('1102', money(row.jumlah_bersih)), line('6101', money(row.biaya)), line('1106', 0, money(row.jumlah_bruto))], 'Pencairan marketplace/gateway ke bank dan potongan biaya');
       } else {
         const amount = Math.max(0, money(row.jumlah_refund));
         const reversedAdvance = billed ? 0 : Math.min(advance, amount);
