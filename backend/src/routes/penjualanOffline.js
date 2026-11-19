@@ -294,7 +294,7 @@ router.get('/', authenticate, async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const summaryRows = await PenjualanOffline.findAll({
       where,
-      attributes: ['id'],
+      attributes: ['id', 'faktur'],
       include: [
         { model: PenjualanOfflineItem, as: 'items', attributes: ['id', 'qty', 'subtotal'], separate: true },
         { model: ReturOffline, as: 'returs', attributes: ['penjualan_offline_item_id', 'qty_retur'], separate: true },
@@ -307,6 +307,8 @@ router.get('/', authenticate, async (req, res) => {
       totalNilai: acc.totalNilai + money(row.total_net),
       totalNilaiGross: acc.totalNilaiGross + money(row.total_gross),
       totalNilaiRetur: acc.totalNilaiRetur + money(row.total_retur),
+      penjualanPpn: acc.penjualanPpn + (row.faktur === 'FAKTUR' ? money(row.total_net) : 0),
+      penjualanNonPpn: acc.penjualanNonPpn + (row.faktur === 'FAKTUR' ? 0 : money(row.total_net)),
     }), {
       totalQty: 0,
       totalQtyGross: 0,
@@ -314,6 +316,8 @@ router.get('/', authenticate, async (req, res) => {
       totalNilai: 0,
       totalNilaiGross: 0,
       totalNilaiRetur: 0,
+      penjualanPpn: 0,
+      penjualanNonPpn: 0,
     });
     const { count, rows } = await PenjualanOffline.findAndCountAll({
       where,
@@ -342,6 +346,8 @@ router.get('/', authenticate, async (req, res) => {
         totalNilai: money(summary.totalNilai),
         totalNilaiGross: money(summary.totalNilaiGross),
         totalNilaiRetur: money(summary.totalNilaiRetur),
+        penjualanPpn: money(summary.penjualanPpn),
+        penjualanNonPpn: money(summary.penjualanNonPpn),
       },
     });
   } catch (err) {

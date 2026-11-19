@@ -38,9 +38,11 @@ interface OfflineRow {
 
 type PenjualanSummary = {
   totalNilai: number;
+  penjualanPpn: number;
+  penjualanNonPpn: number;
 };
 
-const emptySummary: PenjualanSummary = { totalNilai: 0 };
+const emptySummary: PenjualanSummary = { totalNilai: 0, penjualanPpn: 0, penjualanNonPpn: 0 };
 
 export default function PenjualanOfflinePage() {
   const [data, setData] = useState<OfflineRow[]>([]);
@@ -254,10 +256,17 @@ export default function PenjualanOfflinePage() {
         </TableContainer>
 
         {/* Footer */}
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, bgcolor: 'rgba(248,250,252,0.5)' }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', bgcolor: 'rgba(248,250,252,0.5)' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} transaksi</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total harga keseluruhan: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>
+            {tipeFilter === 'PENJUALAN' ? <>
+              <Typography variant="caption" color="text.secondary">Nilai sebelum PPN, setelah retur</Typography>
+              <Box component="dl" aria-label="Rincian penjualan offline" sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 3, rowGap: 1, m: 0, fontSize: { xs: 13, md: 12 }, '& dt': { color: 'text.secondary' }, '& dd': { m: 0, fontWeight: 700, fontVariantNumeric: 'tabular-nums' } }}>
+                <Box><dt>Penjualan PPN</dt><dd>{formatRupiah(summary.penjualanPpn)}</dd></Box>
+                <Box><dt>Penjualan non-PPN</dt><dd>{formatRupiah(summary.penjualanNonPpn)}</dd></Box>
+                <Box><dt>Total</dt><dd>{formatRupiah(summary.totalNilai)}</dd></Box>
+              </Box>
+            </> : <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total harga keseluruhan: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>}
           </Box>
           <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
         </Box>

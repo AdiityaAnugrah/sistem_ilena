@@ -31,11 +31,11 @@ interface InteriorRow {
 
 type PenjualanSummary = {
   totalNilai: number;
-  penjualanPpn: number;
-  penjualanNonPpn: number;
+  totalPpn: number;
+  totalTagihan: number;
 };
 
-const emptySummary: PenjualanSummary = { totalNilai: 0, penjualanPpn: 0, penjualanNonPpn: 0 };
+const emptySummary: PenjualanSummary = { totalNilai: 0, totalPpn: 0, totalTagihan: 0 };
 
 export default function PenjualanInteriorPage() {
   const [data, setData] = useState<InteriorRow[]>([]);
@@ -239,12 +239,12 @@ export default function PenjualanInteriorPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total {total} proyek</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 } }}>Nilai penjualan sebelum PPN</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: 13, md: 12 }, fontWeight: 700 }}>Total invoice sebelum PPN: <strong>{formatRupiah(summary.totalNilai)}</strong></Typography>
             </Box>
             <Box component="dl" aria-label="Rincian total invoice" sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 3, rowGap: 1, m: 0, fontSize: { xs: 13, md: 12 }, '& dt': { color: 'text.secondary' }, '& dd': { m: 0, fontWeight: 700, fontVariantNumeric: 'tabular-nums' } }}>
-              <Box><dt>Penjualan PPN</dt><dd>{formatRupiah(summary.penjualanPpn)}</dd></Box>
-              <Box><dt>Penjualan non-PPN</dt><dd>{formatRupiah(summary.penjualanNonPpn)}</dd></Box>
-              <Box><dt>Total</dt><dd>{formatRupiah(summary.totalNilai)}</dd></Box>
+              <Box><dt>DPP (sebelum PPN)</dt><dd>{formatRupiah(summary.totalNilai)}</dd></Box>
+              <Box><dt>PPN</dt><dd>{formatRupiah(summary.totalPpn)}</dd></Box>
+              <Box><dt>Jumlah keseluruhan (DPP + PPN)</dt><dd>{formatRupiah(summary.totalTagihan)}</dd></Box>
             </Box>
           </Box>
           <Pagination count={totalPages} page={page} onChange={(_, v) => setPage(v)} color="primary" size="small" sx={{ '& .MuiPaginationItem-root': { borderRadius: '8px', fontWeight: 600 } }} />
